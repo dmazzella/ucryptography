@@ -24,6 +24,8 @@
  * THE SOFTWARE.
  */
 
+#if defined(MICROPY_PY_UCRYPTOGRAPHY)
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -32,8 +34,6 @@
 
 #include "py/objstr.h"
 #include "py/runtime.h"
-
-#if defined(MICROPY_PY_UCRYPTOGRAPHY)
 
 #if !defined(MBEDTLS_USER_CONFIG_FILE)
 #define MBEDTLS_USER_CONFIG_FILE "modcryptography_config.h"
@@ -44,18 +44,6 @@
 #else
 #include MBEDTLS_CONFIG_FILE
 #endif // MBEDTLS_CONFIG_FILE
-
-#if defined(MBEDTLS_PLATFORM_C)
-#include "mbedtls/platform.h"
-#else
-#include <stdio.h>
-#include <stdlib.h>
-#define mbedtls_fprintf fprintf
-#define mbedtls_printf printf
-#define mbedtls_exit exit
-#define MBEDTLS_EXIT_SUCCESS EXIT_SUCCESS
-#define MBEDTLS_EXIT_FAILURE EXIT_FAILURE
-#endif // MBEDTLS_PLATFORM_C
 
 #if defined(MBEDTLS_VERSION_C)
 #include "mbedtls/version.h"
@@ -176,20 +164,60 @@ STATIC mp_obj_t x509_crt_parse_name(const mbedtls_x509_name *dn)
     return rdn_dict;
 }
 
-STATIC mp_obj_t x509_crt_parse_der(mp_obj_t feature)
+STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_x509_crt *crt)
+{
+    const mbedtls_asn1_buf *o = &crt->sig_oid;
+    unsigned int value = 0;
+    vstr_t vstr_oid;
+    vstr_init(&vstr_oid, 0);
+
+    for (int i = 0; i < o->len; i++)
+    {
+        if (i == 0) {
+            vstr_printf(&vstr_oid, "%d.%d", o->p[0] / 40, o->p[0] % 40);
+        }
+
+        if (((value << 7) >> 7) != value)
+        {
+            mp_raise_ValueError("OID BUF TOO SMALL");
+        }
+
+        value <<= 7;
+        value += o->p[i] & 0x7F;
+
+        if (!(o->p[i] & 0x80))
+        {
+            vstr_printf(&vstr_oid, ".%d", value);
+            value = 0;
+        }
+    }
+    
+    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_oid);
+}
+
+STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
 {
     mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(feature, &bufinfo, MP_BUFFER_READ);
+    mp_get_buffer_raise(certificate, &bufinfo, MP_BUFFER_READ);
     if (!bufinfo.len)
     {
-        mp_raise_ValueError(NULL);
+        mp_raise_ValueError("CERTIFICATE EMPTY");
     }
     mbedtls_x509_crt crt;
     mbedtls_x509_crt_init(&crt);
+
     if (mbedtls_x509_crt_parse_der_nocopy(&crt, (const byte *)bufinfo.buf, bufinfo.len) != 0)
     {
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError("DER");
+        mp_raise_ValueError("CERTIFICATE FORMAT");
+    }
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    if (mbedtls_pk_parse_public_key(&pk, crt.pk_raw.p, crt.pk_raw.len) != 0)
+    {
+        mbedtls_pk_free(&pk);
+        mp_raise_ValueError("KEY FORMAT");
     }
 
     mp_obj_t cert = mp_obj_new_dict(0);
@@ -202,9 +230,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t feature)
     mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature), mp_obj_new_bytes(crt.sig.p, crt.sig.len));
     mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_tbs_certificate_bytes), mp_obj_new_bytes(crt.tbs.p, crt.tbs.len));
     mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_key), mp_obj_new_bytes(crt.pk_raw.p, crt.pk_raw.len));
-
-    // const char *desc = NULL;
-    // mbedtls_oid_get_sig_alg_desc(&crt.sig_oid, &desc);
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature_algorithm_oid), x509_crt_parse_oid(&crt));
 
     // vstr_t vstr_crt;
     // vstr_init_len(&vstr_crt, crt.raw.len);
@@ -212,6 +238,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t feature)
     // printf("certificate info: %s\n", vstr_crt.buf);
 
     mbedtls_x509_crt_free(&crt);
+    mbedtls_pk_free(&pk);
     return cert;
 }
 

@@ -27,4 +27,26 @@
 #ifndef MBEDTLS_USER_CONFIG_FILE_H
 #define MBEDTLS_USER_CONFIG_FILE_H
 
-#endif /* MBEDTLS_USER_CONFIG_FILE_H */
+#undef MBEDTLS_FS_IO
+#undef MBEDTLS_NET_C
+#undef MBEDTLS_PSA_CRYPTO_C
+#undef MBEDTLS_PSA_CRYPTO_STORAGE_C
+#undef MBEDTLS_PSA_ITS_FILE_C
+#undef MBEDTLS_TIMING_C
+#undef MBEDTLS_X509_CSR_PARSE_C
+#undef MBEDTLS_X509_CSR_WRITE_C
+
+#if defined(__arm__)
+#define MBEDTLS_NO_PLATFORM_ENTROPY
+
+#if !defined(calloc) && !defined(free)
+#include "py/gc.h"
+#define gc_calloc(a, b) gc_alloc((a * b), 0)
+#define MBEDTLS_PLATFORM_MEMORY
+#define MBEDTLS_PLATFORM_CALLOC_MACRO gc_calloc
+#define MBEDTLS_PLATFORM_FREE_MACRO gc_free
+#endif
+
+#endif
+
+#endif // MBEDTLS_USER_CONFIG_FILE_H
