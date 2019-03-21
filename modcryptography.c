@@ -134,6 +134,66 @@ STATIC void x509_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_
 }
 
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
+STATIC mp_obj_t serialization_ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
+{
+    vstr_t vstr_q_x;
+    vstr_t vstr_q_y;
+    vstr_init_len(&vstr_q_x, mbedtls_mpi_size(&ecp_keypair->Q.X));
+    vstr_init_len(&vstr_q_y, mbedtls_mpi_size(&ecp_keypair->Q.Y));
+    mbedtls_mpi_write_binary(&ecp_keypair->Q.X, (unsigned char *)vstr_q_x.buf, vstr_len(&vstr_q_x));
+    mbedtls_mpi_write_binary(&ecp_keypair->Q.Y, (unsigned char *)vstr_q_y.buf, vstr_len(&vstr_q_y));
+
+    mp_obj_t EllipticCurvePublicKey = mp_obj_new_dict(0);
+    mp_obj_dict_store(EllipticCurvePublicKey, MP_ROM_QSTR(MP_QSTR_x), mp_obj_new_bytes((unsigned char *)vstr_q_x.buf, vstr_len(&vstr_q_x)));
+    mp_obj_dict_store(EllipticCurvePublicKey, MP_ROM_QSTR(MP_QSTR_y), mp_obj_new_bytes((unsigned char *)vstr_q_y.buf, vstr_len(&vstr_q_y)));
+
+    mp_obj_t EllipticCurveKey = mp_obj_new_dict(0);
+    mp_obj_dict_store(EllipticCurveKey, MP_ROM_QSTR(MP_QSTR_Q), EllipticCurvePublicKey);
+
+    if (private)
+    {
+        vstr_t vstr_d;
+        vstr_init_len(&vstr_d, mbedtls_mpi_size(&ecp_keypair->d));
+        mbedtls_mpi_write_binary(&ecp_keypair->d, (unsigned char *)vstr_d.buf, vstr_len(&vstr_d));
+        mp_obj_dict_store(EllipticCurveKey, MP_ROM_QSTR(MP_QSTR_d), mp_obj_new_bytes((unsigned char *)vstr_d.buf, vstr_len(&vstr_d)));
+    }
+
+    return EllipticCurveKey;
+}
+#if defined(MBEDTLS_PK_PARSE_C)
+
+#endif // MBEDTLS_PK_PARSE_C
+
+STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_t *type)
+{
+    unsigned int value = 0;
+    vstr_t vstr_oid;
+    vstr_init(&vstr_oid, 0);
+
+    for (int i = 0; i < o->len; i++)
+    {
+        if (i == 0)
+        {
+            vstr_printf(&vstr_oid, "%d.%d", o->p[0] / 40, o->p[0] % 40);
+        }
+
+        if (((value << 7) >> 7) != value)
+        {
+            mp_raise_ValueError("OID BUF TOO SMALL");
+        }
+
+        value <<= 7;
+        value += o->p[i] & 0x7F;
+
+        if (!(o->p[i] & 0x80))
+        {
+            vstr_printf(&vstr_oid, ".%d", value);
+            value = 0;
+        }
+    }
+
+    return mp_obj_new_str_from_vstr(type, &vstr_oid);
+}
 
 STATIC mp_obj_t x509_crt_parse_time(const mbedtls_x509_time *t)
 {
@@ -157,42 +217,51 @@ STATIC mp_obj_t x509_crt_parse_name(const mbedtls_x509_name *dn)
         }
 
         mbedtls_oid_get_attr_short_name(&name->oid, &short_name);
-        mp_obj_dict_store(rdn_dict, mp_obj_new_str_via_qstr(short_name, strlen(short_name)), mp_obj_new_bytes(name->val.p, name->val.len));
+        if (short_name != NULL)
+        {
+            mp_obj_dict_store(rdn_dict, mp_obj_new_str_via_qstr(short_name, strlen(short_name)), mp_obj_new_bytes(name->val.p, name->val.len));
+        }
+        else
+        {
+            mp_obj_dict_store(rdn_dict, x509_crt_parse_oid(&name->oid, &mp_type_str), mp_obj_new_bytes(name->val.p, name->val.len));
+        }
 
         name = name->next;
     }
     return rdn_dict;
 }
 
-STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_x509_crt *crt)
+STATIC mp_obj_t x509_crt_parse_ext_key_usage(const mbedtls_x509_sequence *extended_key_usage)
 {
-    const mbedtls_asn1_buf *o = &crt->sig_oid;
-    unsigned int value = 0;
-    vstr_t vstr_oid;
-    vstr_init(&vstr_oid, 0);
+    const mbedtls_x509_sequence *cur = extended_key_usage;
+    const char *desc = NULL;
+    mp_obj_t ext_key_usage = mp_obj_new_dict(0);
 
-    for (int i = 0; i < o->len; i++)
+    while (cur != NULL)
     {
-        if (i == 0) {
-            vstr_printf(&vstr_oid, "%d.%d", o->p[0] / 40, o->p[0] % 40);
-        }
-
-        if (((value << 7) >> 7) != value)
+        if (mbedtls_oid_get_extended_key_usage(&cur->buf, &desc) == 0)
         {
-            mp_raise_ValueError("OID BUF TOO SMALL");
+            mp_obj_dict_store(ext_key_usage, x509_crt_parse_oid(&cur->buf, &mp_type_str), mp_obj_new_bytes((const byte *)desc, strlen(desc)));
         }
-
-        value <<= 7;
-        value += o->p[i] & 0x7F;
-
-        if (!(o->p[i] & 0x80))
-        {
-            vstr_printf(&vstr_oid, ".%d", value);
-            value = 0;
-        }
+        cur = cur->next;
     }
-    
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_oid);
+
+    return ext_key_usage;
+}
+
+STATIC mp_obj_t x509_crt_parse_key_usage(const unsigned int ku)
+{
+    mp_obj_t key_usage = mp_obj_new_dict(0);
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_signature), mp_obj_new_bool(ku & MBEDTLS_X509_KU_DIGITAL_SIGNATURE));
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_non_repudiation), mp_obj_new_bool(ku & MBEDTLS_X509_KU_NON_REPUDIATION));
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_key_encipherment), mp_obj_new_bool(ku & MBEDTLS_X509_KU_KEY_ENCIPHERMENT));
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_data_encipherment), mp_obj_new_bool(ku & MBEDTLS_X509_KU_DATA_ENCIPHERMENT));
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_key_agreement), mp_obj_new_bool(ku & MBEDTLS_X509_KU_KEY_AGREEMENT));
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_key_cert_sign), mp_obj_new_bool(ku & MBEDTLS_X509_KU_KEY_CERT_SIGN));
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_crl_sign), mp_obj_new_bool(ku & MBEDTLS_X509_KU_CRL_SIGN));
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_encipher_only), mp_obj_new_bool(ku & MBEDTLS_X509_KU_ENCIPHER_ONLY));
+    mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_decipher_only), mp_obj_new_bool(ku & MBEDTLS_X509_KU_DECIPHER_ONLY));
+    return key_usage;
 }
 
 STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
@@ -205,20 +274,39 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     }
     mbedtls_x509_crt crt;
     mbedtls_x509_crt_init(&crt);
-
     if (mbedtls_x509_crt_parse_der_nocopy(&crt, (const byte *)bufinfo.buf, bufinfo.len) != 0)
     {
         mbedtls_x509_crt_free(&crt);
         mp_raise_ValueError("CERTIFICATE FORMAT");
     }
 
+    // vstr_t vstr_crt;
+    // vstr_init_len(&vstr_crt, crt.raw.len);
+    // mbedtls_x509_crt_info(vstr_crt.buf, vstr_len(&vstr_crt), "", &crt);
+    // printf("certificate info: %s\n", vstr_crt.buf);
+
+#if defined(MBEDTLS_PK_PARSE_C)
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
     if (mbedtls_pk_parse_public_key(&pk, crt.pk_raw.p, crt.pk_raw.len) != 0)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_ValueError("KEY FORMAT");
+        mbedtls_x509_crt_free(&crt);
+        mp_raise_ValueError("PUBLIC KEY FORMAT");
     }
+
+    if (mbedtls_pk_get_type(&pk) != MBEDTLS_PK_ECKEY)
+    {
+        mbedtls_pk_free(&pk);
+        mbedtls_x509_crt_free(&crt);
+        mp_raise_ValueError("PUBLIC KEY UNSUPPORTED (ONLY EC KEY IS SUPPORTED)");
+    }
+
+#endif // MBEDTLS_PK_PARSE_C
+
+    mp_obj_t extensions = mp_obj_new_dict(0);
+    mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_extended_key_usage), x509_crt_parse_ext_key_usage(&crt.ext_key_usage));
+    mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_key_usage), x509_crt_parse_key_usage(crt.key_usage));
 
     mp_obj_t cert = mp_obj_new_dict(0);
     mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_version), mp_obj_new_int(crt.version));
@@ -229,16 +317,18 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_issuer), x509_crt_parse_name(&crt.issuer));
     mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature), mp_obj_new_bytes(crt.sig.p, crt.sig.len));
     mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_tbs_certificate_bytes), mp_obj_new_bytes(crt.tbs.p, crt.tbs.len));
+#if defined(MBEDTLS_PK_PARSE_C)
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_key), serialization_ec_parse_keypair(mbedtls_pk_ec(pk), false));
+#else
     mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_key), mp_obj_new_bytes(crt.pk_raw.p, crt.pk_raw.len));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature_algorithm_oid), x509_crt_parse_oid(&crt));
-
-    // vstr_t vstr_crt;
-    // vstr_init_len(&vstr_crt, crt.raw.len);
-    // mbedtls_x509_crt_info(vstr_crt.buf, vstr_len(&vstr_crt), "", &crt);
-    // printf("certificate info: %s\n", vstr_crt.buf);
+#endif // MBEDTLS_PK_PARSE_C
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature_algorithm_oid), x509_crt_parse_oid(&crt.sig_oid, &mp_type_str));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_extensions), extensions);
 
     mbedtls_x509_crt_free(&crt);
+#if defined(MBEDTLS_PK_PARSE_C)
     mbedtls_pk_free(&pk);
+#endif // MBEDTLS_PK_PARSE_C
     return cert;
 }
 
@@ -262,6 +352,93 @@ STATIC mp_obj_type_t x509_type = {
 };
 #endif // MBEDTLS_X509_USE_C
 
+#if defined(MBEDTLS_PK_PARSE_C)
+STATIC void serialization_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
+{
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(public_key, &bufinfo, MP_BUFFER_READ);
+    if (!bufinfo.len)
+    {
+        mp_raise_ValueError("PUBLIC KEY EMPTY");
+    }
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    if (mbedtls_pk_parse_public_key(&pk, (const byte *)bufinfo.buf, bufinfo.len) != 0)
+    {
+        mbedtls_pk_free(&pk);
+        mp_raise_ValueError("PUBLIC KEY FORMAT");
+    }
+
+    mp_obj_t pub_key = serialization_ec_parse_keypair(mbedtls_pk_ec(pk), false);
+
+    mbedtls_pk_free(&pk);
+    return pub_key;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_pk_parse_public_key_obj, pk_parse_public_key);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_pk_parse_public_key_obj, MP_ROM_PTR(&mod_pk_parse_public_key_obj));
+
+STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
+{
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(private_key, &bufinfo, MP_BUFFER_READ);
+    if (!bufinfo.len)
+    {
+        mp_raise_ValueError("PRIVATE KEY EMPTY");
+    }
+
+    mp_buffer_info_t bufinfo1;
+    bool use_password = mp_get_buffer(password, &bufinfo1, MP_BUFFER_READ);
+    if (use_password && !bufinfo1.len)
+    {
+        mp_raise_ValueError("PRIVATE KEY EMPTY");
+    }
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    if (mbedtls_pk_parse_key(&pk, (const byte *)bufinfo.buf, bufinfo.len, (use_password ? (const byte *)bufinfo1.buf : NULL), bufinfo1.len) != 0)
+    {
+        mbedtls_pk_free(&pk);
+        mp_raise_ValueError("PRIVATE KEY FORMAT");
+    }
+
+    if (mbedtls_pk_get_type(&pk) != MBEDTLS_PK_ECKEY)
+    {
+        mbedtls_pk_free(&pk);
+        mp_raise_ValueError("PRIVATE KEY UNSUPPORTED (ONLY EC KEY IS SUPPORTED)");
+    }
+
+    mp_obj_t priv_key = serialization_ec_parse_keypair(mbedtls_pk_ec(pk), true);
+
+    mbedtls_pk_free(&pk);
+    return priv_key;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_pk_parse_key_obj, pk_parse_key);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_pk_parse_key_obj, MP_ROM_PTR(&mod_pk_parse_key_obj));
+
+STATIC const mp_rom_map_elem_t serialization_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_load_der_public_key), MP_ROM_PTR(&mod_static_pk_parse_public_key_obj)},
+    {MP_ROM_QSTR(MP_QSTR_load_der_private_key), MP_ROM_PTR(&mod_static_pk_parse_key_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(serialization_locals_dict, serialization_locals_dict_table);
+
+STATIC mp_obj_type_t serialization_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_serialization,
+    .print = serialization_print,
+    .locals_dict = (void *)&serialization_locals_dict,
+};
+#endif //MBEDTLS_PK_PARSE_C
+
 STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
 #if defined(MBEDTLS_VERSION_C)
@@ -270,6 +447,9 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
 #if defined(MBEDTLS_X509_USE_C)
     {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR(&x509_type)},
 #endif // MBEDTLS_X509_USE_C
+#if defined(MBEDTLS_PK_PARSE_C)
+    {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
+#endif //MBEDTLS_PK_PARSE_C
 };
 
 STATIC MP_DEFINE_CONST_DICT(mp_module_ucryptography_globals, mp_module_ucryptography_globals_table);
