@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=import-error
+from cryptography import x509
 from ubinascii import a2b_base64
 from uio import BytesIO
-from cryptography import x509
 
 
 def loadf_sequence(f):
@@ -63,6 +63,11 @@ s+LnrOm0QFpFTo1ZoMRiLiDVvqR/exKUFMF6OA==
 def main():
     certificate = x509.load_der_x509_certificate(CERT_DER)
     print("load_der_x509_certificate: ", certificate)
+    public_key = certificate['public_key']
+    public_numbers = public_key.public_numbers()
+    print("public_key.curve", public_key.curve.name)
+    print("public_key.public_numbers.x", public_numbers.x)
+    print("public_key.public_numbers.y", public_numbers.y)
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@
 #include <string.h>
 
 #include "py/objstr.h"
+#include "py/objint.h"
 #include "py/runtime.h"
 
 #if !defined(MBEDTLS_USER_CONFIG_FILE)
@@ -127,42 +128,338 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/oid.h"
 #endif //MBEDTLS_X509_CRT_PARSE_C
 
-STATIC void x509_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+#if defined(MBEDTLS_PK_PARSE_C)
+
+// EllipticCurve: name(str)
+typedef struct _mp_ec_curve_t
+{
+    mp_obj_base_t base;
+} mp_ec_curve_t;
+
+STATIC void ec_curve_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
     (void)kind;
     mp_printf(print, mp_obj_get_type_str(self_in));
 }
 
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
+STATIC const mp_rom_map_elem_t ec_curve_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_secp256r1)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ec_curve_locals_dict, ec_curve_locals_dict_table);
+
+const mp_obj_type_t ec_curve_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_EllipticCurve,
+    .print = ec_curve_print,
+    .locals_dict = (void *)&ec_curve_locals_dict,
+};
+
+const mp_ec_curve_t mp_const_elliptic_curve_obj = {{&ec_curve_type}};
+
+// EllipticCurvePublicNumbers: curve(EllipticCurve), x(int), y(int)
+typedef struct _mp_ec_public_numbers_t
+{
+    mp_obj_base_t base;
+    mp_ec_curve_t *curve;
+    mp_obj_t x;
+    mp_obj_t y;
+} mp_ec_public_numbers_t;
+
+STATIC void ec_public_numbers_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC void ec_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_ec_public_numbers_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_curve)
+            {
+                dest[0] = self->curve;
+                return;
+            }
+            if (attr == MP_QSTR_x)
+            {
+                dest[0] = self->x;
+                return;
+            }
+            if (attr == MP_QSTR_y)
+            {
+                dest[0] = self->y;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t ec_public_numbers_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_x), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_y), MP_ROM_PTR(mp_const_none)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ec_public_numbers_locals_dict, ec_public_numbers_locals_dict_table);
+
+const mp_obj_type_t ec_public_numbers_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_EllipticCurvePublicNumbers,
+    .print = ec_public_numbers_print,
+    .attr = ec_public_numbers_attr,
+    .locals_dict = (void *)&ec_public_numbers_locals_dict,
+};
+
+// EllipticCurvePrivateNumbers: public_numbers(EllipticCurvePublicNumbers), private_value(int)
+typedef struct _mp_ec_private_numbers_t
+{
+    mp_obj_base_t base;
+    mp_ec_public_numbers_t *public_numbers;
+    mp_obj_t private_value;
+} mp_ec_private_numbers_t;
+
+STATIC void ec_private_numbers_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC void ec_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_ec_private_numbers_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_private_value)
+            {
+                dest[0] = self->private_value;
+                return;
+            }
+            if (attr == MP_QSTR_public_numbers)
+            {
+                dest[0] = self->public_numbers;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t ec_private_numbers_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_private_value), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(mp_const_none)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ec_private_numbers_locals_dict, ec_private_numbers_locals_dict_table);
+
+const mp_obj_type_t ec_private_numbers_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_EllipticCurvePrivateNumbers,
+    .print = ec_private_numbers_print,
+    .attr = ec_private_numbers_attr,
+    .locals_dict = (void *)&ec_private_numbers_locals_dict,
+};
+
+// EllipticCurvePublicKey: public_numbers(EllipticCurvePublicNumbers)
+typedef struct _mp_ec_public_key_t
+{
+    mp_obj_base_t base;
+    mp_ec_public_numbers_t *public_numbers;
+} mp_ec_public_key_t;
+
+STATIC void ec_public_key_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC mp_obj_t ec_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t digest)
+{
+    mp_ec_public_key_t *self = MP_OBJ_TO_PTR(obj);
+    (void)self;
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(signature, &bufinfo, MP_BUFFER_READ);
+    if (!bufinfo.len)
+    {
+        mp_raise_ValueError("SIGNATURE EMPTY");
+    }
+
+    mp_buffer_info_t bufinfo1;
+    mp_get_buffer_raise(digest, &bufinfo1, MP_BUFFER_READ);
+    if (!bufinfo1.len)
+    {
+        mp_raise_ValueError("DIGEST EMPTY");
+    }
+
+    return mp_obj_new_bool(0);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_ec_verify_obj, ec_verify);
+
+STATIC mp_obj_t ec_public_numbers(mp_obj_t obj)
+{
+    mp_ec_public_key_t *self = MP_OBJ_TO_PTR(obj);
+    return self->public_numbers;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_numbers_obj, ec_public_numbers);
+
+STATIC const mp_rom_map_elem_t ec_public_key_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(MP_OBJ_FROM_PTR(&mp_const_elliptic_curve_obj))},
+    {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(&mod_ec_public_numbers_obj)},
+    {MP_ROM_QSTR(MP_QSTR_verify), MP_OBJ_FROM_PTR(&mod_ec_verify_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ec_public_key_locals_dict, ec_public_key_locals_dict_table);
+
+const mp_obj_type_t ec_public_key_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_EllipticCurvePublicKey,
+    .print = ec_public_key_print,
+    .locals_dict = (void *)&ec_public_key_locals_dict,
+};
+
+// EllipticCurvePrivateKey: private_numbers(EllipticCurvePrivateNumbers)
+// EllipticCurvePrivateKeyWithSerialization=EllipticCurvePrivateKey
+typedef struct _mp_ec_private_key_t
+{
+    mp_obj_base_t base;
+    mp_ec_private_numbers_t *private_numbers;
+} mp_ec_private_key_t;
+
+STATIC void ec_private_key_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC mp_obj_t ec_private_numbers(mp_obj_t obj)
+{
+    mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
+    return self->private_numbers;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_numbers_obj, ec_private_numbers);
+
+STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
+{
+    mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
+    (void)self;
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(digest, &bufinfo, MP_BUFFER_READ);
+    if (!bufinfo.len)
+    {
+        mp_raise_ValueError("DIGEST EMPTY");
+    }
+
+    return mp_obj_new_bool(0);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_sign_obj, ec_sign);
+
+STATIC mp_obj_t ec_public_key(mp_obj_t obj)
+{
+    mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
+    mp_ec_public_key_t *EllipticCurvePublicKey = m_new_obj(mp_ec_public_key_t);
+    EllipticCurvePublicKey->base.type = &ec_public_key_type;
+
+    mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
+    EllipticCurve->base.type = &ec_curve_type;
+
+    mp_ec_public_numbers_t *EllipticCurvePublicNumbers = m_new_obj(mp_ec_public_numbers_t);
+    EllipticCurvePublicNumbers->base.type = &ec_public_numbers_type;
+    EllipticCurvePublicNumbers->curve = EllipticCurve;
+    EllipticCurvePublicNumbers->x = self->private_numbers->public_numbers->x;
+    EllipticCurvePublicNumbers->y = self->private_numbers->public_numbers->y;
+
+    EllipticCurvePublicKey->public_numbers = EllipticCurvePublicNumbers;
+
+    return EllipticCurvePublicKey;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_key_obj, ec_public_key);
+
+STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_private_numbers), MP_ROM_PTR(&mod_ec_private_numbers_obj)},
+    {MP_ROM_QSTR(MP_QSTR_sign), MP_ROM_PTR(&mod_ec_sign_obj)},
+    {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_ec_public_key_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ec_private_key_locals_dict, ec_private_key_locals_dict_table);
+
+const mp_obj_type_t ec_private_key_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_EllipticCurvePrivateKey,
+    .print = ec_private_key_print,
+    .locals_dict = (void *)&ec_private_key_locals_dict,
+};
+
 STATIC mp_obj_t serialization_ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
 {
     vstr_t vstr_q_x;
-    vstr_t vstr_q_y;
     vstr_init_len(&vstr_q_x, mbedtls_mpi_size(&ecp_keypair->Q.X));
-    vstr_init_len(&vstr_q_y, mbedtls_mpi_size(&ecp_keypair->Q.Y));
     mbedtls_mpi_write_binary(&ecp_keypair->Q.X, (unsigned char *)vstr_q_x.buf, vstr_len(&vstr_q_x));
+
+    vstr_t vstr_q_y;
+    vstr_init_len(&vstr_q_y, mbedtls_mpi_size(&ecp_keypair->Q.Y));
     mbedtls_mpi_write_binary(&ecp_keypair->Q.Y, (unsigned char *)vstr_q_y.buf, vstr_len(&vstr_q_y));
 
-    mp_obj_t EllipticCurvePublicKey = mp_obj_new_dict(0);
-    mp_obj_dict_store(EllipticCurvePublicKey, MP_ROM_QSTR(MP_QSTR_x), mp_obj_new_bytes((unsigned char *)vstr_q_x.buf, vstr_len(&vstr_q_x)));
-    mp_obj_dict_store(EllipticCurvePublicKey, MP_ROM_QSTR(MP_QSTR_y), mp_obj_new_bytes((unsigned char *)vstr_q_y.buf, vstr_len(&vstr_q_y)));
+    mp_ec_public_key_t *EllipticCurvePublicKey = m_new_obj(mp_ec_public_key_t);
+    EllipticCurvePublicKey->base.type = &ec_public_key_type;
 
-    mp_obj_t EllipticCurveKey = mp_obj_new_dict(0);
-    mp_obj_dict_store(EllipticCurveKey, MP_ROM_QSTR(MP_QSTR_Q), EllipticCurvePublicKey);
+    mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
+    EllipticCurve->base.type = &ec_curve_type;
+
+    mp_ec_public_numbers_t *EllipticCurvePublicNumbers = m_new_obj(mp_ec_public_numbers_t);
+    EllipticCurvePublicNumbers->base.type = &ec_public_numbers_type;
+    EllipticCurvePublicNumbers->curve = EllipticCurve;
+    EllipticCurvePublicNumbers->x = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_q_x), (const byte *)vstr_q_x.buf);
+    EllipticCurvePublicNumbers->y = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_q_y), (const byte *)vstr_q_y.buf);
+
+    EllipticCurvePublicKey->public_numbers = EllipticCurvePublicNumbers;
 
     if (private)
     {
         vstr_t vstr_d;
         vstr_init_len(&vstr_d, mbedtls_mpi_size(&ecp_keypair->d));
         mbedtls_mpi_write_binary(&ecp_keypair->d, (unsigned char *)vstr_d.buf, vstr_len(&vstr_d));
-        mp_obj_dict_store(EllipticCurveKey, MP_ROM_QSTR(MP_QSTR_d), mp_obj_new_bytes((unsigned char *)vstr_d.buf, vstr_len(&vstr_d)));
-    }
 
-    return EllipticCurveKey;
+        mp_ec_private_numbers_t *EllipticCurvePrivateNumbers = m_new_obj(mp_ec_private_numbers_t);
+        EllipticCurvePrivateNumbers->base.type = &ec_private_numbers_type;
+        EllipticCurvePrivateNumbers->private_value = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_d), (const byte *)vstr_d.buf);
+        EllipticCurvePrivateNumbers->public_numbers = EllipticCurvePublicNumbers;
+
+        mp_ec_private_key_t *EllipticCurvePrivateKey = m_new_obj(mp_ec_private_key_t);
+        EllipticCurvePrivateKey->base.type = &ec_private_key_type;
+        EllipticCurvePrivateKey->private_numbers = EllipticCurvePrivateNumbers;
+        return EllipticCurvePrivateKey;
+    }
+    else
+    {
+        return EllipticCurvePublicKey;
+    }
 }
-#if defined(MBEDTLS_PK_PARSE_C)
 
 #endif // MBEDTLS_PK_PARSE_C
+
+STATIC void x509_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
 
 STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_t *type)
 {

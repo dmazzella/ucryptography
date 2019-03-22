@@ -47,7 +47,14 @@ AwEHoUQDQgAEQWfGXJw+X9PV2czte6S4pXBM4QuOORNL6DeWlqbnKMK1l7xf3wNe
 
 def main():
     private_key = serialization.load_der_private_key(PRIVATE_KEY_DER, None)
-    print("load_der_private_key: ", private_key)
+    print("load_der_private_key:", private_key)
+    private_numbers = private_key.private_numbers()
+    print("private_numbers.private_value: ", private_numbers.private_value)
+    public_key = private_key.public_key()
+    public_numbers = public_key.public_numbers()
+    print("public_key.curve", public_key.curve.name)
+    print("public_key.public_numbers.x", public_numbers.x)
+    print("public_key.public_numbers.y", public_numbers.y)
 
 if __name__ == "__main__":
     main()
