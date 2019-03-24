@@ -149,7 +149,7 @@ STATIC const mp_rom_map_elem_t ec_curve_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_curve_locals_dict, ec_curve_locals_dict_table);
 
-const mp_obj_type_t ec_curve_type = {
+STATIC mp_obj_type_t ec_curve_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurve,
     .print = ec_curve_print,
@@ -211,7 +211,7 @@ STATIC const mp_rom_map_elem_t ec_public_numbers_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_public_numbers_locals_dict, ec_public_numbers_locals_dict_table);
 
-const mp_obj_type_t ec_public_numbers_type = {
+STATIC mp_obj_type_t ec_public_numbers_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurvePublicNumbers,
     .print = ec_public_numbers_print,
@@ -265,7 +265,7 @@ STATIC const mp_rom_map_elem_t ec_private_numbers_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_private_numbers_locals_dict, ec_private_numbers_locals_dict_table);
 
-const mp_obj_type_t ec_private_numbers_type = {
+STATIC mp_obj_type_t ec_private_numbers_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurvePrivateNumbers,
     .print = ec_private_numbers_print,
@@ -278,6 +278,7 @@ typedef struct _mp_ec_public_key_t
 {
     mp_obj_base_t base;
     mp_ec_public_numbers_t *public_numbers;
+    mp_obj_t public_bytes;
 } mp_ec_public_key_t;
 
 STATIC void ec_public_key_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
@@ -317,15 +318,24 @@ STATIC mp_obj_t ec_public_numbers(mp_obj_t obj)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_numbers_obj, ec_public_numbers);
 
+STATIC mp_obj_t ec_public_bytes(mp_obj_t obj)
+{
+    mp_ec_public_key_t *self = MP_OBJ_TO_PTR(obj);
+    return self->public_bytes;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_bytes_obj, ec_public_bytes);
+
 STATIC const mp_rom_map_elem_t ec_public_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(MP_OBJ_FROM_PTR(&mp_const_elliptic_curve_obj))},
     {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(&mod_ec_public_numbers_obj)},
+    {MP_ROM_QSTR(MP_QSTR_public_bytes), MP_ROM_PTR(&mod_ec_public_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_verify), MP_OBJ_FROM_PTR(&mod_ec_verify_obj)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ec_public_key_locals_dict, ec_public_key_locals_dict_table);
 
-const mp_obj_type_t ec_public_key_type = {
+STATIC mp_obj_type_t ec_public_key_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurvePublicKey,
     .print = ec_public_key_print,
@@ -338,6 +348,7 @@ typedef struct _mp_ec_private_key_t
 {
     mp_obj_base_t base;
     mp_ec_private_numbers_t *private_numbers;
+    mp_ec_public_key_t *public_key;
 } mp_ec_private_key_t;
 
 STATIC void ec_private_key_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
@@ -373,21 +384,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_sign_obj, ec_sign);
 STATIC mp_obj_t ec_public_key(mp_obj_t obj)
 {
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
-    mp_ec_public_key_t *EllipticCurvePublicKey = m_new_obj(mp_ec_public_key_t);
-    EllipticCurvePublicKey->base.type = &ec_public_key_type;
-
-    mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
-    EllipticCurve->base.type = &ec_curve_type;
-
-    mp_ec_public_numbers_t *EllipticCurvePublicNumbers = m_new_obj(mp_ec_public_numbers_t);
-    EllipticCurvePublicNumbers->base.type = &ec_public_numbers_type;
-    EllipticCurvePublicNumbers->curve = EllipticCurve;
-    EllipticCurvePublicNumbers->x = self->private_numbers->public_numbers->x;
-    EllipticCurvePublicNumbers->y = self->private_numbers->public_numbers->y;
-
-    EllipticCurvePublicKey->public_numbers = EllipticCurvePublicNumbers;
-
-    return EllipticCurvePublicKey;
+    return self->public_key;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_key_obj, ec_public_key);
@@ -400,14 +397,14 @@ STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_private_key_locals_dict, ec_private_key_locals_dict_table);
 
-const mp_obj_type_t ec_private_key_type = {
+STATIC mp_obj_type_t ec_private_key_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurvePrivateKey,
     .print = ec_private_key_print,
     .locals_dict = (void *)&ec_private_key_locals_dict,
 };
 
-STATIC mp_obj_t serialization_ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
+STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
 {
     vstr_t vstr_q_x;
     vstr_init_len(&vstr_q_x, mbedtls_mpi_size(&ecp_keypair->Q.X));
@@ -431,6 +428,13 @@ STATIC mp_obj_t serialization_ec_parse_keypair(const mbedtls_ecp_keypair *ecp_ke
 
     EllipticCurvePublicKey->public_numbers = EllipticCurvePublicNumbers;
 
+    size_t olen = 0;
+    vstr_t vstr_public_bytes;
+    vstr_init_len(&vstr_public_bytes, mbedtls_mpi_size(&ecp_keypair->Q.X) + mbedtls_mpi_size(&ecp_keypair->Q.Y) + 1);
+    mbedtls_ecp_point_write_binary(&ecp_keypair->grp, &ecp_keypair->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, (unsigned char *)vstr_public_bytes.buf, vstr_len(&vstr_public_bytes));
+
+    EllipticCurvePublicKey->public_bytes = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_public_bytes);
+
     if (private)
     {
         vstr_t vstr_d;
@@ -445,6 +449,7 @@ STATIC mp_obj_t serialization_ec_parse_keypair(const mbedtls_ecp_keypair *ecp_ke
         mp_ec_private_key_t *EllipticCurvePrivateKey = m_new_obj(mp_ec_private_key_t);
         EllipticCurvePrivateKey->base.type = &ec_private_key_type;
         EllipticCurvePrivateKey->private_numbers = EllipticCurvePrivateNumbers;
+        EllipticCurvePrivateKey->public_key = EllipticCurvePublicKey;
         return EllipticCurvePrivateKey;
     }
     else
@@ -582,6 +587,23 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     // mbedtls_x509_crt_info(vstr_crt.buf, vstr_len(&vstr_crt), "", &crt);
     // printf("certificate info: %s\n", vstr_crt.buf);
 
+    mp_obj_t extensions = mp_obj_new_dict(0);
+    mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_extended_key_usage), x509_crt_parse_ext_key_usage(&crt.ext_key_usage));
+    mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_key_usage), x509_crt_parse_key_usage(crt.key_usage));
+
+    mp_obj_t cert = mp_obj_new_dict(0);
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_version), mp_obj_new_int(crt.version));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_serial_number), mp_obj_new_bytes(crt.serial.p, crt.serial.len));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_not_valid_before), x509_crt_parse_time(&crt.valid_from));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_not_valid_after), x509_crt_parse_time(&crt.valid_to));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_subject), x509_crt_parse_name(&crt.subject));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_issuer), x509_crt_parse_name(&crt.issuer));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature), mp_obj_new_bytes(crt.sig.p, crt.sig.len));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_tbs_certificate_bytes), mp_obj_new_bytes(crt.tbs.p, crt.tbs.len));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_bytes), mp_obj_new_bytes(crt.pk_raw.p, crt.pk_raw.len));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature_algorithm_oid), x509_crt_parse_oid(&crt.sig_oid, &mp_type_str));
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_extensions), extensions);
+
 #if defined(MBEDTLS_PK_PARSE_C)
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
@@ -599,33 +621,11 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         mp_raise_ValueError("PUBLIC KEY UNSUPPORTED (ONLY EC KEY IS SUPPORTED)");
     }
 
-#endif // MBEDTLS_PK_PARSE_C
+    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_key), ec_parse_keypair(mbedtls_pk_ec(pk), false));
 
-    mp_obj_t extensions = mp_obj_new_dict(0);
-    mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_extended_key_usage), x509_crt_parse_ext_key_usage(&crt.ext_key_usage));
-    mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_key_usage), x509_crt_parse_key_usage(crt.key_usage));
-
-    mp_obj_t cert = mp_obj_new_dict(0);
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_version), mp_obj_new_int(crt.version));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_serial_number), mp_obj_new_bytes(crt.serial.p, crt.serial.len));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_not_valid_before), x509_crt_parse_time(&crt.valid_from));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_not_valid_after), x509_crt_parse_time(&crt.valid_to));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_subject), x509_crt_parse_name(&crt.subject));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_issuer), x509_crt_parse_name(&crt.issuer));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature), mp_obj_new_bytes(crt.sig.p, crt.sig.len));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_tbs_certificate_bytes), mp_obj_new_bytes(crt.tbs.p, crt.tbs.len));
-#if defined(MBEDTLS_PK_PARSE_C)
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_key), serialization_ec_parse_keypair(mbedtls_pk_ec(pk), false));
-#else
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_key), mp_obj_new_bytes(crt.pk_raw.p, crt.pk_raw.len));
-#endif // MBEDTLS_PK_PARSE_C
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature_algorithm_oid), x509_crt_parse_oid(&crt.sig_oid, &mp_type_str));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_extensions), extensions);
-
-    mbedtls_x509_crt_free(&crt);
-#if defined(MBEDTLS_PK_PARSE_C)
     mbedtls_pk_free(&pk);
 #endif // MBEDTLS_PK_PARSE_C
+    mbedtls_x509_crt_free(&crt);
     return cert;
 }
 
@@ -673,7 +673,7 @@ STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
         mp_raise_ValueError("PUBLIC KEY FORMAT");
     }
 
-    mp_obj_t pub_key = serialization_ec_parse_keypair(mbedtls_pk_ec(pk), false);
+    mp_obj_t pub_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
 
     mbedtls_pk_free(&pk);
     return pub_key;
@@ -712,7 +712,7 @@ STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
         mp_raise_ValueError("PRIVATE KEY UNSUPPORTED (ONLY EC KEY IS SUPPORTED)");
     }
 
-    mp_obj_t priv_key = serialization_ec_parse_keypair(mbedtls_pk_ec(pk), true);
+    mp_obj_t priv_key = ec_parse_keypair(mbedtls_pk_ec(pk), true);
 
     mbedtls_pk_free(&pk);
     return priv_key;
@@ -746,6 +746,11 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
 #endif // MBEDTLS_X509_USE_C
 #if defined(MBEDTLS_PK_PARSE_C)
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurve), MP_ROM_PTR(&ec_curve_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicKey), MP_ROM_PTR(&ec_public_key_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicNumbers), MP_ROM_PTR(&ec_public_numbers_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateKey), MP_ROM_PTR(&ec_private_key_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateNumbers), MP_ROM_PTR(&ec_private_numbers_type)},
 #endif //MBEDTLS_PK_PARSE_C
 };
 

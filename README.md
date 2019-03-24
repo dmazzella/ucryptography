@@ -21,13 +21,14 @@ Lightweight porting of [cryptography](https://github.com/pyca/cryptography)  to 
 
 - ### **EllipticCurvePublicKey**:
     - public_numbers -> **EllipticCurvePublicNumbers**
-    - ~~public_bytes -> **bytes**~~
+    - public_bytes -> **bytes**
     - verify(signature:**tuple**(r:**int**, s:**int**), digest: **bytes**, ~~signature_algorithm:**bytes**~~) -> ~~raise: **InvalidSignature**~~ **bool**
     - ~~key_size -> **int**~~
         - ~~_256_~~
 
 - ### **EllipticCurvePrivateKey**:
     - ~~curve -> **EllipticCurve**~~
+    - public_key -> **EllipticCurvePublicKey**
     - private_numbers -> **EllipticCurvePrivateNumbers**
     - ~~private_bytes -> **bytes**~~
     - sign(digest: **bytes**, ~~signature_algorithm:**bytes**~~) -> ~~**bytes**~~ **tuple**(r:**int**, s:**int**)
