@@ -3,6 +3,16 @@
 Lightweight porting of [cryptography](https://github.com/pyca/cryptography)  to Micropython based on [Mbed Crypto](https://github.com/ARMmbed/mbed-crypto/)
 ---------------
 
+### Compiling the cmodule into MicroPython
+
+To build such a module, compile MicroPython with an extra make flag named ```USER_C_MODULES``` set to the directory containing all modules you want included (not to the module itself).
+
+```python
+import cryptography
+```
+
+# API
+
 ## Classes
 - ### **EllipticCurve**:
     - name -> **str**
