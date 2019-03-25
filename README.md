@@ -40,17 +40,17 @@ import cryptography
     - ~~curve -> **EllipticCurve**~~
     - public_key -> **EllipticCurvePublicKey**
     - private_numbers -> **EllipticCurvePrivateNumbers**
-    - ~~private_bytes -> **bytes**~~
+    - private_bytes -> **bytes**
     - sign(digest: **bytes**, ~~signature_algorithm:**bytes**~~) -> ~~**bytes**~~ **tuple**(r:**int**, s:**int**)
     - ~~key_size -> **int**~~
         - ~~_256_~~
 
-- ~~**HashAlgorithm**:~~
-    - ~~name -> **str**~~
-        - ~~_"sha256"_~~
+- **HashAlgorithm**:
+    - name -> **str**
+        - _"sha256"_
 
 - ### **Certificate**:
-    - version -> **str**
+    - version -> **int**
     - serial_number -> **int**
     - public_key -> **EllipticCurvePublicKey**
     - not_valid_before -> **str**
@@ -58,7 +58,8 @@ import cryptography
     - issuer -> **dict**
     - subject -> **dict**
     - signature_algorithm_oid -> **str**
-    - ~~signature_hash_algorithm -> **HashAlgorithm**~~
+    - signature_hash_algorithm -> **HashAlgorithm**
+    - ~~fingerprint -> **bytes**~~
     - extensions -> **dict**
     - signature -> **bytes**
     - tbs_certificate_bytes -> **bytes**
@@ -72,6 +73,7 @@ import cryptography
     cryptography.serialization.load_der_private_key(der: bytes, password: bytes) -> EllipticCurvePrivateKey
     ```
 - ### **cryptography.x509**:
+    **_SUPPORTED CERTIFICATE: signed using ECDSA with SHA256_**
     ```python
     cryptography.x509.load_der_x509_certificate(der: bytes) -> Certificate
     ```

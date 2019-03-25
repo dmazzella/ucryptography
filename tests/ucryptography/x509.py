@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=import-error
+# pylint: disable=no-name-in-module
 from cryptography import x509
-from util import loads_sequence
+try:
+    from util import loads_sequence
+except ImportError:
+    from ucryptography.util import loads_sequence
 
 CERT_DER = loads_sequence('''-----BEGIN CERTIFICATE-----
 MIICiDCCAi+gAwIBAgIUEkh9KHsIlsR5m73KoHd9dnoaE+EwCgYIKoZIzj0EAwIw
@@ -24,12 +28,31 @@ s+LnrOm0QFpFTo1ZoMRiLiDVvqR/exKUFMF6OA==
 def main():
     certificate = x509.load_der_x509_certificate(CERT_DER)
     print("load_der_x509_certificate: ", certificate)
-    public_key = certificate['public_key']
+
+    print("version", certificate.version)
+    print("serial_number", certificate.serial_number)
+
+    print("not_valid_before", certificate.not_valid_before)
+    print("not_valid_after", certificate.not_valid_after)
+
+    print("subject", certificate.subject)
+    print("issuer", certificate.issuer)
+
+    print("signature_algorithm_oid", certificate.signature_algorithm_oid)
+    print("signature_hash_algorithm", certificate.signature_hash_algorithm.name)
+    print("signature", certificate.signature)
+
+    print("extensions", certificate.extensions)
+
+    public_key = certificate.public_key()
     public_numbers = public_key.public_numbers()
     print("public_key.curve", public_key.curve.name)
     print("public_key.public_bytes", public_key.public_bytes())
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
+
+    public_bytes = certificate.public_bytes()
+    print("public_key.public_bytes", public_bytes)
 
 
 if __name__ == "__main__":

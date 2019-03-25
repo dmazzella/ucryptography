@@ -131,7 +131,6 @@ STATIC mp_obj_type_t version_type = {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
 #if defined(MBEDTLS_PK_PARSE_C)
 
-// EllipticCurve: name(str)
 typedef struct _mp_ec_curve_t
 {
     mp_obj_base_t base;
@@ -158,7 +157,6 @@ STATIC mp_obj_type_t ec_curve_type = {
 
 const mp_ec_curve_t mp_const_elliptic_curve_obj = {{&ec_curve_type}};
 
-// EllipticCurvePublicNumbers: curve(EllipticCurve), x(int), y(int)
 typedef struct _mp_ec_public_numbers_t
 {
     mp_obj_base_t base;
@@ -219,7 +217,6 @@ STATIC mp_obj_type_t ec_public_numbers_type = {
     .locals_dict = (void *)&ec_public_numbers_locals_dict,
 };
 
-// EllipticCurvePrivateNumbers: public_numbers(EllipticCurvePublicNumbers), private_value(int)
 typedef struct _mp_ec_private_numbers_t
 {
     mp_obj_base_t base;
@@ -273,7 +270,6 @@ STATIC mp_obj_type_t ec_private_numbers_type = {
     .locals_dict = (void *)&ec_private_numbers_locals_dict,
 };
 
-// EllipticCurvePublicKey: public_numbers(EllipticCurvePublicNumbers)
 typedef struct _mp_ec_public_key_t
 {
     mp_obj_base_t base;
@@ -342,13 +338,12 @@ STATIC mp_obj_type_t ec_public_key_type = {
     .locals_dict = (void *)&ec_public_key_locals_dict,
 };
 
-// EllipticCurvePrivateKey: private_numbers(EllipticCurvePrivateNumbers)
-// EllipticCurvePrivateKeyWithSerialization=EllipticCurvePrivateKey
 typedef struct _mp_ec_private_key_t
 {
     mp_obj_base_t base;
     mp_ec_private_numbers_t *private_numbers;
     mp_ec_public_key_t *public_key;
+    mp_obj_t private_bytes;
 } mp_ec_private_key_t;
 
 STATIC void ec_private_key_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
@@ -389,9 +384,18 @@ STATIC mp_obj_t ec_public_key(mp_obj_t obj)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_key_obj, ec_public_key);
 
+STATIC mp_obj_t ec_private_bytes(mp_obj_t obj)
+{
+    mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
+    return self->private_bytes;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_bytes_obj, ec_private_bytes);
+
 STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_private_numbers), MP_ROM_PTR(&mod_ec_private_numbers_obj)},
     {MP_ROM_QSTR(MP_QSTR_sign), MP_ROM_PTR(&mod_ec_sign_obj)},
+    {MP_ROM_QSTR(MP_QSTR_private_bytes), MP_ROM_PTR(&mod_ec_private_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_ec_public_key_obj)},
 };
 
@@ -437,19 +441,20 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
 
     if (private)
     {
-        vstr_t vstr_d;
-        vstr_init_len(&vstr_d, mbedtls_mpi_size(&ecp_keypair->d));
-        mbedtls_mpi_write_binary(&ecp_keypair->d, (unsigned char *)vstr_d.buf, vstr_len(&vstr_d));
+        vstr_t vstr_private_bytes;
+        vstr_init_len(&vstr_private_bytes, mbedtls_mpi_size(&ecp_keypair->d));
+        mbedtls_mpi_write_binary(&ecp_keypair->d, (unsigned char *)vstr_private_bytes.buf, vstr_len(&vstr_private_bytes));
 
         mp_ec_private_numbers_t *EllipticCurvePrivateNumbers = m_new_obj(mp_ec_private_numbers_t);
         EllipticCurvePrivateNumbers->base.type = &ec_private_numbers_type;
-        EllipticCurvePrivateNumbers->private_value = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_d), (const byte *)vstr_d.buf);
+        EllipticCurvePrivateNumbers->private_value = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_private_bytes), (const byte *)vstr_private_bytes.buf);
         EllipticCurvePrivateNumbers->public_numbers = EllipticCurvePublicNumbers;
 
         mp_ec_private_key_t *EllipticCurvePrivateKey = m_new_obj(mp_ec_private_key_t);
         EllipticCurvePrivateKey->base.type = &ec_private_key_type;
         EllipticCurvePrivateKey->private_numbers = EllipticCurvePrivateNumbers;
         EllipticCurvePrivateKey->public_key = EllipticCurvePublicKey;
+        EllipticCurvePrivateKey->private_bytes = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_private_bytes);
         return EllipticCurvePrivateKey;
     }
     else
@@ -459,6 +464,170 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
 }
 
 #endif // MBEDTLS_PK_PARSE_C
+
+typedef struct _mp_hash_algorithm_t
+{
+    mp_obj_base_t base;
+} mp_hash_algorithm_t;
+
+STATIC void hash_algorithm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC const mp_rom_map_elem_t hash_algorithm_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_sha256)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(hash_algorithm_locals_dict, hash_algorithm_locals_dict_table);
+
+STATIC mp_obj_type_t hash_algorithm_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_HashAlgorithm,
+    .print = hash_algorithm_print,
+    .locals_dict = (void *)&hash_algorithm_locals_dict,
+};
+
+typedef struct _mp_x509_certificate_t
+{
+    mp_obj_base_t base;
+    mp_obj_t version;
+    mp_obj_t serial_number;
+    mp_obj_t not_valid_before;
+    mp_obj_t not_valid_after;
+    mp_obj_t subject;
+    mp_obj_t issuer;
+    mp_obj_t signature;
+    mp_obj_t signature_algorithm_oid;
+    mp_hash_algorithm_t *signature_hash_algorithm;
+    mp_obj_t extensions;
+    mp_obj_t public_bytes;
+    mp_ec_public_key_t *public_key;
+    mp_obj_t tbs_certificate_bytes;
+} mp_x509_certificate_t;
+
+STATIC void x509_certificate_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+#if defined(MBEDTLS_PK_PARSE_C)
+STATIC mp_obj_t x509_public_key(mp_obj_t obj)
+{
+    mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
+    return self->public_key;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_public_key_obj, x509_public_key);
+#endif
+
+STATIC mp_obj_t x509_public_bytes(mp_obj_t obj)
+{
+    mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
+    return self->public_bytes;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_public_bytes_obj, x509_public_bytes);
+
+STATIC void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_version)
+            {
+                dest[0] = self->version;
+                return;
+            }
+            if (attr == MP_QSTR_serial_number)
+            {
+                dest[0] = self->serial_number;
+                return;
+            }
+            if (attr == MP_QSTR_not_valid_before)
+            {
+                dest[0] = self->not_valid_before;
+                return;
+            }
+            if (attr == MP_QSTR_not_valid_after)
+            {
+                dest[0] = self->not_valid_after;
+                return;
+            }
+            if (attr == MP_QSTR_subject)
+            {
+                dest[0] = self->subject;
+                return;
+            }
+            if (attr == MP_QSTR_issuer)
+            {
+                dest[0] = self->issuer;
+                return;
+            }
+            if (attr == MP_QSTR_signature)
+            {
+                dest[0] = self->signature;
+                return;
+            }
+            if (attr == MP_QSTR_signature_algorithm_oid)
+            {
+                dest[0] = self->signature_algorithm_oid;
+                return;
+            }
+            if (attr == MP_QSTR_tbs_certificate_bytes)
+            {
+                dest[0] = self->tbs_certificate_bytes;
+                return;
+            }
+            if (attr == MP_QSTR_extensions)
+            {
+                dest[0] = self->extensions;
+                return;
+            }
+            if (attr == MP_QSTR_signature_hash_algorithm)
+            {
+                dest[0] = self->signature_hash_algorithm;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t x509_certificate_locals_dict_table[] = {
+#if defined(MBEDTLS_PK_PARSE_C)
+    {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_x509_public_key_obj)},
+#endif
+    {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_INT(0)},
+    {MP_ROM_QSTR(MP_QSTR_serial_number), MP_ROM_INT(0)},
+    {MP_ROM_QSTR(MP_QSTR_not_valid_before), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_not_valid_after), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_subject), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_issuer), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_signature), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_signature_algorithm_oid), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_signature_hash_algorithm), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_tbs_certificate_bytes), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_extensions), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_public_bytes), MP_ROM_PTR(&mod_x509_public_bytes_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(x509_certificate_locals_dict, x509_certificate_locals_dict_table);
+
+STATIC mp_obj_type_t x509_certificate_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_Certificate,
+    .print = x509_certificate_print,
+    .attr = x509_certificate_attr,
+    .locals_dict = (void *)&x509_certificate_locals_dict,
+};
 
 STATIC void x509_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
@@ -502,7 +671,7 @@ STATIC mp_obj_t x509_crt_parse_time(const mbedtls_x509_time *t)
     vstr_t vstr_time;
     vstr_init(&vstr_time, 0);
     vstr_printf(&vstr_time, "%04d-%02d-%02d %02d:%02d:%02d", t->year, t->mon, t->day, t->hour, t->min, t->sec);
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_time);
+    return mp_obj_new_str_from_vstr(&mp_type_str, &vstr_time);
 }
 
 STATIC mp_obj_t x509_crt_parse_name(const mbedtls_x509_name *dn)
@@ -587,22 +756,39 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     // mbedtls_x509_crt_info(vstr_crt.buf, vstr_len(&vstr_crt), "", &crt);
     // printf("certificate info: %s\n", vstr_crt.buf);
 
+    if (crt.sig_md != MBEDTLS_MD_SHA256)
+    {
+        mbedtls_x509_crt_free(&crt);
+        mp_raise_ValueError("SIGNATURE HASH ALGORITHM UNSUPPORTED (ONLY SHA256 IS SUPPORTED)");
+    }
+
+    if (crt.sig_pk != MBEDTLS_PK_ECDSA)
+    {
+        mbedtls_x509_crt_free(&crt);
+        mp_raise_ValueError("SIGNATURE PUBLIC KEY ALGORITHM UNSUPPORTED (ONLY ECDSA IS SUPPORTED)");
+    }
+
     mp_obj_t extensions = mp_obj_new_dict(0);
     mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_extended_key_usage), x509_crt_parse_ext_key_usage(&crt.ext_key_usage));
     mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_key_usage), x509_crt_parse_key_usage(crt.key_usage));
 
-    mp_obj_t cert = mp_obj_new_dict(0);
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_version), mp_obj_new_int(crt.version));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_serial_number), mp_obj_new_bytes(crt.serial.p, crt.serial.len));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_not_valid_before), x509_crt_parse_time(&crt.valid_from));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_not_valid_after), x509_crt_parse_time(&crt.valid_to));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_subject), x509_crt_parse_name(&crt.subject));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_issuer), x509_crt_parse_name(&crt.issuer));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature), mp_obj_new_bytes(crt.sig.p, crt.sig.len));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_tbs_certificate_bytes), mp_obj_new_bytes(crt.tbs.p, crt.tbs.len));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_bytes), mp_obj_new_bytes(crt.pk_raw.p, crt.pk_raw.len));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_signature_algorithm_oid), x509_crt_parse_oid(&crt.sig_oid, &mp_type_str));
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_extensions), extensions);
+    mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
+    HashAlgorithm->base.type = &hash_algorithm_type;
+
+    mp_x509_certificate_t *Certificate = m_new_obj(mp_x509_certificate_t);
+    Certificate->base.type = &x509_certificate_type;
+    Certificate->version = mp_obj_new_int(crt.version);
+    Certificate->serial_number = mp_obj_int_from_bytes_impl(true, crt.serial.len, crt.serial.p);
+    Certificate->not_valid_before = x509_crt_parse_time(&crt.valid_from);
+    Certificate->not_valid_after = x509_crt_parse_time(&crt.valid_to);
+    Certificate->subject = x509_crt_parse_name(&crt.subject);
+    Certificate->issuer = x509_crt_parse_name(&crt.issuer);
+    Certificate->signature = mp_obj_new_bytes(crt.sig.p, crt.sig.len);
+    Certificate->signature_algorithm_oid = x509_crt_parse_oid(&crt.sig_oid, &mp_type_str);
+    Certificate->signature_hash_algorithm = HashAlgorithm;
+    Certificate->extensions = extensions;
+    Certificate->tbs_certificate_bytes = mp_obj_new_bytes(crt.tbs.p, crt.tbs.len);
+    Certificate->public_bytes = mp_obj_new_bytes(crt.pk_raw.p, crt.pk_raw.len);
 
 #if defined(MBEDTLS_PK_PARSE_C)
     mbedtls_pk_context pk;
@@ -621,12 +807,14 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         mp_raise_ValueError("PUBLIC KEY UNSUPPORTED (ONLY EC KEY IS SUPPORTED)");
     }
 
-    mp_obj_dict_store(cert, MP_ROM_QSTR(MP_QSTR_public_key), ec_parse_keypair(mbedtls_pk_ec(pk), false));
+    Certificate->public_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
 
     mbedtls_pk_free(&pk);
 #endif // MBEDTLS_PK_PARSE_C
+
     mbedtls_x509_crt_free(&crt);
-    return cert;
+
+    return Certificate;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_crt_parse_der_obj, x509_crt_parse_der);
@@ -743,6 +931,8 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
 #endif // MBEDTLS_VERSION_FEATURES
 #if defined(MBEDTLS_X509_USE_C)
     {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR(&x509_type)},
+    {MP_ROM_QSTR(MP_QSTR_Certificate), MP_ROM_PTR(&x509_certificate_type)},
+    {MP_ROM_QSTR(MP_QSTR_HashAlgorithm), MP_ROM_PTR(&hash_algorithm_type)},
 #endif // MBEDTLS_X509_USE_C
 #if defined(MBEDTLS_PK_PARSE_C)
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
