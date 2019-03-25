@@ -47,6 +47,8 @@ def main():
     public_key = certificate.public_key()
     public_numbers = public_key.public_numbers()
     print("public_key.curve", public_key.curve.name)
+    print("public_key.curve.key_size", public_key.curve.key_size)
+    print("public_key.key_size", public_key.key_size)
     print("public_key.public_bytes", public_key.public_bytes())
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)

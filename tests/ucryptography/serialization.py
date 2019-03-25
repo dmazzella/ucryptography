@@ -19,6 +19,9 @@ def main():
     private_key = serialization.load_der_private_key(PRIVATE_KEY_DER, None)
     print("load_der_private_key:", private_key)
 
+    print("curve", private_key.curve.name)
+    print("key_size", private_key.key_size)
+
     print("private_bytes", private_key.private_bytes())
 
     private_numbers = private_key.private_numbers()

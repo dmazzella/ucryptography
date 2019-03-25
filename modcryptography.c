@@ -144,6 +144,7 @@ STATIC void ec_curve_print(const mp_print_t *print, mp_obj_t self_in, mp_print_k
 
 STATIC const mp_rom_map_elem_t ec_curve_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_secp256r1)},
+    {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(256)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ec_curve_locals_dict, ec_curve_locals_dict_table);
@@ -327,6 +328,7 @@ STATIC const mp_rom_map_elem_t ec_public_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(&mod_ec_public_numbers_obj)},
     {MP_ROM_QSTR(MP_QSTR_public_bytes), MP_ROM_PTR(&mod_ec_public_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_verify), MP_OBJ_FROM_PTR(&mod_ec_verify_obj)},
+    {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(256)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ec_public_key_locals_dict, ec_public_key_locals_dict_table);
@@ -341,6 +343,7 @@ STATIC mp_obj_type_t ec_public_key_type = {
 typedef struct _mp_ec_private_key_t
 {
     mp_obj_base_t base;
+    mp_ec_curve_t *curve;
     mp_ec_private_numbers_t *private_numbers;
     mp_ec_public_key_t *public_key;
     mp_obj_t private_bytes;
@@ -393,10 +396,12 @@ STATIC mp_obj_t ec_private_bytes(mp_obj_t obj)
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_bytes_obj, ec_private_bytes);
 
 STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(MP_OBJ_FROM_PTR(&mp_const_elliptic_curve_obj))},
     {MP_ROM_QSTR(MP_QSTR_private_numbers), MP_ROM_PTR(&mod_ec_private_numbers_obj)},
     {MP_ROM_QSTR(MP_QSTR_sign), MP_ROM_PTR(&mod_ec_sign_obj)},
     {MP_ROM_QSTR(MP_QSTR_private_bytes), MP_ROM_PTR(&mod_ec_private_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_ec_public_key_obj)},
+    {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(256)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ec_private_key_locals_dict, ec_private_key_locals_dict_table);
@@ -452,6 +457,7 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
 
         mp_ec_private_key_t *EllipticCurvePrivateKey = m_new_obj(mp_ec_private_key_t);
         EllipticCurvePrivateKey->base.type = &ec_private_key_type;
+        EllipticCurvePrivateKey->curve = EllipticCurve;
         EllipticCurvePrivateKey->private_numbers = EllipticCurvePrivateNumbers;
         EllipticCurvePrivateKey->public_key = EllipticCurvePublicKey;
         EllipticCurvePrivateKey->private_bytes = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_private_bytes);
