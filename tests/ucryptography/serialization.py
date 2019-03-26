@@ -2,7 +2,7 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 from uhashlib import sha256
-from ubinascii import a2b_base64
+from utime import ticks_us, ticks_diff
 from cryptography import serialization
 try:
     from util import loads_sequence
@@ -35,8 +35,16 @@ def main():
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
 
-    signature = private_key.sign(sha256(b'cacca').digest())
-    print("signature", signature, b'cacca')
+    msg_hash = sha256(b'cacca').digest()
+
+    start_t = ticks_us()
+    signature = private_key.sign(msg_hash)
+    print("sign: {:6.3f}ms".format(ticks_diff(ticks_us(), start_t)/1000))
+
+    start_t = ticks_us()
+    public_key.verify(signature, msg_hash)
+    print("verify: {:6.3f}ms".format(ticks_diff(ticks_us(), start_t)/1000))
+
 
 if __name__ == "__main__":
     main()

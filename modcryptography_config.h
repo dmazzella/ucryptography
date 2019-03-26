@@ -54,13 +54,6 @@
 #define MBEDTLS_PLATFORM_FREE_MACRO gc_free
 #endif // !defined(calloc) && !defined(free)
 
-// #if !defined(rand) && MICROPY_HW_ENABLE_RNG
-// #include "rng.h"
-// #define rand() rng_get()
-// #else
-// #define rand rand()
-// #endif
-
 #endif // defined(__thumb2__) || defined(__thumb__) || defined(__arm__)
 
 #endif // MBEDTLS_USER_CONFIG_FILE_H

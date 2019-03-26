@@ -2,6 +2,7 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 from uhashlib import sha256
+from utime import ticks_us, ticks_diff
 from cryptography import x509
 try:
     from util import loads_sequence
@@ -27,7 +28,10 @@ s+LnrOm0QFpFTo1ZoMRiLiDVvqR/exKUFMF6OA==
 
 
 def main():
+    start_t = ticks_us()
     certificate = x509.load_der_x509_certificate(CERT_DER)
+    print("load_der_x509_certificate: {:6.3f}ms".format(
+        ticks_diff(ticks_us(), start_t)/1000))
     print("load_der_x509_certificate: ", certificate)
 
     print("version", certificate.version)
@@ -57,9 +61,10 @@ def main():
     public_bytes = certificate.public_bytes()
     print("public_key.public_bytes", public_bytes)
 
-    public_key.verify(
-        certificate.signature,
-        sha256(certificate.tbs_certificate_bytes).digest())
+    tbs_certificate_hash = sha256(certificate.tbs_certificate_bytes).digest()
+    start_t = ticks_us()
+    public_key.verify(certificate.signature, tbs_certificate_hash)
+    print("verify: {:6.3f}ms".format(ticks_diff(ticks_us(), start_t)/1000))
 
 
 if __name__ == "__main__":

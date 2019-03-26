@@ -30,6 +30,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "py/objstr.h"
@@ -46,30 +47,36 @@
 #include MBEDTLS_CONFIG_FILE
 #endif // MBEDTLS_CONFIG_FILE
 
-// STATIC int mp_random(void *rng_state, unsigned char *output, size_t len)
-// {
-//     size_t use_len;
-//     int rnd;
+#if defined(__thumb2__) || defined(__thumb__) || defined(__arm__)
+#if MICROPY_HW_ENABLE_RNG
+#include "rng.h"
+#define rand() rng_get()
+#endif // MICROPY_HW_ENABLE_RNG
+#endif
 
-//     if (rng_state != NULL)
-//     {
-//         rng_state = NULL;
-//     }
+STATIC int mp_random(void *rng_state, unsigned char *output, size_t len)
+{
+    size_t use_len;
+    int rnd;
 
-//     while (len > 0)
-//     {
-//         use_len = len;
-//         if (use_len > sizeof(int))
-//             use_len = sizeof(int);
+    if (rng_state != NULL)
+    {
+        rng_state = NULL;
+    }
 
-//         rnd = MP_GEN_RANDOM();
-//         memcpy(output, &rnd, use_len);
-//         output += use_len;
-//         len -= use_len;
-//     }
+    while (len > 0)
+    {
+        use_len = len;
+        if (use_len > sizeof(int))
+            use_len = sizeof(int);
+        rnd = rand();
+        memcpy(output, &rnd, use_len);
+        output += use_len;
+        len -= use_len;
+    }
 
-//     return 0;
-// }
+    return 0;
+}
 
 #if defined(MBEDTLS_VERSION_C)
 #include "mbedtls/version.h"
@@ -395,6 +402,11 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_numbers_obj, ec_private_numbers)
 
 STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
 {
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
+
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
     mp_buffer_info_t bufinfo_digest;
     mp_get_buffer_raise(digest, &bufinfo_digest, MP_BUFFER_READ);
@@ -411,12 +423,12 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
     mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
     mbedtls_mpi_read_binary(&ecp.d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
 
-    // size_t signature_len = 0;
-    // byte *signature_buf = NULL;
-    // mbedtls_ecdsa_write_signature(&ecp, MBEDTLS_MD_SHA256, (const byte *)bufinfo_digest.buf, 256, signature_buf, &signature_len, NULL, NULL);
+    vstr_t vstr_signature;
+    vstr_init_len(&vstr_signature, MBEDTLS_ECDSA_MAX_SIG_LEN(ecp.grp.nbits));
+    mbedtls_ecdsa_write_signature(&ecp, MBEDTLS_MD_SHA256, (const byte *)bufinfo_digest.buf, ecp.grp.nbits, (byte *)vstr_signature.buf, &vstr_signature.len, mp_random, NULL);
 
     mbedtls_ecp_keypair_free(&ecp);
-    return mp_obj_new_bool(0);
+    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_signature);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_sign_obj, ec_sign);
