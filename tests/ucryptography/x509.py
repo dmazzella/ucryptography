@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
+from uhashlib import sha256
 from cryptography import x509
 try:
     from util import loads_sequence
@@ -55,6 +56,10 @@ def main():
 
     public_bytes = certificate.public_bytes()
     print("public_key.public_bytes", public_bytes)
+
+    public_key.verify(
+        certificate.signature,
+        sha256(certificate.tbs_certificate_bytes).digest())
 
 
 if __name__ == "__main__":

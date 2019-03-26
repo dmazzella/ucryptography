@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
+from uhashlib import sha256
 from ubinascii import a2b_base64
 from cryptography import serialization
 try:
@@ -34,6 +35,8 @@ def main():
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
 
+    signature = private_key.sign(sha256(b'cacca').digest())
+    print("signature", signature, b'cacca')
 
 if __name__ == "__main__":
     main()

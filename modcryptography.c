@@ -46,6 +46,31 @@
 #include MBEDTLS_CONFIG_FILE
 #endif // MBEDTLS_CONFIG_FILE
 
+// STATIC int mp_random(void *rng_state, unsigned char *output, size_t len)
+// {
+//     size_t use_len;
+//     int rnd;
+
+//     if (rng_state != NULL)
+//     {
+//         rng_state = NULL;
+//     }
+
+//     while (len > 0)
+//     {
+//         use_len = len;
+//         if (use_len > sizeof(int))
+//             use_len = sizeof(int);
+
+//         rnd = MP_GEN_RANDOM();
+//         memcpy(output, &rnd, use_len);
+//         output += use_len;
+//         len -= use_len;
+//     }
+
+//     return 0;
+// }
+
 #if defined(MBEDTLS_VERSION_C)
 #include "mbedtls/version.h"
 
@@ -288,21 +313,26 @@ STATIC mp_obj_t ec_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t digest)
 {
     mp_ec_public_key_t *self = MP_OBJ_TO_PTR(obj);
     (void)self;
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(signature, &bufinfo, MP_BUFFER_READ);
-    if (!bufinfo.len)
-    {
-        mp_raise_ValueError("SIGNATURE EMPTY");
-    }
+    mp_buffer_info_t bufinfo_signature;
+    mp_get_buffer_raise(signature, &bufinfo_signature, MP_BUFFER_READ);
 
-    mp_buffer_info_t bufinfo1;
-    mp_get_buffer_raise(digest, &bufinfo1, MP_BUFFER_READ);
-    if (!bufinfo1.len)
-    {
-        mp_raise_ValueError("DIGEST EMPTY");
-    }
+    mp_buffer_info_t bufinfo_digest;
+    mp_get_buffer_raise(digest, &bufinfo_digest, MP_BUFFER_READ);
 
-    return mp_obj_new_bool(0);
+    mp_buffer_info_t bufinfo_public_bytes;
+    mp_get_buffer_raise(self->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
+
+    mbedtls_ecp_keypair ecp;
+    mbedtls_ecp_keypair_init(&ecp);
+    mbedtls_ecp_group_load(&ecp.grp, MBEDTLS_ECP_DP_SECP256R1);
+    mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+    if (mbedtls_ecdsa_read_signature(&ecp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (const byte *)bufinfo_signature.buf, bufinfo_signature.len) != 0)
+    {
+        mbedtls_ecp_keypair_free(&ecp);
+        mp_raise_ValueError("INVALID SIGNATURE");
+    }
+    mbedtls_ecp_keypair_free(&ecp);
+    return mp_const_none;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_ec_verify_obj, ec_verify);
@@ -366,14 +396,26 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_numbers_obj, ec_private_numbers)
 STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
 {
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
-    (void)self;
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(digest, &bufinfo, MP_BUFFER_READ);
-    if (!bufinfo.len)
-    {
-        mp_raise_ValueError("DIGEST EMPTY");
-    }
+    mp_buffer_info_t bufinfo_digest;
+    mp_get_buffer_raise(digest, &bufinfo_digest, MP_BUFFER_READ);
 
+    mp_buffer_info_t bufinfo_private_bytes;
+    mp_get_buffer_raise(self->private_bytes, &bufinfo_private_bytes, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_public_bytes;
+    mp_get_buffer_raise(self->public_key->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
+
+    mbedtls_ecp_keypair ecp;
+    mbedtls_ecp_keypair_init(&ecp);
+    mbedtls_ecp_group_load(&ecp.grp, MBEDTLS_ECP_DP_SECP256R1);
+    mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+    mbedtls_mpi_read_binary(&ecp.d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
+
+    // size_t signature_len = 0;
+    // byte *signature_buf = NULL;
+    // mbedtls_ecdsa_write_signature(&ecp, MBEDTLS_MD_SHA256, (const byte *)bufinfo_digest.buf, 256, signature_buf, &signature_len, NULL, NULL);
+
+    mbedtls_ecp_keypair_free(&ecp);
     return mp_obj_new_bool(0);
 }
 
