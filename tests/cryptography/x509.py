@@ -2,12 +2,15 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from uhashlib import sha256
-from cryptography import x509, hashes
-try:
-    from util import loads_sequence
-except ImportError:
-    from ucryptography.util import loads_sequence
+from hashlib import sha256
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import utils
+from util import loads_sequence
+
 
 CERT_DER = loads_sequence('''-----BEGIN CERTIFICATE-----
 MIICiDCCAi+gAwIBAgIUEkh9KHsIlsR5m73KoHd9dnoaE+EwCgYIKoZIzj0EAwIw
@@ -28,7 +31,7 @@ s+LnrOm0QFpFTo1ZoMRiLiDVvqR/exKUFMF6OA==
 
 
 def main():
-    certificate = x509.load_der_x509_certificate(CERT_DER)
+    certificate = x509.load_der_x509_certificate(CERT_DER, default_backend())
     print("version", certificate.version)
     print("serial_number", certificate.serial_number)
 
@@ -49,15 +52,22 @@ def main():
     print("public_key.curve", public_key.curve.name)
     print("public_key.curve.key_size", public_key.curve.key_size)
     print("public_key.key_size", public_key.key_size)
-    public_bytes = certificate.public_bytes()
+    public_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.X962,
+        format=serialization.PublicFormat.UncompressedPoint,
+    )
     print("public_key.public_bytes", public_bytes)
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
 
-    digest = hashes.Hash(hashes.SHA256())
+    digest = hashes.Hash(hashes.SHA256(), default_backend())
     digest.update(certificate.tbs_certificate_bytes)
     tbs_certificate_hash = digest.finalize()
-    public_key.verify(certificate.signature, tbs_certificate_hash)
+    public_key.verify(
+        certificate.signature,
+        tbs_certificate_hash,
+        ec.ECDSA(utils.Prehashed(hashes.SHA256()))
+    )
 
 
 if __name__ == "__main__":
