@@ -194,7 +194,7 @@ STATIC MP_DEFINE_CONST_DICT(ec_curve_locals_dict, ec_curve_locals_dict_table);
 
 STATIC mp_obj_type_t ec_curve_type = {
     {&mp_type_type},
-    .name = MP_QSTR_EllipticCurve,
+    .name = MP_QSTR_SECP256R1,
     .make_new = ec_curve_make_new,
     .print = ec_curve_print,
     .locals_dict = (void *)&ec_curve_locals_dict,
@@ -595,7 +595,7 @@ STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, 
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     if (!mp_obj_is_type(args[0], &hash_algorithm_type)) {
-        mp_raise_TypeError("EXPECTED INSTANCE OF hashes.HashAlgorithm");
+        mp_raise_TypeError("EXPECTED INSTANCE OF hashes.SHA256");
     }
     mp_hash_context_t *HashContext = m_new_obj(mp_hash_context_t);
     HashContext->base.type = &hash_context_type;
@@ -1073,6 +1073,7 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_x509_crt_parse_der_obj, MP_RO
 STATIC const mp_rom_map_elem_t x509_locals_dict_table[] = {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
     {MP_ROM_QSTR(MP_QSTR_load_der_x509_certificate), MP_ROM_PTR(&mod_static_x509_crt_parse_der_obj)},
+    {MP_ROM_QSTR(MP_QSTR_Certificate), MP_ROM_PTR(&x509_certificate_type)},
 #endif //MBEDTLS_X509_CRT_PARSE_C
 };
 
@@ -1173,6 +1174,29 @@ STATIC mp_obj_type_t serialization_type = {
 };
 #endif //MBEDTLS_PK_PARSE_C
 
+STATIC void ec_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_SECP256R1), MP_ROM_PTR(&ec_curve_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicKey), MP_ROM_PTR(&ec_public_key_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicNumbers), MP_ROM_PTR(&ec_public_numbers_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateKey), MP_ROM_PTR(&ec_private_key_type)},
+    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateNumbers), MP_ROM_PTR(&ec_private_numbers_type)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ec_locals_dict, ec_locals_dict_table);
+
+STATIC mp_obj_type_t ec_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_ec,
+    .print = ec_print,
+    .locals_dict = (void *)&ec_locals_dict,
+};
+
 STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
 #if defined(MBEDTLS_VERSION_C)
@@ -1180,20 +1204,13 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
 #endif // MBEDTLS_VERSION_FEATURES
 #if defined(MBEDTLS_X509_USE_C)
     {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR(&x509_type)},
-    {MP_ROM_QSTR(MP_QSTR_Certificate), MP_ROM_PTR(&x509_certificate_type)},
 #endif // MBEDTLS_X509_USE_C
 #if defined(MBEDTLS_PK_PARSE_C)
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
-    {MP_ROM_QSTR(MP_QSTR_EllipticCurve), MP_ROM_PTR(&ec_curve_type)},
-    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicKey), MP_ROM_PTR(&ec_public_key_type)},
-    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicNumbers), MP_ROM_PTR(&ec_public_numbers_type)},
-    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateKey), MP_ROM_PTR(&ec_private_key_type)},
-    {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateNumbers), MP_ROM_PTR(&ec_private_numbers_type)},
+    {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR(&ec_type)},
 #endif //MBEDTLS_PK_PARSE_C
 #if defined(MBEDTLS_SHA256_C)
     {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
-    {MP_ROM_QSTR(MP_QSTR_HashAlgorithm), MP_ROM_PTR(&hash_algorithm_type)},
-    {MP_ROM_QSTR(MP_QSTR_HashContext), MP_ROM_PTR(&hash_context_type)},
 #endif
 };
 

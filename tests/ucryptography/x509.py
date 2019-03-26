@@ -54,7 +54,7 @@ def main():
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
 
-    digest = hashes.Hash(hashes.SHA256())
+    digest = hashes.Hash(certificate.signature_hash_algorithm)
     digest.update(certificate.tbs_certificate_bytes)
     tbs_certificate_hash = digest.finalize()
     public_key.verify(certificate.signature, tbs_certificate_hash)

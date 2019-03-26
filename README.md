@@ -14,56 +14,64 @@ import cryptography
 # API
 
 ## Classes
-- ### **EllipticCurve**:
+- ### **cryptography.ec.SECP256R1**:
     - name -> **str**
         - _"secp256r1"_
     - key_size -> **int**
         - _256_
 
-- ### **EllipticCurvePublicNumbers**:
-    - curve -> **EllipticCurve**
+- ### **cryptography.ec.EllipticCurvePublicNumbers**:
+    - curve -> **cryptography.ec.SECP256R1**
     - x -> **int**
     - y -> **int**
 
-- ### **EllipticCurvePrivateNumbers**:
-    - public_numbers -> **EllipticCurvePublicNumbers**
+- ### **cryptography.ec.EllipticCurvePrivateNumbers**:
+    - public_numbers() -> **cryptography.ec.EllipticCurvePublicNumbers**
     - private_value -> **int**
 
-- ### **EllipticCurvePublicKey**:
-    - public_numbers -> **EllipticCurvePublicNumbers**
-    - public_bytes -> **bytes**
-    - verify(signature:~~**tuple**(r:**int**, s:**int**)~~**bytes**, digest: **bytes**, ~~signature_algorithm:**bytes**~~) -> ~~raise: **InvalidSignature**~~ **bool**
+- ### **cryptography.ec.EllipticCurvePublicKey**:
+    - public_numbers() -> **cryptography.ec.EllipticCurvePublicNumbers**
+    - public_bytes() -> **bytes**
+    - verify(signature:**bytes**, digest: **bytes**) -> raise: **InvalidSignature**
     - key_size -> **int**
         - _256_
 
-- ### **EllipticCurvePrivateKey**:
-    - curve -> **EllipticCurve**
-    - public_key -> **EllipticCurvePublicKey**
-    - private_numbers -> **EllipticCurvePrivateNumbers**
-    - private_bytes -> **bytes**
-    - sign(digest: **bytes**, ~~signature_algorithm:**bytes**~~) -> **bytes**
+- ### **cryptography.ec.EllipticCurvePrivateKey**:
+    - curve -> **cryptography.ec.SECP256R1**
+    - public_key() -> **cryptography.ec.EllipticCurvePublicKey**
+    - private_numbers() -> **cryptography.ec.EllipticCurvePrivateNumbers**
+    - private_bytes() -> **bytes**
+    - sign(digest: **bytes**) -> **bytes**
     - key_size -> **int**
         - _256_
 
-- **HashAlgorithm**:
+- ### **cryptography.hashes.SHA256**:
     - name -> **str**
         - _"sha256"_
+    - key_size -> **int**
+        - _256_
 
-- ### **Certificate**:
+- ### **cryptography.hashes.Hash**:
+    - algorithm -> **cryptography.hashes.SHA256**
+    - update(data: **bytes**)
+    - copy() -> **cryptography.hashes.Hash**
+    - finalize() -> **bytes**
+
+- ### **cryptography.x509.Certificate**:
     - version -> **int**
     - serial_number -> **int**
-    - public_key -> **EllipticCurvePublicKey**
+    - public_key() -> **cryptography.ec.EllipticCurvePublicKey**
     - not_valid_before -> **str**
     - not_valid_after -> **str**
     - issuer -> **dict**
     - subject -> **dict**
     - signature_algorithm_oid -> **str**
-    - signature_hash_algorithm -> **HashAlgorithm**
+    - signature_hash_algorithm -> **cryptography.ec.SHA256**
     - ~~fingerprint -> **bytes**~~
     - extensions -> **dict**
     - signature -> **bytes**
     - tbs_certificate_bytes -> **bytes**
-    - public_bytes -> **bytes**
+    - public_bytes() -> **bytes**
 
 ## Modules
 
@@ -76,4 +84,8 @@ import cryptography
     **_SUPPORTED CERTIFICATE: signed using ECDSA with SHA256_**
     ```python
     cryptography.x509.load_der_x509_certificate(der: bytes) -> Certificate
+    ```
+- ### **cryptography.hashes**:
+    ```python
+    cryptography.hashes.Hash(hash_algorithm: cryptography.hashes.SHA256()) -> Hash
     ```
