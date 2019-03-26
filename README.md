@@ -65,7 +65,7 @@ import cryptography
     - not_valid_after -> **str**
     - issuer -> **dict**
     - subject -> **dict**
-    - signature_algorithm_oid -> **str**
+    - signature_algorithm_oid -> **dict**
     - signature_hash_algorithm -> **cryptography.ec.SHA256**
     - ~~fingerprint -> **bytes**~~
     - extensions -> **dict**

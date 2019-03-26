@@ -594,7 +594,8 @@ STATIC void hash_context_print(const mp_print_t *print, mp_obj_t self_in, mp_pri
 STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
-    if (!mp_obj_is_type(args[0], &hash_algorithm_type)) {
+    if (!mp_obj_is_type(args[0], &hash_algorithm_type))
+    {
         mp_raise_TypeError("EXPECTED INSTANCE OF hashes.SHA256");
     }
     mp_hash_context_t *HashContext = m_new_obj(mp_hash_context_t);
@@ -696,7 +697,6 @@ STATIC void hash_context_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
         }
     }
 }
-
 
 STATIC const mp_rom_map_elem_t hash_context_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_algorithm), MP_ROM_PTR(mp_const_none)},
@@ -1021,6 +1021,11 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_extended_key_usage), x509_crt_parse_ext_key_usage(&crt.ext_key_usage));
     mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_key_usage), x509_crt_parse_key_usage(crt.key_usage));
 
+    const char *signature_algorithm_oid_desc = NULL;
+    mbedtls_oid_get_sig_alg_desc(&crt.sig_oid, &signature_algorithm_oid_desc);
+    mp_obj_t signature_algorithm_oid = mp_obj_new_dict(0);
+    mp_obj_dict_store(signature_algorithm_oid, x509_crt_parse_oid(&crt.sig_oid, &mp_type_str), mp_obj_new_str(signature_algorithm_oid_desc, strlen(signature_algorithm_oid_desc)));
+
     mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
     HashAlgorithm->base.type = &hash_algorithm_type;
 
@@ -1033,7 +1038,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     Certificate->subject = x509_crt_parse_name(&crt.subject);
     Certificate->issuer = x509_crt_parse_name(&crt.issuer);
     Certificate->signature = mp_obj_new_bytes(crt.sig.p, crt.sig.len);
-    Certificate->signature_algorithm_oid = x509_crt_parse_oid(&crt.sig_oid, &mp_type_str);
+    Certificate->signature_algorithm_oid = signature_algorithm_oid;
     Certificate->signature_hash_algorithm = HashAlgorithm;
     Certificate->extensions = extensions;
     Certificate->tbs_certificate_bytes = mp_obj_new_bytes(crt.tbs.p, crt.tbs.len);
