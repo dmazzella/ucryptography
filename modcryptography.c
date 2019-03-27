@@ -78,7 +78,6 @@ STATIC int mp_random(void *rng_state, unsigned char *output, size_t len)
     return 0;
 }
 
-#if defined(MBEDTLS_VERSION_C)
 #include "mbedtls/version.h"
 
 STATIC void version_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
@@ -151,18 +150,10 @@ STATIC mp_obj_type_t version_type = {
     .locals_dict = (void *)&version_locals_dict,
 };
 
-#endif // MBEDTLS_VERSION_C
-
-#if defined(MBEDTLS_X509_USE_C)
 #include "mbedtls/x509.h"
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/oid.h"
 #include "mbedtls/sha256.h"
-#endif //MBEDTLS_X509_CRT_PARSE_C
-
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
-#if defined(MBEDTLS_PK_PARSE_C)
 
 struct _mp_ec_curve_t;
 typedef struct _mp_ec_curve_t mp_ec_curve_t;
@@ -690,8 +681,6 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
 }
 
-#endif // MBEDTLS_PK_PARSE_C
-
 STATIC void hash_algorithm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
     (void)kind;
@@ -807,9 +796,7 @@ STATIC mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
     vstr_t vstr_digest;
     vstr_init_len(&vstr_digest, 32);
 
-#if defined(MBEDTLS_SHA256_C)
     mbedtls_sha256_ret((const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf, 0);
-#endif
 
     return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_digest);
 }
@@ -854,7 +841,6 @@ STATIC mp_obj_type_t hash_context_type = {
     .locals_dict = (void *)&hash_context_locals_dict,
 };
 
-#if defined(MBEDTLS_SHA256_C)
 STATIC void hashes_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
     (void)kind;
@@ -874,7 +860,6 @@ STATIC mp_obj_type_t hashes_type = {
     .print = hashes_print,
     .locals_dict = (void *)&hashes_locals_dict,
 };
-#endif // MBEDTLS_SHA256_C
 
 STATIC void x509_certificate_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
@@ -882,7 +867,6 @@ STATIC void x509_certificate_print(const mp_print_t *print, mp_obj_t self_in, mp
     mp_printf(print, mp_obj_get_type_str(self_in));
 }
 
-#if defined(MBEDTLS_PK_PARSE_C)
 STATIC mp_obj_t x509_public_key(mp_obj_t obj)
 {
     mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
@@ -890,7 +874,6 @@ STATIC mp_obj_t x509_public_key(mp_obj_t obj)
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_public_key_obj, x509_public_key);
-#endif
 
 STATIC mp_obj_t x509_public_bytes(mp_obj_t obj)
 {
@@ -971,9 +954,7 @@ STATIC void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 }
 
 STATIC const mp_rom_map_elem_t x509_certificate_locals_dict_table[] = {
-#if defined(MBEDTLS_PK_PARSE_C)
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_x509_public_key_obj)},
-#endif
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_serial_number), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_not_valid_before), MP_ROM_PTR(mp_const_none)},
@@ -1163,7 +1144,6 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     Certificate->extensions = extensions;
     Certificate->tbs_certificate_bytes = mp_obj_new_bytes(crt.tbs.p, crt.tbs.len);
 
-#if defined(MBEDTLS_PK_PARSE_C)
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
     if (mbedtls_pk_parse_public_key(&pk, crt.pk_raw.p, crt.pk_raw.len) != 0)
@@ -1184,22 +1164,16 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     Certificate->public_bytes = Certificate->public_key->public_bytes;
 
     mbedtls_pk_free(&pk);
-#endif // MBEDTLS_PK_PARSE_C
-
     mbedtls_x509_crt_free(&crt);
-
     return Certificate;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_crt_parse_der_obj, x509_crt_parse_der);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_x509_crt_parse_der_obj, MP_ROM_PTR(&mod_x509_crt_parse_der_obj));
-#endif // MBEDTLS_X509_CRT_PARSE_C
 
 STATIC const mp_rom_map_elem_t x509_locals_dict_table[] = {
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
     {MP_ROM_QSTR(MP_QSTR_load_der_x509_certificate), MP_ROM_PTR(&mod_static_x509_crt_parse_der_obj)},
     {MP_ROM_QSTR(MP_QSTR_Certificate), MP_ROM_PTR(&x509_certificate_type)},
-#endif //MBEDTLS_X509_CRT_PARSE_C
 };
 
 STATIC MP_DEFINE_CONST_DICT(x509_locals_dict, x509_locals_dict_table);
@@ -1210,9 +1184,7 @@ STATIC mp_obj_type_t x509_type = {
     .print = x509_print,
     .locals_dict = (void *)&x509_locals_dict,
 };
-#endif // MBEDTLS_X509_USE_C
 
-#if defined(MBEDTLS_PK_PARSE_C)
 STATIC void serialization_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
     (void)kind;
@@ -1297,7 +1269,6 @@ STATIC mp_obj_type_t serialization_type = {
     .print = serialization_print,
     .locals_dict = (void *)&serialization_locals_dict,
 };
-#endif //MBEDTLS_PK_PARSE_C
 
 STATIC void ec_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
@@ -1324,19 +1295,11 @@ STATIC mp_obj_type_t ec_type = {
 
 STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
-#if defined(MBEDTLS_VERSION_C)
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type)},
-#endif // MBEDTLS_VERSION_FEATURES
-#if defined(MBEDTLS_X509_USE_C)
     {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR(&x509_type)},
-#endif // MBEDTLS_X509_USE_C
-#if defined(MBEDTLS_PK_PARSE_C)
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
     {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR(&ec_type)},
-#endif //MBEDTLS_PK_PARSE_C
-#if defined(MBEDTLS_SHA256_C)
     {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
-#endif
 };
 
 STATIC MP_DEFINE_CONST_DICT(mp_module_ucryptography_globals, mp_module_ucryptography_globals_table);
