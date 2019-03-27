@@ -24,10 +24,12 @@ import cryptography
     - curve -> **cryptography.ec.SECP256R1**
     - x -> **int**
     - y -> **int**
+    - public_key() -> **cryptography.ec.EllipticCurvePublicKey**
 
 - ### **cryptography.ec.EllipticCurvePrivateNumbers**:
     - public_numbers() -> **cryptography.ec.EllipticCurvePublicNumbers**
     - private_value -> **int**
+    - private_key() -> **cryptography.ec.EllipticCurvePrivateKey**
 
 - ### **cryptography.ec.EllipticCurvePublicKey**:
     - public_numbers() -> **cryptography.ec.EllipticCurvePublicNumbers**

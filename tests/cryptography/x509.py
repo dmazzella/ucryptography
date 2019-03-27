@@ -2,7 +2,6 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from hashlib import sha256
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization

@@ -2,7 +2,6 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from uhashlib import sha256
 from cryptography import serialization, hashes
 try:
     from util import loads_sequence
@@ -42,7 +41,7 @@ def main():
     digest.update(b'cacca')
     msg_hash = digest.finalize()
     signature = private_key.sign(msg_hash)
-    print("len", len(signature), "signature", signature)
+    print("len", len(signature), "signature", signature, "msg_hash", msg_hash)
     public_key.verify(signature, msg_hash)
 
 
