@@ -15,6 +15,11 @@ AwEHoUQDQgAEQWfGXJw+X9PV2czte6S4pXBM4QuOORNL6DeWlqbnKMK1l7xf3wNe
 -----END EC PRIVATE KEY-----''')
 
 
+PUBLIC_KEY_DER = loads_sequence('''-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQWfGXJw+X9PV2czte6S4pXBM4QuO
+ORNL6DeWlqbnKMK1l7xf3wNe1GZQ5vs4617zr3nCVjPhbs1qCCi8Ny/YTg==
+-----END PUBLIC KEY-----''')
+
 def main():
     private_key = serialization.load_der_private_key(PRIVATE_KEY_DER, None)
     print("curve", private_key.curve.name)
@@ -43,6 +48,15 @@ def main():
     signature = private_key.sign(msg_hash)
     print("len", len(signature), "signature", signature, "msg_hash", msg_hash)
     public_key.verify(signature, msg_hash)
+
+    public_key1 = serialization.load_der_public_key(PUBLIC_KEY_DER)
+    public_numbers1 = public_key1.public_numbers()
+    print("public_key.curve", public_key1.curve.name)
+    public_bytes1 = public_key1.public_bytes()
+    print("public_key.public_bytes", public_bytes1)
+    print("public_key.public_numbers.x", public_numbers1.x)
+    print("public_key.public_numbers.y", public_numbers1.y)
+    public_key1.verify(signature, msg_hash)
 
 
 if __name__ == "__main__":
