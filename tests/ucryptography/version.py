@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=import-error
+# pylint: disable=no-name-in-module
 from cryptography import version
 
 RESET =         "\033[0m"
