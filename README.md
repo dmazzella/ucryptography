@@ -12,12 +12,14 @@ import cryptography
 ```
 
 ## Exceptions
+
 - ### **cryptography.exceptions.InvalidSignature**
 - ### **cryptography.exceptions.AlreadyFinalized**
 - ### **cryptography.exceptions.UnsupportedAlgorithm**
 - ### **cryptography.exceptions.InvalidKey**
 
 ## Classes
+
 - ### **cryptography.ec.SECP256R1**:
     - name -> **str**
         - _"secp256r1"_
