@@ -54,6 +54,11 @@
 #endif // MICROPY_HW_ENABLE_RNG
 #endif
 
+MP_DEFINE_EXCEPTION(InvalidSignature, Exception);
+MP_DEFINE_EXCEPTION(AlreadyFinalized, Exception);
+MP_DEFINE_EXCEPTION(UnsupportedAlgorithm, Exception);
+MP_DEFINE_EXCEPTION(InvalidKey, Exception);
+
 STATIC int mp_random(void *rng_state, unsigned char *output, size_t len)
 {
     size_t use_len;
@@ -121,10 +126,6 @@ STATIC mp_obj_t version_check_feature(mp_obj_t feature)
 {
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(feature, &bufinfo, MP_BUFFER_READ);
-    if (!bufinfo.len)
-    {
-        mp_raise_ValueError(NULL);
-    }
     return mp_obj_new_bool(mbedtls_version_check_feature(bufinfo.buf) == 0);
 }
 
@@ -507,7 +508,7 @@ STATIC mp_obj_t ec_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t digest)
     if (mbedtls_ecdsa_read_signature(&ecp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (const byte *)bufinfo_signature.buf, bufinfo_signature.len) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
-        mp_raise_ValueError("INVALID SIGNATURE");
+        mp_raise_msg(&mp_type_InvalidSignature, NULL);
     }
     mbedtls_ecp_keypair_free(&ecp);
     return mp_const_none;
@@ -730,7 +731,7 @@ STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     if (!mp_obj_is_type(args[0], &hash_algorithm_type))
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF hashes.SHA256");
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, "hashes.SHA256");
     }
     mp_hash_context_t *HashContext = m_new_obj(mp_hash_context_t);
     HashContext->base.type = &hash_context_type;
@@ -745,7 +746,7 @@ STATIC mp_obj_t hash_algorithm_update(mp_obj_t obj, mp_obj_t data)
     mp_hash_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
     {
-        mp_raise_ValueError("ALREADY FINALIZED");
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
 
     mp_buffer_info_t bufinfo_self_data;
@@ -771,7 +772,7 @@ STATIC mp_obj_t hash_algorithm_copy(mp_obj_t obj)
     mp_hash_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
     {
-        mp_raise_ValueError("ALREADY FINALIZED");
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
 
     mp_buffer_info_t bufinfo_data;
@@ -792,7 +793,7 @@ STATIC mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
     mp_hash_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
     {
-        mp_raise_ValueError("ALREADY FINALIZED");
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
 
     self->finalized = true;
@@ -1103,10 +1104,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
 {
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(certificate, &bufinfo, MP_BUFFER_READ);
-    if (!bufinfo.len)
-    {
-        mp_raise_ValueError("CERTIFICATE EMPTY");
-    }
+
     mbedtls_x509_crt crt;
     mbedtls_x509_crt_init(&crt);
     if (mbedtls_x509_crt_parse_der_nocopy(&crt, (const byte *)bufinfo.buf, bufinfo.len) != 0)
@@ -1120,14 +1118,14 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError("SIGNATURE HASH ALGORITHM UNSUPPORTED (ONLY SHA256 IS SUPPORTED)");
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, "ONLY SHA256 IS SUPPORTED");
     }
 
     if (crt.sig_pk != MBEDTLS_PK_ECDSA)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError("SIGNATURE PUBLIC KEY ALGORITHM UNSUPPORTED (ONLY ECDSA IS SUPPORTED)");
+        mp_raise_ValueError("ONLY ECDSA IS SUPPORTED");
     }
 
     mp_obj_t extensions = mp_obj_new_dict(0);
@@ -1162,14 +1160,14 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         mbedtls_pk_free(&pk);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError("PUBLIC KEY FORMAT");
+        mp_raise_msg(&mp_type_InvalidKey, "PUBLIC KEY");
     }
 
     if (mbedtls_pk_get_type(&pk) != MBEDTLS_PK_ECKEY)
     {
         mbedtls_pk_free(&pk);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError("PUBLIC KEY UNSUPPORTED (ONLY EC KEY IS SUPPORTED)");
+        mp_raise_msg(&mp_type_InvalidKey, "ONLY EC KEY IS SUPPORTED");
     }
 
     Certificate->public_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
@@ -1207,17 +1205,13 @@ STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
 {
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(public_key, &bufinfo, MP_BUFFER_READ);
-    if (!bufinfo.len)
-    {
-        mp_raise_ValueError("PUBLIC KEY EMPTY");
-    }
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
     if (mbedtls_pk_parse_public_key(&pk, (const byte *)bufinfo.buf, bufinfo.len) != 0)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_ValueError("PUBLIC KEY FORMAT");
+        mp_raise_msg(&mp_type_InvalidKey, "PUBLIC KEY");
     }
 
     mp_obj_t pub_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
@@ -1233,30 +1227,22 @@ STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
 {
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(private_key, &bufinfo, MP_BUFFER_READ);
-    if (!bufinfo.len)
-    {
-        mp_raise_ValueError("PRIVATE KEY EMPTY");
-    }
 
     mp_buffer_info_t bufinfo1;
     bool use_password = mp_get_buffer(password, &bufinfo1, MP_BUFFER_READ);
-    if (use_password && !bufinfo1.len)
-    {
-        mp_raise_ValueError("PRIVATE KEY EMPTY");
-    }
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
     if (mbedtls_pk_parse_key(&pk, (const byte *)bufinfo.buf, bufinfo.len, (use_password ? (const byte *)bufinfo1.buf : NULL), bufinfo1.len) != 0)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_ValueError("PRIVATE KEY FORMAT");
+        mp_raise_msg(&mp_type_InvalidKey, "PRIVATE KEY");
     }
 
     if (mbedtls_pk_get_type(&pk) != MBEDTLS_PK_ECKEY)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_ValueError("PRIVATE KEY UNSUPPORTED (ONLY EC KEY IS SUPPORTED)");
+        mp_raise_msg(&mp_type_InvalidKey, "ONLY EC KEY IS SUPPORTED");
     }
 
     mp_obj_t priv_key = ec_parse_keypair(mbedtls_pk_ec(pk), true);
