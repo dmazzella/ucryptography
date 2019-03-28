@@ -1291,6 +1291,28 @@ STATIC mp_obj_type_t ec_type = {
     .locals_dict = (void *)&ec_locals_dict,
 };
 
+STATIC void exceptions_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_InvalidSignature), MP_ROM_PTR(&mp_type_InvalidSignature)},
+    {MP_ROM_QSTR(MP_QSTR_AlreadyFinalized), MP_ROM_PTR(&mp_type_AlreadyFinalized)},
+    {MP_ROM_QSTR(MP_QSTR_UnsupportedAlgorithm), MP_ROM_PTR(&mp_type_UnsupportedAlgorithm)},
+    {MP_ROM_QSTR(MP_QSTR_InvalidKey), MP_ROM_PTR(&mp_type_InvalidKey)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(exceptions_locals_dict, exceptions_locals_dict_table);
+
+STATIC mp_obj_type_t exceptions_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_exceptions,
+    .print = exceptions_print,
+    .locals_dict = (void *)&exceptions_locals_dict,
+};
+
 STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type)},
@@ -1298,6 +1320,7 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
     {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR(&ec_type)},
     {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
+    {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR(&exceptions_type)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(mp_module_ucryptography_globals, mp_module_ucryptography_globals_table);

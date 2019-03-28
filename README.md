@@ -11,7 +11,11 @@ To build such a module, compile MicroPython with an extra make flag named ```USE
 import cryptography
 ```
 
-# API
+## Exceptions
+- ### **cryptography.exceptions.InvalidSignature**
+- ### **cryptography.exceptions.AlreadyFinalized**
+- ### **cryptography.exceptions.UnsupportedAlgorithm**
+- ### **cryptography.exceptions.InvalidKey**
 
 ## Classes
 - ### **cryptography.ec.SECP256R1**:
@@ -75,7 +79,7 @@ import cryptography
     - tbs_certificate_bytes -> **bytes**
     - public_bytes() -> **bytes**
 
-## Modules
+## Methods
 
 - ### **cryptography.serialization**:
     ```python
