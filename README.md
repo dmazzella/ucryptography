@@ -81,6 +81,11 @@ import cryptography
     - tbs_certificate_bytes -> **bytes**
     - public_bytes() -> **bytes**
 
+- ### **cryptography.ciphers.AESGCM**:
+    - generate_key(bit_length: **int**) -> **bytes**
+    - encrypt(nonce: **bytes**, plain_text_data: **bytes**, aad: **bytes** or **None**) -> **bytes**
+    - decrypt(nonce: **bytes**, encrypted_data: **bytes**, aad: **bytes** or **None**) -> **bytes**
+
 ## Methods
 
 - ### **cryptography.serialization**:
@@ -96,4 +101,8 @@ import cryptography
 - ### **cryptography.hashes**:
     ```python
     cryptography.hashes.Hash(hash_algorithm: cryptography.hashes.SHA256()) -> Hash
+    ```
+- ### **cryptography.ciphers**:
+    ```python
+    cryptography.ciphers.AESGCM(key: cryptography.ciphers.AESGCM.generate_key(256)) -> AESGCM
     ```

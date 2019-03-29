@@ -155,6 +155,8 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/oid.h"
 #include "mbedtls/sha256.h"
+#include "mbedtls/cipher.h"
+#include "mbedtls/gcm.h"
 
 struct _mp_ec_curve_t;
 typedef struct _mp_ec_curve_t mp_ec_curve_t;
@@ -179,6 +181,9 @@ typedef struct _mp_hash_context_t mp_hash_context_t;
 
 struct _mp_x509_certificate_t;
 typedef struct _mp_x509_certificate_t mp_x509_certificate_t;
+
+struct _mp_ciphers_aesgcm_t;
+typedef struct _mp_ciphers_aesgcm_t mp_ciphers_aesgcm_t;
 
 typedef struct _mp_ec_curve_t
 {
@@ -249,6 +254,12 @@ typedef struct _mp_x509_certificate_t
     mp_obj_t tbs_certificate_bytes;
 } mp_x509_certificate_t;
 
+typedef struct _mp_ciphers_aesgcm_t
+{
+    mp_obj_base_t base;
+    mp_obj_t key;
+} mp_ciphers_aesgcm_t;
+
 STATIC mp_obj_type_t ec_curve_type;
 STATIC mp_obj_type_t ec_public_numbers_type;
 STATIC mp_obj_type_t ec_private_numbers_type;
@@ -257,6 +268,7 @@ STATIC mp_obj_type_t ec_private_key_type;
 STATIC mp_obj_type_t hash_algorithm_type;
 STATIC mp_obj_type_t hash_context_type;
 STATIC mp_obj_type_t x509_certificate_type;
+STATIC mp_obj_type_t ciphers_aesgcm_type;
 
 STATIC void ec_curve_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
@@ -1093,7 +1105,8 @@ STATIC mp_obj_t x509_crt_parse_key_usage(const unsigned int ku)
     return key_usage;
 }
 
-STATIC void x509_crt_dump(const mbedtls_x509_crt *crt) {
+STATIC void x509_crt_dump(const mbedtls_x509_crt *crt)
+{
     vstr_t vstr_crt;
     vstr_init_len(&vstr_crt, crt->raw.len);
     mbedtls_x509_crt_info(vstr_crt.buf, vstr_len(&vstr_crt), "", crt);
@@ -1313,14 +1326,176 @@ STATIC mp_obj_type_t exceptions_type = {
     .locals_dict = (void *)&exceptions_locals_dict,
 };
 
+STATIC void aesgcm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC mp_obj_t aesgcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 1, 1, false);
+    mp_obj_t key = args[0];
+
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(key, &bufinfo, MP_BUFFER_READ);
+
+    mp_ciphers_aesgcm_t *AESGCM = m_new_obj(mp_ciphers_aesgcm_t);
+    AESGCM->base.type = &ciphers_aesgcm_type;
+    AESGCM->key = key;
+
+    return MP_OBJ_FROM_PTR(AESGCM);
+}
+
+STATIC mp_obj_t aesgcm_generate_key(mp_obj_t bit_length)
+{
+    if (!mp_obj_is_int(bit_length))
+    {
+        mp_raise_TypeError("EXPECTED bit_length int");
+    }
+
+    mp_int_t nbit = mp_obj_get_int(bit_length);
+    if (nbit != 128 && nbit != 192 && nbit != 256)
+    {
+        mp_raise_ValueError("bit_length MUST BE 128, 192 OR 256");
+    }
+
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
+
+    vstr_t vstr_key;
+    vstr_init_len(&vstr_key, nbit / 8);
+    mp_random(NULL, (unsigned char *)vstr_key.buf, vstr_len(&vstr_key));
+
+    return mp_obj_new_bytes((const byte *)vstr_key.buf, vstr_key.len);
+    ;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_aesgcm_generate_key_obj, aesgcm_generate_key);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_aesgcm_generate_key_obj, MP_ROM_PTR(&mod_aesgcm_generate_key_obj));
+
+STATIC mp_obj_t aesgcm_encrypt(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+
+    mp_ciphers_aesgcm_t *AESGCM = MP_OBJ_TO_PTR(args[0]);
+
+    mp_buffer_info_t bufinfo_nonce;
+    mp_get_buffer_raise(args[1], &bufinfo_nonce, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(args[2], &bufinfo_data, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_associated_data;
+    bool use_associated_data = mp_get_buffer(args[3], &bufinfo_associated_data, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_key;
+    mp_get_buffer_raise(AESGCM->key, &bufinfo_key, MP_BUFFER_READ);
+
+    vstr_t vstr_tag;
+    vstr_init_len(&vstr_tag, 16);
+
+    vstr_t vstr_output;
+    vstr_init_len(&vstr_output, bufinfo_data.len);
+
+    mbedtls_gcm_context ctx;
+    mbedtls_gcm_init(&ctx);
+    mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, bufinfo_key.buf, (bufinfo_key.len * 8));
+    mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_ENCRYPT, bufinfo_nonce.buf, bufinfo_nonce.len, (use_associated_data ? bufinfo_associated_data.buf : NULL), (use_associated_data ? bufinfo_associated_data.len : 0));
+    mbedtls_gcm_update(&ctx, vstr_len(&vstr_output), bufinfo_data.buf, (unsigned char *)vstr_output.buf);
+    mbedtls_gcm_finish(&ctx, (unsigned char *)vstr_tag.buf, vstr_len(&vstr_tag));
+    mbedtls_gcm_free(&ctx);
+
+    vstr_add_strn(&vstr_output, vstr_tag.buf, vstr_len(&vstr_tag));
+
+    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_output);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_aesgcm_encrypt_obj, 4, 4, aesgcm_encrypt);
+
+STATIC mp_obj_t aesgcm_decrypt(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+
+    mp_ciphers_aesgcm_t *AESGCM = MP_OBJ_TO_PTR(args[0]);
+
+    mp_buffer_info_t bufinfo_nonce;
+    mp_get_buffer_raise(args[1], &bufinfo_nonce, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(args[2], &bufinfo_data, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_associated_data;
+    bool use_associated_data = mp_get_buffer(args[3], &bufinfo_associated_data, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_key;
+    mp_get_buffer_raise(AESGCM->key, &bufinfo_key, MP_BUFFER_READ);
+
+    vstr_t vstr_tag;
+    vstr_init_len(&vstr_tag, 16);
+
+    vstr_t vstr_output;
+    vstr_init_len(&vstr_output, bufinfo_data.len - vstr_len(&vstr_tag));
+
+    mbedtls_gcm_context ctx;
+    mbedtls_gcm_init(&ctx);
+    mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, bufinfo_key.buf, (bufinfo_key.len * 8));
+    mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_DECRYPT, bufinfo_nonce.buf, bufinfo_nonce.len, (use_associated_data ? bufinfo_associated_data.buf : NULL), (use_associated_data ? bufinfo_associated_data.len : 0));
+    mbedtls_gcm_update(&ctx, vstr_len(&vstr_output), bufinfo_data.buf, (unsigned char *)vstr_output.buf);
+    mbedtls_gcm_finish(&ctx, (unsigned char *)vstr_tag.buf, vstr_len(&vstr_tag));
+    mbedtls_gcm_free(&ctx);
+
+    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_output);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_aesgcm_decrypt_obj, 4, 4, aesgcm_decrypt);
+
+STATIC const mp_rom_map_elem_t aesgcm_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_generate_key), MP_ROM_PTR(&mod_static_aesgcm_generate_key_obj)},
+    {MP_ROM_QSTR(MP_QSTR_encrypt), MP_ROM_PTR(&mod_aesgcm_encrypt_obj)},
+    {MP_ROM_QSTR(MP_QSTR_decrypt), MP_ROM_PTR(&mod_aesgcm_decrypt_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(aesgcm_locals_dict, aesgcm_locals_dict_table);
+
+STATIC mp_obj_type_t ciphers_aesgcm_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_AESGCM,
+    .make_new = aesgcm_make_new,
+    .print = aesgcm_print,
+    .locals_dict = (void *)&aesgcm_locals_dict,
+};
+
+STATIC void ciphers_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC const mp_rom_map_elem_t ciphers_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_AESGCM), MP_ROM_PTR(&ciphers_aesgcm_type)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ciphers_locals_dict, ciphers_locals_dict_table);
+
+STATIC mp_obj_type_t ciphers_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_ciphers,
+    .print = ciphers_print,
+    .locals_dict = (void *)&ciphers_locals_dict,
+};
+
 STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
+    {MP_ROM_QSTR(MP_QSTR_ciphers), MP_ROM_PTR(&ciphers_type)},
+    {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR(&ec_type)},
+    {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR(&exceptions_type)},
+    {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
+    {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type)},
     {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR(&x509_type)},
-    {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
-    {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR(&ec_type)},
-    {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
-    {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR(&exceptions_type)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(mp_module_ucryptography_globals, mp_module_ucryptography_globals_table);
