@@ -83,6 +83,7 @@ STATIC int mp_random(void *rng_state, unsigned char *output, size_t len)
     return 0;
 }
 
+#if defined(MBEDTLS_VERSION_C)
 #include "mbedtls/version.h"
 
 STATIC void version_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
@@ -150,6 +151,7 @@ STATIC mp_obj_type_t version_type = {
     .print = version_print,
     .locals_dict = (void *)&version_locals_dict,
 };
+#endif
 
 #include "mbedtls/x509.h"
 #include "mbedtls/x509_crt.h"
@@ -975,8 +977,10 @@ STATIC void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 
 STATIC const mp_rom_map_elem_t x509_certificate_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_x509_public_key_obj)},
+#if defined(MBEDTLS_VERSION_C)
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_serial_number), MP_ROM_INT(0)},
+#endif
     {MP_ROM_QSTR(MP_QSTR_not_valid_before), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_not_valid_after), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_subject), MP_ROM_PTR(mp_const_none)},
@@ -1494,7 +1498,9 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR(&exceptions_type)},
     {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
+#if defined(MBEDTLS_VERSION_C)
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type)},
+#endif
     {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR(&x509_type)},
 };
 
