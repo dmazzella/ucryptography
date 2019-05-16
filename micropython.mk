@@ -1,12 +1,12 @@
 MOD_UCRYPTOGRAPHY_DIR := $(USERMOD_DIR)
 
 SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/modcryptography.c
-$(foreach src, $(wildcard $(MOD_UCRYPTOGRAPHY_DIR)/mbed-crypto/library/*.c), \
+$(foreach src, $(wildcard $(MOD_UCRYPTOGRAPHY_DIR)/mbedtls/library/*.c), \
     $(eval SRC_USERMOD += $(src))\
 )
 
 CFLAGS_USERMOD += -I$(MOD_UCRYPTOGRAPHY_DIR)
-CFLAGS_USERMOD += -I$(MOD_UCRYPTOGRAPHY_DIR)/mbed-crypto/include
+CFLAGS_USERMOD += -I$(MOD_UCRYPTOGRAPHY_DIR)/mbedtls/include
 
 CFLAGS_USERMOD += -DMICROPY_PY_UCRYPTOGRAPHY=1
 CFLAGS_USERMOD += -DMBEDTLS_USER_CONFIG_FILE='"modcryptography_config.h"'
