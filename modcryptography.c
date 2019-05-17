@@ -1291,12 +1291,38 @@ STATIC void ec_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t 
     mp_printf(print, mp_obj_get_type_str(self_in));
 }
 
+STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
+{
+    mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
+    if (!mp_obj_is_type(EllipticCurve, &ec_curve_type))
+    {
+        mp_raise_TypeError("EXPECTED INSTANCE OF ec.SECP256R1");
+    }
+    mbedtls_ecp_keypair ecp;
+    mbedtls_ecp_keypair_init(&ecp);
+    mbedtls_ecp_group_load(&ecp.grp, MBEDTLS_ECP_DP_SECP256R1);
+    if (mbedtls_ecp_gen_keypair(&ecp.grp, &ecp.d, &ecp.Q, mp_random, NULL) != 0)
+    {
+        mbedtls_ecp_keypair_free(&ecp);
+        return mp_const_none;
+    }
+
+    mp_obj_t priv_key = ec_parse_keypair(&ecp, true);
+    mbedtls_ecp_keypair_free(&ecp);
+    return priv_key;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_generate_private_key_obj, ec_generate_private_key);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_generate_private_key_obj, MP_ROM_PTR(&mod_ec_generate_private_key_obj));
+
+
 STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SECP256R1), MP_ROM_PTR(&ec_curve_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicKey), MP_ROM_PTR(&ec_public_key_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicNumbers), MP_ROM_PTR(&ec_public_numbers_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateKey), MP_ROM_PTR(&ec_private_key_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateNumbers), MP_ROM_PTR(&ec_private_numbers_type)},
+    {MP_ROM_QSTR(MP_QSTR_generate_private_key), MP_ROM_PTR(&mod_static_ec_generate_private_key_obj)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ec_locals_dict, ec_locals_dict_table);
