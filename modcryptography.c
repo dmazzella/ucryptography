@@ -1315,6 +1315,42 @@ STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_generate_private_key_obj, ec_generate_private_key);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_generate_private_key_obj, MP_ROM_PTR(&mod_ec_generate_private_key_obj));
 
+STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
+{
+    if (!mp_obj_is_int(private_value))
+    {
+        mp_raise_TypeError("EXPECTED private_value int");
+    }
+    vstr_t vstr_private_bytes;
+    vstr_init_len(&vstr_private_bytes, 32);
+    mp_obj_int_to_bytes_impl(private_value, true, 32, (byte *)vstr_private_bytes.buf);
+
+    mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
+    if (!mp_obj_is_type(EllipticCurve, &ec_curve_type))
+    {
+        mp_raise_TypeError("EXPECTED INSTANCE OF ec.SECP256R1");
+    }
+    mbedtls_ecp_keypair ecp;
+    mbedtls_ecp_keypair_init(&ecp);
+    mbedtls_ecp_group_load(&ecp.grp, MBEDTLS_ECP_DP_SECP256R1);
+    if (mbedtls_ecp_read_key(ecp.grp.id, &ecp, vstr_private_bytes.buf, vstr_private_bytes.len) != 0)
+    {
+        mbedtls_ecp_keypair_free(&ecp);
+        return mp_const_none;
+    }
+    if(mbedtls_ecp_mul(&ecp.grp, &ecp.Q, &ecp.d, &ecp.grp.G, mp_random, NULL) != 0)
+    {
+        mbedtls_ecp_keypair_free(&ecp);
+        return mp_const_none;
+    }
+    mp_obj_t priv_key = ec_parse_keypair(&ecp, true);
+    mbedtls_ecp_keypair_free(&ecp);
+    return priv_key;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_derive_private_key_obj, ec_derive_private_key);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_derive_private_key_obj, MP_ROM_PTR(&mod_ec_derive_private_key_obj));
+
 
 STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SECP256R1), MP_ROM_PTR(&ec_curve_type)},
@@ -1323,6 +1359,7 @@ STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateKey), MP_ROM_PTR(&ec_private_key_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateNumbers), MP_ROM_PTR(&ec_private_numbers_type)},
     {MP_ROM_QSTR(MP_QSTR_generate_private_key), MP_ROM_PTR(&mod_static_ec_generate_private_key_obj)},
+    {MP_ROM_QSTR(MP_QSTR_derive_private_key), MP_ROM_PTR(&mod_static_ec_derive_private_key_obj)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ec_locals_dict, ec_locals_dict_table);
