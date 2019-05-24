@@ -190,6 +190,11 @@ typedef struct _mp_ciphers_aesgcm_t mp_ciphers_aesgcm_t;
 typedef struct _mp_ec_curve_t
 {
     mp_obj_base_t base;
+    mp_obj_t p;
+    mp_obj_t b;
+    mp_obj_t n;
+    mp_obj_t G_x;
+    mp_obj_t G_y;
 } mp_ec_curve_t;
 
 typedef struct _mp_ec_public_numbers_t
@@ -283,12 +288,87 @@ STATIC mp_obj_t ec_curve_make_new(const mp_obj_type_t *type, size_t n_args, size
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
     EllipticCurve->base.type = &ec_curve_type;
+
+    mbedtls_ecp_group grp;
+    mbedtls_ecp_group_init(&grp);
+    mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
+    
+    vstr_t vstr_p;
+    vstr_init_len(&vstr_p, mbedtls_mpi_size(&grp.P));
+    mbedtls_mpi_write_binary(&grp.P, (unsigned char *)vstr_p.buf, vstr_len(&vstr_p));
+    EllipticCurve->p = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_p), (const byte *)vstr_p.buf);
+
+    vstr_t vstr_b;
+    vstr_init_len(&vstr_b, mbedtls_mpi_size(&grp.B));
+    mbedtls_mpi_write_binary(&grp.B, (unsigned char *)vstr_b.buf, vstr_len(&vstr_b));
+    EllipticCurve->b = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_b), (const byte *)vstr_b.buf);
+
+    vstr_t vstr_n;
+    vstr_init_len(&vstr_n, mbedtls_mpi_size(&grp.N));
+    mbedtls_mpi_write_binary(&grp.N, (unsigned char *)vstr_n.buf, vstr_len(&vstr_n));
+    EllipticCurve->n = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_n), (const byte *)vstr_n.buf);
+
+    vstr_t vstr_G_x;
+    vstr_init_len(&vstr_G_x, mbedtls_mpi_size(&grp.G.X));
+    mbedtls_mpi_write_binary(&grp.G.X, (unsigned char *)vstr_G_x.buf, vstr_len(&vstr_G_x));
+    EllipticCurve->G_x = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_G_x), (const byte *)vstr_G_x.buf);
+
+    vstr_t vstr_G_y;
+    vstr_init_len(&vstr_G_y, mbedtls_mpi_size(&grp.G.Y));
+    mbedtls_mpi_write_binary(&grp.G.Y, (unsigned char *)vstr_G_y.buf, vstr_len(&vstr_G_y));
+    EllipticCurve->G_y = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_G_y), (const byte *)vstr_G_y.buf);
+
     return MP_OBJ_FROM_PTR(EllipticCurve);
+}
+
+STATIC void ec_curve_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_ec_curve_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_p)
+            {
+                dest[0] = self->p;
+                return;
+            }
+            if (attr == MP_QSTR_b)
+            {
+                dest[0] = self->b;
+                return;
+            }
+            if (attr == MP_QSTR_n)
+            {
+                dest[0] = self->n;
+                return;
+            }
+            if (attr == MP_QSTR_G_x)
+            {
+                dest[0] = self->G_x;
+                return;
+            }
+            if (attr == MP_QSTR_G_y)
+            {
+                dest[0] = self->G_y;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
 }
 
 STATIC const mp_rom_map_elem_t ec_curve_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_secp256r1)},
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(256)},
+    {MP_ROM_QSTR(MP_QSTR_p), MP_ROM_INT(0)},
+    {MP_ROM_QSTR(MP_QSTR_b), MP_ROM_INT(0)},
+    {MP_ROM_QSTR(MP_QSTR_n), MP_ROM_INT(0)},
+    {MP_ROM_QSTR(MP_QSTR_G_x), MP_ROM_INT(0)},
+    {MP_ROM_QSTR(MP_QSTR_G_y), MP_ROM_INT(0)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ec_curve_locals_dict, ec_curve_locals_dict_table);
@@ -298,6 +378,7 @@ STATIC mp_obj_type_t ec_curve_type = {
     .name = MP_QSTR_SECP256R1,
     .make_new = ec_curve_make_new,
     .print = ec_curve_print,
+    .attr = ec_curve_attr,
     .locals_dict = (void *)&ec_curve_locals_dict,
 };
 
