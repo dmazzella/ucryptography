@@ -181,6 +181,9 @@ typedef struct _mp_hash_algorithm_t mp_hash_algorithm_t;
 struct _mp_hash_context_t;
 typedef struct _mp_hash_context_t mp_hash_context_t;
 
+struct _mp_hmac_context_t;
+typedef struct _mp_hmac_context_t mp_hmac_context_t;
+
 struct _mp_x509_certificate_t;
 typedef struct _mp_x509_certificate_t mp_x509_certificate_t;
 
@@ -243,6 +246,14 @@ typedef struct _mp_hash_context_t
     bool finalized;
 } mp_hash_context_t;
 
+typedef struct _mp_hmac_context_t
+{
+    mp_obj_base_t base;
+    mp_obj_t key;
+    mp_obj_t data;
+    bool finalized;
+} mp_hmac_context_t;
+
 typedef struct _mp_x509_certificate_t
 {
     mp_obj_base_t base;
@@ -274,6 +285,7 @@ STATIC mp_obj_type_t ec_public_key_type;
 STATIC mp_obj_type_t ec_private_key_type;
 STATIC mp_obj_type_t hash_algorithm_type;
 STATIC mp_obj_type_t hash_context_type;
+STATIC mp_obj_type_t hmac_context_type;
 STATIC mp_obj_type_t x509_certificate_type;
 STATIC mp_obj_type_t ciphers_aesgcm_type;
 
@@ -964,6 +976,163 @@ STATIC mp_obj_type_t hashes_type = {
     .locals_dict = (void *)&hashes_locals_dict,
 };
 
+STATIC void hmac_context_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 2, 2, false);
+    if (!mp_obj_is_type(args[0], &mp_type_bytes))
+    {
+        mp_raise_TypeError("EXPECTED key bytes");
+    }
+    if (!mp_obj_is_type(args[1], &hash_algorithm_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, "hashes.SHA256");
+    }
+    mp_hmac_context_t *HMACContext = m_new_obj(mp_hmac_context_t);
+    HMACContext->base.type = &hmac_context_type;
+    HMACContext->key = args[0];
+    HMACContext->data = mp_const_empty_bytes;
+    HMACContext->finalized = false;
+    return MP_OBJ_FROM_PTR(HMACContext);
+}
+
+STATIC mp_obj_t hmac_algorithm_update(mp_obj_t obj, mp_obj_t data)
+{
+    mp_hmac_context_t *self = MP_OBJ_TO_PTR(obj);
+    if (self->finalized)
+    {
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
+    }
+
+    mp_buffer_info_t bufinfo_self_data;
+    mp_get_buffer_raise(self->data, &bufinfo_self_data, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
+
+    vstr_t vstr_data;
+    vstr_init(&vstr_data, 0);
+    vstr_add_strn(&vstr_data, bufinfo_self_data.buf, bufinfo_self_data.len);
+    vstr_add_strn(&vstr_data, bufinfo_data.buf, bufinfo_data.len);
+
+    self->data = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_data);
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_hmac_algorithm_update_obj, hmac_algorithm_update);
+
+STATIC mp_obj_t hmac_algorithm_copy(mp_obj_t obj)
+{
+    mp_hmac_context_t *self = MP_OBJ_TO_PTR(obj);
+    if (self->finalized)
+    {
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
+    }
+
+    mp_buffer_info_t bufinfo_key;
+    mp_get_buffer_raise(self->key, &bufinfo_key, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(self->data, &bufinfo_data, MP_BUFFER_READ);
+
+    mp_hmac_context_t *HMACContext = m_new_obj(mp_hmac_context_t);
+    HMACContext->base.type = &hmac_context_type;
+    HMACContext->key = mp_obj_new_bytes(bufinfo_key.buf, bufinfo_key.len);
+    HMACContext->data = mp_obj_new_bytes(bufinfo_data.buf, bufinfo_data.len);
+    HMACContext->finalized = false;
+
+    return MP_OBJ_FROM_PTR(HMACContext);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hmac_algorithm_copy_obj, hmac_algorithm_copy);
+
+STATIC mp_obj_t hmac_algorithm_verify(mp_obj_t obj, mp_obj_t data)
+{
+    mp_hmac_context_t *self = MP_OBJ_TO_PTR(obj);
+    if (self->finalized)
+    {
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
+    }
+
+    mp_buffer_info_t bufinfo_self_data;
+    mp_get_buffer_raise(self->data, &bufinfo_self_data, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_hmac_algorithm_verify_obj, hmac_algorithm_verify);
+
+STATIC mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
+{
+    mp_hmac_context_t *self = MP_OBJ_TO_PTR(obj);
+    if (self->finalized)
+    {
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
+    }
+
+    self->finalized = true;
+
+    mp_buffer_info_t bufinfo_key;
+    mp_get_buffer_raise(self->key, &bufinfo_key, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(self->data, &bufinfo_data, MP_BUFFER_READ);
+
+    vstr_t vstr_digest;
+    vstr_init_len(&vstr_digest, 32);
+    
+    mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const byte *)bufinfo_key.buf, bufinfo_key.len, (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+
+    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_digest);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hmac_algorithm_finalize_obj, hmac_algorithm_finalize);
+
+STATIC const mp_rom_map_elem_t hmac_context_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mod_hmac_algorithm_update_obj)},
+    {MP_ROM_QSTR(MP_QSTR_copy), MP_ROM_PTR(&mod_hmac_algorithm_copy_obj)},
+    {MP_ROM_QSTR(MP_QSTR_verify), MP_ROM_PTR(&mod_hmac_algorithm_verify_obj)},
+    {MP_ROM_QSTR(MP_QSTR_finalize), MP_ROM_PTR(&mod_hmac_algorithm_finalize_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(hmac_context_locals_dict, hmac_context_locals_dict_table);
+
+STATIC mp_obj_type_t hmac_context_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_HMACContext,
+    .make_new = hmac_context_make_new,
+    .print = hmac_context_print,
+    .locals_dict = (void *)&hmac_context_locals_dict,
+};
+
+STATIC void hmac_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC const mp_rom_map_elem_t hmac_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_HMAC), MP_ROM_PTR(&hmac_context_type)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(hmac_locals_dict, hmac_locals_dict_table);
+
+STATIC mp_obj_type_t hmac_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_hmac,
+    .print = hmac_print,
+    .locals_dict = (void *)&hmac_locals_dict,
+};
+
 STATIC void x509_certificate_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
     (void)kind;
@@ -1641,6 +1810,7 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR(&ec_type)},
     {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR(&exceptions_type)},
     {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
+    {MP_ROM_QSTR(MP_QSTR_hmac), MP_ROM_PTR(&hmac_type)},
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
 #if defined(MBEDTLS_VERSION_C)
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type)},

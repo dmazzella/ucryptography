@@ -75,6 +75,12 @@ import cryptography
     - copy() -> **cryptography.hashes.Hash**
     - finalize() -> **bytes**
 
+- ### **cryptography.hmac.HMAC**:
+    - update(data: **bytes**)
+    - copy() -> **cryptography.hmac.HMAC**
+    - verify(data: **bytes**) -> raise: **InvalidSignature**
+    - finalize() -> **bytes**
+
 - ### **cryptography.x509.Certificate**:
     - version -> **int**
     - serial_number -> **int**
@@ -111,6 +117,10 @@ import cryptography
 - ### **cryptography.hashes**:
     ```python
     cryptography.hashes.Hash(hash_algorithm: cryptography.hashes.SHA256()) -> Hash
+    ```
+- ### **cryptography.hmac**:
+    ```python
+    cryptography.hmac.HMAC(key: bytes, hash_algorithm: cryptography.hashes.SHA256()) -> HMAC
     ```
 - ### **cryptography.ciphers**:
     ```python
