@@ -66,8 +66,8 @@ import cryptography
 - ### **cryptography.hashes.SHA256**:
     - name -> **str**
         - _"sha256"_
-    - key_size -> **int**
-        - _256_
+    - digest_size -> **int**
+        - _32_
 
 - ### **cryptography.hashes.Hash**:
     - algorithm -> **cryptography.hashes.SHA256**

@@ -36,6 +36,9 @@
 #include "py/objstr.h"
 #include "py/objint.h"
 #include "py/runtime.h"
+#if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
+#include "py/mpz.h"
+#endif
 
 #if !defined(MBEDTLS_USER_CONFIG_FILE)
 #define MBEDTLS_USER_CONFIG_FILE "modcryptography_config.h"
@@ -812,7 +815,7 @@ STATIC mp_obj_t hash_algorithm_make_new(const mp_obj_type_t *type, size_t n_args
 
 STATIC const mp_rom_map_elem_t hash_algorithm_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_sha256)},
-    {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(256)},
+    {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(32)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(hash_algorithm_locals_dict, hash_algorithm_locals_dict_table);
@@ -1131,6 +1134,118 @@ STATIC mp_obj_type_t hmac_type = {
     .name = MP_QSTR_hmac,
     .print = hmac_print,
     .locals_dict = (void *)&hmac_locals_dict,
+};
+
+STATIC void util_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+{
+    (void)kind;
+    mp_printf(print, mp_obj_get_type_str(self_in));
+}
+
+STATIC uint8_t constant_time_bytes_eq(uint8_t *a, size_t len_a, uint8_t *b, size_t len_b) {
+    size_t i = 0;
+    uint8_t mismatch = 0;
+    if (len_a != len_b)
+    {
+        return 0;
+    }
+    for (i = 0; i < len_a; i++)
+    {
+        mismatch |= a[i] ^ b[i];
+    }
+    mismatch |= mismatch >> 4;
+    mismatch |= mismatch >> 2;
+    mismatch |= mismatch >> 1;
+    return (mismatch & 1) == 0;
+}
+
+STATIC mp_obj_t mod_constant_time_bytes_eq(mp_obj_t a, mp_obj_t b)
+{
+    mp_buffer_info_t bufinfo_a;
+    mp_get_buffer_raise(a, &bufinfo_a, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_b;
+    mp_get_buffer_raise(b, &bufinfo_b, MP_BUFFER_READ);
+
+    return mp_obj_new_bool(constant_time_bytes_eq(bufinfo_a.buf, bufinfo_a.len, bufinfo_b.buf, bufinfo_b.len));
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_constant_time_bytes_eq_obj, mod_constant_time_bytes_eq);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_constant_time_bytes_eq_obj, MP_ROM_PTR(&mod_constant_time_bytes_eq_obj));
+
+#if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
+STATIC mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
+{
+    if (mp_obj_is_small_int(arg))
+    {
+        mpz_init_from_int(temp, MP_OBJ_SMALL_INT_VALUE(arg));
+        return temp;
+    } else
+    {
+        mp_obj_int_t *arp_p = MP_OBJ_TO_PTR(arg);
+        return &(arp_p->mpz);
+    }
+}
+#endif
+
+STATIC mp_obj_t int_bit_length(mp_obj_t x) {
+#if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
+    mpz_t n_temp;
+    mpz_t *n = mp_mpz_for_int(x, &n_temp);
+    if(mpz_is_zero(n))
+    {
+        return mp_obj_new_int_from_uint(0);
+    }
+    mpz_t *dest = m_new_obj(mpz_t);
+    dest->neg = n->neg;
+    dest->fixed_dig = 0;
+    dest->alloc = n->alloc;
+    dest->len = n->len;
+    dest->dig = m_new(mpz_dig_t, n->alloc);
+    memcpy(dest->dig, n->dig, n->alloc * sizeof(mpz_dig_t));
+    mpz_abs_inpl(dest, dest);
+    mp_uint_t num_bits = 0;
+    while (dest->len > 0)
+    {
+        mpz_shr_inpl(dest, dest, 1);
+        num_bits++;
+    }
+    if (dest != NULL)
+    {
+        m_del(mpz_dig_t, dest->dig, dest->alloc);
+        m_del_obj(mpz_t, dest);
+    }
+    if (n == &n_temp)
+    {
+        mpz_deinit(n);
+    }
+    return mp_obj_new_int_from_ull(num_bits);
+#else
+    mp_uint_t dest = MP_OBJ_SMALL_INT_VALUE(x);
+    mp_uint_t num_bits = 0;
+    while (dest > 0) {
+        dest >>= 1;
+        num_bits++;
+    }
+    return mp_obj_new_int_from_uint(num_bits);
+#endif
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_int_bit_length_obj, int_bit_length);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_int_bit_length_obj, MP_ROM_PTR(&mod_int_bit_length_obj));
+
+STATIC const mp_rom_map_elem_t util_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_constant_time_bytes_eq), MP_ROM_PTR(&mod_static_constant_time_bytes_eq_obj)},
+    {MP_ROM_QSTR(MP_QSTR_bit_length), MP_ROM_PTR(&mod_static_int_bit_length_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(util_locals_dict, util_locals_dict_table);
+
+STATIC mp_obj_type_t util_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_util,
+    .print = util_print,
+    .locals_dict = (void *)&util_locals_dict,
 };
 
 STATIC void x509_certificate_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
@@ -1812,6 +1927,7 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
     {MP_ROM_QSTR(MP_QSTR_hmac), MP_ROM_PTR(&hmac_type)},
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
+    {MP_ROM_QSTR(MP_QSTR_util), MP_ROM_PTR(&util_type)},
 #if defined(MBEDTLS_VERSION_C)
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type)},
 #endif
