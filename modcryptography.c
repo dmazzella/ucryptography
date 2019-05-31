@@ -714,13 +714,59 @@ STATIC mp_obj_t ec_public_key(mp_obj_t obj)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_key_obj, ec_public_key);
 
-STATIC mp_obj_t ec_private_bytes(mp_obj_t obj)
+STATIC mp_obj_t ec_private_bytes(size_t n_args, const mp_obj_t *args)
 {
-    mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
-    return self->private_bytes;
+    mp_ec_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
+    if (n_args == 1)
+    {
+        return self->private_bytes;
+    }
+    else if (n_args == 2)
+    {
+        if (!mp_obj_is_int(args[1]))
+        {
+            mp_raise_TypeError("EXPECTED encoding int");
+        }
+        mp_int_t encoding = mp_obj_get_int(args[1]);
+        if (encoding != 1 && encoding != 2)
+        {
+            mp_raise_ValueError("EXPECTED encoding value 1 (DER) or 2 (PEM)");
+        }
+        vstr_t vstr_out;
+        vstr_init_len(&vstr_out, 1024);
+        int ret = 0;
+
+        mp_buffer_info_t bufinfo_private_bytes;
+        mp_get_buffer_raise(self->private_bytes, &bufinfo_private_bytes, MP_BUFFER_READ);
+
+        mp_buffer_info_t bufinfo_public_bytes;
+        mp_get_buffer_raise(self->public_key->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
+
+        mbedtls_pk_context pk;
+        mbedtls_pk_init(&pk);
+        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+        mbedtls_ecp_keypair *ecp = mbedtls_pk_ec(pk);
+        mbedtls_ecp_keypair_init(ecp);
+        mbedtls_ecp_group_load(&ecp->grp, MBEDTLS_ECP_DP_SECP256R1);
+        mbedtls_ecp_point_read_binary(&ecp->grp, &ecp->Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+        mbedtls_mpi_read_binary(&ecp->d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
+
+        if (encoding == 1 && (ret = mbedtls_pk_write_key_der(&pk, vstr_out.buf, vstr_out.len)) > 0)
+        {
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes(vstr_out.buf + vstr_out.len - ret, ret);
+        }
+        else if (encoding == 2 && (ret = mbedtls_pk_write_key_pem(&pk, vstr_out.buf, vstr_out.len)) == 0)
+        {
+            ret = strlen((char *)vstr_out.buf);
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_str(vstr_out.buf, ret);
+        }
+    }
+    return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_bytes_obj, ec_private_bytes);
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_private_bytes_obj, 1, 2, ec_private_bytes);
 
 STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(MP_OBJ_FROM_PTR(&mp_const_elliptic_curve_obj))},
