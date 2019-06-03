@@ -28,7 +28,6 @@ def main():
     privk = ec.generate_private_key(ec.SECP256R1())
     print("private_bytes len", len(privk.private_bytes()))
     print("public_bytes len", len(privk.public_key().public_bytes()))
-    
 
 
 if __name__ == "__main__":

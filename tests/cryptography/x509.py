@@ -58,6 +58,16 @@ def main():
     print("public_key.public_bytes", public_bytes)
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
+    print("public_key.public_bytes DER", public_key.public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+    )
+    print("public_key.public_bytes PEM", public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+    )
 
     digest = hashes.Hash(hashes.SHA256(), default_backend())
     digest.update(certificate.tbs_certificate_bytes)

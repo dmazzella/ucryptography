@@ -3,7 +3,7 @@
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
 from uhashlib import sha256
-from cryptography import x509, hashes
+from cryptography import x509, hashes, serialization
 try:
     from util import loads_sequence
 except ImportError:
@@ -53,6 +53,8 @@ def main():
     print("public_key.public_bytes", public_bytes)
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
+    print("public_key.public_bytes DER", certificate.public_bytes(serialization.Encoding.DER))
+    print("public_key.public_bytes PEM", certificate.public_bytes(serialization.Encoding.PEM))
 
     digest = hashes.Hash(certificate.signature_hash_algorithm)
     digest.update(certificate.tbs_certificate_bytes)

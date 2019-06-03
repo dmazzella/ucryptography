@@ -19,12 +19,25 @@ AwEHoUQDQgAEQWfGXJw+X9PV2czte6S4pXBM4QuOORNL6DeWlqbnKMK1l7xf3wNe
 
 
 def main():
-    private_key = serialization.load_der_private_key(PRIVATE_KEY_DER, None, default_backend())
+    private_key = serialization.load_der_private_key(
+        PRIVATE_KEY_DER, None, default_backend())
     print("curve", private_key.curve.name)
     print("key_size", private_key.key_size)
 
     print("private_bytes", private_key.private_bytes(
         encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    ))
+
+    print("private_bytes DER", private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    ))
+
+    print("private_bytes PEM", private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption()
     ))
@@ -50,9 +63,11 @@ def main():
     digest.update(b'cacca')
     digest.update(b'cacca')
     msg_hash = digest.finalize()
-    signature = private_key.sign(msg_hash, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+    signature = private_key.sign(
+        msg_hash, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
     print("len", len(signature), "signature", signature)
-    public_key.verify(signature, msg_hash, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+    public_key.verify(signature, msg_hash, ec.ECDSA(
+        utils.Prehashed(hashes.SHA256())))
 
 
 if __name__ == "__main__":

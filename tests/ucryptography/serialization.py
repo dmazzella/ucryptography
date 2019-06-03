@@ -26,6 +26,8 @@ def main():
     print("key_size", private_key.key_size)
 
     print("private_bytes", private_key.private_bytes())
+    print("private_bytes DER", private_key.private_bytes(serialization.Encoding.DER))
+    print("private_bytes PEM", private_key.private_bytes(serialization.Encoding.PEM))
 
     private_numbers = private_key.private_numbers()
     print("private_numbers.private_value: ", private_numbers.private_value)
