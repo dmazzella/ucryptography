@@ -292,6 +292,68 @@ STATIC mp_obj_type_t hmac_context_type;
 STATIC mp_obj_type_t x509_certificate_type;
 STATIC mp_obj_type_t ciphers_aesgcm_type;
 
+STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t encoding_o)
+{
+    if (!mp_obj_is_int(encoding_o))
+    {
+        mp_raise_TypeError("EXPECTED encoding int");
+    }
+    mp_int_t encoding = mp_obj_get_int(encoding_o);
+    if (encoding != 1 && encoding != 2)
+    {
+        mp_raise_ValueError("EXPECTED encoding value 1 (DER) or 2 (PEM)");
+    }
+
+    vstr_t vstr_out;
+    vstr_init_len(&vstr_out, 1024);
+    int ret = 0;
+
+    mp_buffer_info_t bufinfo_public_bytes;
+    mp_get_buffer_raise(public_o, &bufinfo_public_bytes, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_private_bytes;
+    bool dump_private_key = mp_get_buffer(private_o, &bufinfo_private_bytes, MP_BUFFER_READ);
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+    mbedtls_ecp_keypair *ecp = mbedtls_pk_ec(pk);
+    mbedtls_ecp_keypair_init(ecp);
+    mbedtls_ecp_group_load(&ecp->grp, MBEDTLS_ECP_DP_SECP256R1);
+    mbedtls_ecp_point_read_binary(&ecp->grp, &ecp->Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+
+    if (dump_private_key)
+    {
+        mbedtls_mpi_read_binary(&ecp->d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
+        if (encoding == 1 && (ret = mbedtls_pk_write_key_der(&pk, vstr_out.buf, vstr_out.len)) > 0)
+        {
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes(vstr_out.buf + vstr_out.len - ret, ret);
+        }
+        else if (encoding == 2 && (ret = mbedtls_pk_write_key_pem(&pk, vstr_out.buf, vstr_out.len)) == 0)
+        {
+            ret = strlen((char *)vstr_out.buf);
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes(vstr_out.buf, ret);
+        }
+    }
+    else
+    {
+        if (encoding == 1 && (ret = mbedtls_pk_write_pubkey_der(&pk, vstr_out.buf, vstr_out.len)) > 0)
+        {
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes(vstr_out.buf + vstr_out.len - ret, ret);
+        }
+        else if (encoding == 2 && (ret = mbedtls_pk_write_pubkey_pem(&pk, vstr_out.buf, vstr_out.len)) == 0)
+        {
+            ret = strlen((char *)vstr_out.buf);
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes(vstr_out.buf, ret);
+        }
+    }
+    return mp_const_none;
+}
+
 STATIC void ec_curve_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
 {
     (void)kind;
@@ -307,7 +369,7 @@ STATIC mp_obj_t ec_curve_make_new(const mp_obj_type_t *type, size_t n_args, size
     mbedtls_ecp_group grp;
     mbedtls_ecp_group_init(&grp);
     mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
-    
+
     vstr_t vstr_p;
     vstr_init_len(&vstr_p, mbedtls_mpi_size(&grp.P));
     mbedtls_mpi_write_binary(&grp.P, (unsigned char *)vstr_p.buf, vstr_len(&vstr_p));
@@ -643,41 +705,7 @@ STATIC mp_obj_t ec_public_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        if (!mp_obj_is_int(args[1]))
-        {
-            mp_raise_TypeError("EXPECTED encoding int");
-        }
-        mp_int_t encoding = mp_obj_get_int(args[1]);
-        if (encoding != 1 && encoding != 2)
-        {
-            mp_raise_ValueError("EXPECTED encoding value 1 (DER) or 2 (PEM)");
-        }
-        vstr_t vstr_out;
-        vstr_init_len(&vstr_out, 1024);
-        int ret = 0;
-
-        mp_buffer_info_t bufinfo_public_bytes;
-        mp_get_buffer_raise(self->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
-
-        mbedtls_pk_context pk;
-        mbedtls_pk_init(&pk);
-        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
-        mbedtls_ecp_keypair *ecp = mbedtls_pk_ec(pk);
-        mbedtls_ecp_keypair_init(ecp);
-        mbedtls_ecp_group_load(&ecp->grp, MBEDTLS_ECP_DP_SECP256R1);
-        mbedtls_ecp_point_read_binary(&ecp->grp, &ecp->Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
-
-        if (encoding == 1 && (ret = mbedtls_pk_write_pubkey_der(&pk, vstr_out.buf, vstr_out.len)) > 0)
-        {
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf + vstr_out.len - ret, ret);
-        }
-        else if (encoding == 2 && (ret = mbedtls_pk_write_pubkey_pem(&pk, vstr_out.buf, vstr_out.len)) == 0)
-        {
-            ret = strlen((char *)vstr_out.buf);
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf, ret);
-        }
+        return ec_key_dumps(self->public_bytes, MP_OBJ_NULL, args[1]);
     }
     return mp_const_none;
 }
@@ -765,45 +793,7 @@ STATIC mp_obj_t ec_private_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        if (!mp_obj_is_int(args[1]))
-        {
-            mp_raise_TypeError("EXPECTED encoding int");
-        }
-        mp_int_t encoding = mp_obj_get_int(args[1]);
-        if (encoding != 1 && encoding != 2)
-        {
-            mp_raise_ValueError("EXPECTED encoding value 1 (DER) or 2 (PEM)");
-        }
-        vstr_t vstr_out;
-        vstr_init_len(&vstr_out, 1024);
-        int ret = 0;
-
-        mp_buffer_info_t bufinfo_private_bytes;
-        mp_get_buffer_raise(self->private_bytes, &bufinfo_private_bytes, MP_BUFFER_READ);
-
-        mp_buffer_info_t bufinfo_public_bytes;
-        mp_get_buffer_raise(self->public_key->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
-
-        mbedtls_pk_context pk;
-        mbedtls_pk_init(&pk);
-        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
-        mbedtls_ecp_keypair *ecp = mbedtls_pk_ec(pk);
-        mbedtls_ecp_keypair_init(ecp);
-        mbedtls_ecp_group_load(&ecp->grp, MBEDTLS_ECP_DP_SECP256R1);
-        mbedtls_ecp_point_read_binary(&ecp->grp, &ecp->Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
-        mbedtls_mpi_read_binary(&ecp->d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
-
-        if (encoding == 1 && (ret = mbedtls_pk_write_key_der(&pk, vstr_out.buf, vstr_out.len)) > 0)
-        {
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf + vstr_out.len - ret, ret);
-        }
-        else if (encoding == 2 && (ret = mbedtls_pk_write_key_pem(&pk, vstr_out.buf, vstr_out.len)) == 0)
-        {
-            ret = strlen((char *)vstr_out.buf);
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf, ret);
-        }
+        return ec_key_dumps(self->public_key->public_bytes, self->private_bytes, args[1]);
     }
     return mp_const_none;
 }
@@ -1180,7 +1170,7 @@ STATIC mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
 
     vstr_t vstr_digest;
     vstr_init_len(&vstr_digest, 32);
-    
+
     mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const byte *)bufinfo_key.buf, bufinfo_key.len, (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
 
     return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_digest);
@@ -1230,7 +1220,8 @@ STATIC void util_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_
     mp_printf(print, mp_obj_get_type_str(self_in));
 }
 
-STATIC uint8_t constant_time_bytes_eq(uint8_t *a, size_t len_a, uint8_t *b, size_t len_b) {
+STATIC uint8_t constant_time_bytes_eq(uint8_t *a, size_t len_a, uint8_t *b, size_t len_b)
+{
     size_t i = 0;
     uint8_t mismatch = 0;
     if (len_a != len_b)
@@ -1268,7 +1259,8 @@ STATIC mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
     {
         mpz_init_from_int(temp, MP_OBJ_SMALL_INT_VALUE(arg));
         return temp;
-    } else
+    }
+    else
     {
         mp_obj_int_t *arp_p = MP_OBJ_TO_PTR(arg);
         return &(arp_p->mpz);
@@ -1276,11 +1268,12 @@ STATIC mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
 }
 #endif
 
-STATIC mp_obj_t int_bit_length(mp_obj_t x) {
+STATIC mp_obj_t int_bit_length(mp_obj_t x)
+{
 #if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
     mpz_t n_temp;
     mpz_t *n = mp_mpz_for_int(x, &n_temp);
-    if(mpz_is_zero(n))
+    if (mpz_is_zero(n))
     {
         return mp_obj_new_int_from_uint(0);
     }
@@ -1311,7 +1304,8 @@ STATIC mp_obj_t int_bit_length(mp_obj_t x) {
 #else
     mp_uint_t dest = MP_OBJ_SMALL_INT_VALUE(x);
     mp_uint_t num_bits = 0;
-    while (dest > 0) {
+    while (dest > 0)
+    {
         dest >>= 1;
         num_bits++;
     }
@@ -1359,41 +1353,7 @@ STATIC mp_obj_t x509_public_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        if (!mp_obj_is_int(args[1]))
-        {
-            mp_raise_TypeError("EXPECTED encoding int");
-        }
-        mp_int_t encoding = mp_obj_get_int(args[1]);
-        if (encoding != 1 && encoding != 2)
-        {
-            mp_raise_ValueError("EXPECTED encoding value 1 (DER) or 2 (PEM)");
-        }
-        vstr_t vstr_out;
-        vstr_init_len(&vstr_out, 1024);
-        int ret = 0;
-
-        mp_buffer_info_t bufinfo_public_bytes;
-        mp_get_buffer_raise(self->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
-
-        mbedtls_pk_context pk;
-        mbedtls_pk_init(&pk);
-        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
-        mbedtls_ecp_keypair *ecp = mbedtls_pk_ec(pk);
-        mbedtls_ecp_keypair_init(ecp);
-        mbedtls_ecp_group_load(&ecp->grp, MBEDTLS_ECP_DP_SECP256R1);
-        mbedtls_ecp_point_read_binary(&ecp->grp, &ecp->Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
-
-        if (encoding == 1 && (ret = mbedtls_pk_write_pubkey_der(&pk, vstr_out.buf, vstr_out.len)) > 0)
-        {
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf + vstr_out.len - ret, ret);
-        }
-        else if (encoding == 2 && (ret = mbedtls_pk_write_pubkey_pem(&pk, vstr_out.buf, vstr_out.len)) == 0)
-        {
-            ret = strlen((char *)vstr_out.buf);
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf, ret);
-        }
+        return ec_key_dumps(self->public_bytes, MP_OBJ_NULL, args[1]);
     }
     return mp_const_none;
 }
@@ -1847,7 +1807,7 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
         mbedtls_ecp_keypair_free(&ecp);
         return mp_const_none;
     }
-    if(mbedtls_ecp_mul(&ecp.grp, &ecp.Q, &ecp.d, &ecp.grp.G, mp_random, NULL) != 0)
+    if (mbedtls_ecp_mul(&ecp.grp, &ecp.Q, &ecp.d, &ecp.grp.G, mp_random, NULL) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
         return mp_const_none;
@@ -1859,7 +1819,6 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_derive_private_key_obj, ec_derive_private_key);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_derive_private_key_obj, MP_ROM_PTR(&mod_ec_derive_private_key_obj));
-
 
 STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SECP256R1), MP_ROM_PTR(&ec_curve_type)},
