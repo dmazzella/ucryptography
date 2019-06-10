@@ -102,7 +102,7 @@ STATIC mp_obj_t version_get_string(void)
     vstr_t vstr_out;
     vstr_init_len(&vstr_out, sizeof(MBEDTLS_VERSION_STRING));
     mbedtls_version_get_string((char *)vstr_out.buf);
-    return mp_obj_new_str_from_vstr(&mp_type_str, &vstr_out);
+    return mp_obj_new_str(vstr_out.buf, vstr_out.len);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_version_get_string_obj, version_get_string);
@@ -113,7 +113,7 @@ STATIC mp_obj_t version_get_string_full(void)
     vstr_t vstr_out;
     vstr_init_len(&vstr_out, sizeof(MBEDTLS_VERSION_STRING_FULL));
     mbedtls_version_get_string_full((char *)vstr_out.buf);
-    return mp_obj_new_str_from_vstr(&mp_type_str, &vstr_out);
+    return mp_obj_new_str(vstr_out.buf, vstr_out.len);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_version_get_string_full_obj, version_get_string_full);
@@ -158,52 +158,21 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/aes.h"
 
 struct _mp_ec_curve_t;
-typedef struct _mp_ec_curve_t mp_ec_curve_t;
-
 struct _mp_ec_public_numbers_t;
-typedef struct _mp_ec_public_numbers_t mp_ec_public_numbers_t;
-
 struct _mp_ec_private_numbers_t;
-typedef struct _mp_ec_private_numbers_t mp_ec_private_numbers_t;
-
 struct _mp_ec_public_key_t;
-typedef struct _mp_ec_public_key_t mp_ec_public_key_t;
-
 struct _mp_ec_private_key_t;
-typedef struct _mp_ec_private_key_t mp_ec_private_key_t;
-
 struct _mp_hash_algorithm_t;
-typedef struct _mp_hash_algorithm_t mp_hash_algorithm_t;
-
 struct _mp_hash_context_t;
-typedef struct _mp_hash_context_t mp_hash_context_t;
-
 struct _mp_hmac_context_t;
-typedef struct _mp_hmac_context_t mp_hmac_context_t;
-
 struct _mp_x509_certificate_t;
-typedef struct _mp_x509_certificate_t mp_x509_certificate_t;
-
 struct _mp_ciphers_aesgcm_t;
-typedef struct _mp_ciphers_aesgcm_t mp_ciphers_aesgcm_t;
-
 struct _mp_ciphers_cipher_t;
-typedef struct _mp_ciphers_cipher_t mp_ciphers_cipher_t;
-
 struct _mp_ciphers_cipher_encryptor_t;
-typedef struct _mp_ciphers_cipher_encryptor_t mp_ciphers_cipher_encryptor_t;
-
 struct _mp_ciphers_cipher_decryptor_t;
-typedef struct _mp_ciphers_cipher_decryptor_t mp_ciphers_cipher_decryptor_t;
-
 struct _mp_ciphers_algorithms_aes_t;
-typedef struct _mp_ciphers_algorithms_aes_t mp_ciphers_algorithms_aes_t;
-
 struct _mp_ciphers_modes_cbc_t;
-typedef struct _mp_ciphers_modes_cbc_t mp_ciphers_modes_cbc_t;
-
 struct _mp_ciphers_modes_gcm_t;
-typedef struct _mp_ciphers_modes_gcm_t mp_ciphers_modes_gcm_t;
 
 typedef struct _mp_ec_curve_t
 {
@@ -221,7 +190,7 @@ typedef struct _mp_ec_public_numbers_t
     mp_ec_curve_t *curve;
     mp_obj_t x;
     mp_obj_t y;
-    mp_ec_public_key_t *public_key;
+    struct _mp_ec_public_key_t *public_key;
 } mp_ec_public_numbers_t;
 
 typedef struct _mp_ec_private_numbers_t
@@ -229,7 +198,7 @@ typedef struct _mp_ec_private_numbers_t
     mp_obj_base_t base;
     mp_ec_public_numbers_t *public_numbers;
     mp_obj_t private_value;
-    mp_ec_private_key_t *private_key;
+    struct _mp_ec_private_key_t *private_key;
 } mp_ec_private_numbers_t;
 
 typedef struct _mp_ec_public_key_t
@@ -319,8 +288,8 @@ typedef struct _mp_ciphers_cipher_t
     mp_ciphers_algorithms_aes_t *algorithm;
     mp_obj_t mode;
     int mode_type;
-    mp_ciphers_cipher_encryptor_t *encryptor;
-    mp_ciphers_cipher_decryptor_t *decryptor;
+    struct _mp_ciphers_cipher_encryptor_t *encryptor;
+    struct _mp_ciphers_cipher_decryptor_t *decryptor;
 } mp_ciphers_cipher_t;
 
 typedef struct _mp_ciphers_cipher_encryptor_t
@@ -338,6 +307,16 @@ typedef struct _mp_ciphers_cipher_decryptor_t
     mp_obj_t data;
     bool finalized;
 } mp_ciphers_cipher_decryptor_t;
+
+enum {
+    CIPHER_MODE_CBC = 1,
+    CIPHER_MODE_GCM = 2,
+};
+
+enum {
+    SERIALIZATION_ENCODING_DER = 1,
+    SERIALIZATION_ENCODING_PEM = 2,
+};
 
 STATIC mp_obj_type_t ec_curve_type;
 STATIC mp_obj_type_t ec_public_numbers_type;
@@ -363,13 +342,13 @@ STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t enc
         mp_raise_TypeError("EXPECTED encoding int");
     }
     mp_int_t encoding = mp_obj_get_int(encoding_o);
-    if (encoding != 1 && encoding != 2)
+    if (encoding != SERIALIZATION_ENCODING_DER && encoding != SERIALIZATION_ENCODING_PEM)
     {
         mp_raise_ValueError("EXPECTED encoding value 1 (DER) or 2 (PEM)");
     }
 
     vstr_t vstr_out;
-    vstr_init_len(&vstr_out, 1024);
+    vstr_init_len(&vstr_out, 4096);
     int ret = 0;
 
     mp_buffer_info_t bufinfo_public_bytes;
@@ -389,30 +368,30 @@ STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t enc
     if (dump_private_key)
     {
         mbedtls_mpi_read_binary(&ecp->d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
-        if (encoding == 1 && (ret = mbedtls_pk_write_key_der(&pk, vstr_out.buf, vstr_out.len)) > 0)
+        if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_key_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
         {
             mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf + vstr_out.len - ret, ret);
+            return mp_obj_new_bytes((const byte *)(vstr_out.buf + vstr_out.len - ret), ret);
         }
-        else if (encoding == 2 && (ret = mbedtls_pk_write_key_pem(&pk, vstr_out.buf, vstr_out.len)) == 0)
+        else if (encoding == SERIALIZATION_ENCODING_PEM && (ret = mbedtls_pk_write_key_pem(&pk, (byte *)vstr_out.buf, vstr_out.len)) == 0)
         {
             ret = strlen((char *)vstr_out.buf);
             mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf, ret);
+            return mp_obj_new_bytes((const byte *)vstr_out.buf, ret);
         }
     }
     else
     {
-        if (encoding == 1 && (ret = mbedtls_pk_write_pubkey_der(&pk, vstr_out.buf, vstr_out.len)) > 0)
+        if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_pubkey_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
         {
             mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf + vstr_out.len - ret, ret);
+            return mp_obj_new_bytes((const byte *)(vstr_out.buf + vstr_out.len - ret), ret);
         }
-        else if (encoding == 2 && (ret = mbedtls_pk_write_pubkey_pem(&pk, vstr_out.buf, vstr_out.len)) == 0)
+        else if (encoding == SERIALIZATION_ENCODING_PEM && (ret = mbedtls_pk_write_pubkey_pem(&pk, (byte *)vstr_out.buf, vstr_out.len)) == 0)
         {
             ret = strlen((char *)vstr_out.buf);
             mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes(vstr_out.buf, ret);
+            return mp_obj_new_bytes((const byte *)vstr_out.buf, ret);
         }
     }
     return mp_const_none;
@@ -551,7 +530,7 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
 
     mp_ec_public_key_t *EllipticCurvePublicKey = m_new_obj(mp_ec_public_key_t);
     EllipticCurvePublicKey->base.type = &ec_public_key_type;
-    EllipticCurvePublicKey->public_bytes = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_public_bytes);
+    EllipticCurvePublicKey->public_bytes = mp_obj_new_bytes((const byte *)vstr_public_bytes.buf, vstr_public_bytes.len);
     EllipticCurvePublicKey->public_numbers = EllipticCurvePublicNumbers;
 
     EllipticCurvePublicNumbers->public_key = EllipticCurvePublicKey;
@@ -641,7 +620,7 @@ STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_
     EllipticCurvePrivateKey->base.type = &ec_private_key_type;
     EllipticCurvePrivateKey->curve = EllipticCurvePublicNumbers->curve;
     EllipticCurvePrivateKey->public_key = EllipticCurvePublicNumbers->public_key;
-    EllipticCurvePrivateKey->private_bytes = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_private_bytes);
+    EllipticCurvePrivateKey->private_bytes = mp_obj_new_bytes((const byte *)vstr_private_bytes.buf, vstr_private_bytes.len);
     EllipticCurvePrivateKey->private_numbers = EllipticCurvePrivateNumbers;
 
     EllipticCurvePrivateNumbers->private_key = EllipticCurvePrivateKey;
@@ -742,7 +721,7 @@ STATIC mp_obj_t ec_public_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        return ec_key_dumps(self->public_bytes, MP_OBJ_NULL, args[1]);
+        return ec_key_dumps(self->public_bytes, mp_const_none, args[1]);
     }
     return mp_const_none;
 }
@@ -801,7 +780,7 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
     mbedtls_ecdsa_write_signature(&ecp, MBEDTLS_MD_SHA256, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (byte *)vstr_signature.buf, &vstr_signature.len, mp_random, NULL);
 
     mbedtls_ecp_keypair_free(&ecp);
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_signature);
+    return mp_obj_new_bytes((const byte *)vstr_signature.buf, vstr_signature.len);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_sign_obj, ec_sign);
@@ -876,7 +855,7 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     EllipticCurvePublicNumbers->public_key = EllipticCurvePublicKey;
 
     EllipticCurvePublicKey->public_numbers = EllipticCurvePublicNumbers;
-    EllipticCurvePublicKey->public_bytes = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_public_bytes);
+    EllipticCurvePublicKey->public_bytes = mp_obj_new_bytes((const byte *)vstr_public_bytes.buf, vstr_public_bytes.len);
 
     if (private)
     {
@@ -894,7 +873,7 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
         EllipticCurvePrivateKey->curve = EllipticCurve;
         EllipticCurvePrivateKey->private_numbers = EllipticCurvePrivateNumbers;
         EllipticCurvePrivateKey->public_key = EllipticCurvePublicKey;
-        EllipticCurvePrivateKey->private_bytes = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_private_bytes);
+        EllipticCurvePrivateKey->private_bytes = mp_obj_new_bytes((const byte *)vstr_private_bytes.buf, vstr_private_bytes.len);
 
         EllipticCurvePrivateNumbers->private_key = EllipticCurvePrivateKey;
 
@@ -964,7 +943,7 @@ STATIC mp_obj_t hash_algorithm_update(mp_obj_t obj, mp_obj_t data)
     vstr_add_strn(&vstr_data, bufinfo_self_data.buf, bufinfo_self_data.len);
     vstr_add_strn(&vstr_data, bufinfo_data.buf, bufinfo_data.len);
 
-    self->data = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_data);
+    self->data = mp_obj_new_bytes((const byte *)vstr_data.buf, vstr_data.len);
 
     return mp_const_none;
 }
@@ -1010,7 +989,7 @@ STATIC mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
 
     mbedtls_sha256_ret((const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf, 0);
 
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_digest);
+    return mp_obj_new_bytes((const byte *)vstr_digest.buf, vstr_digest.len);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_finalize_obj, hash_algorithm_finalize);
@@ -1103,7 +1082,7 @@ STATIC mp_obj_t hmac_algorithm_update(mp_obj_t obj, mp_obj_t data)
     vstr_add_strn(&vstr_data, bufinfo_self_data.buf, bufinfo_self_data.len);
     vstr_add_strn(&vstr_data, bufinfo_data.buf, bufinfo_data.len);
 
-    self->data = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_data);
+    self->data = mp_obj_new_bytes((const byte *)vstr_data.buf, vstr_data.len);
 
     return mp_const_none;
 }
@@ -1175,7 +1154,7 @@ STATIC mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
 
     mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const byte *)bufinfo_key.buf, bufinfo_key.len, (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
 
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_digest);
+    return mp_obj_new_bytes((const byte *)vstr_digest.buf, vstr_digest.len);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hmac_algorithm_finalize_obj, hmac_algorithm_finalize);
@@ -1334,7 +1313,7 @@ STATIC mp_obj_t x509_public_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        return ec_key_dumps(self->public_bytes, MP_OBJ_NULL, args[1]);
+        return ec_key_dumps(self->public_bytes, mp_const_none, args[1]);
     }
     return mp_const_none;
 }
@@ -1413,10 +1392,8 @@ STATIC void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 
 STATIC const mp_rom_map_elem_t x509_certificate_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_x509_public_key_obj)},
-#if defined(MBEDTLS_VERSION_C)
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_serial_number), MP_ROM_INT(0)},
-#endif
     {MP_ROM_QSTR(MP_QSTR_not_valid_before), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_not_valid_after), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_subject), MP_ROM_PTR(mp_const_none)},
@@ -1466,7 +1443,14 @@ STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_
         }
     }
 
-    return mp_obj_new_str_from_vstr(type, &vstr_oid);
+    if (type == &mp_type_str)
+    {
+        return mp_obj_new_str(vstr_oid.buf, vstr_oid.len);
+    }
+    else
+    {
+        return mp_obj_new_bytes((const byte*)vstr_oid.buf, vstr_oid.len);
+    }
 }
 
 STATIC mp_obj_t x509_crt_parse_time(const mbedtls_x509_time *t)
@@ -1474,7 +1458,7 @@ STATIC mp_obj_t x509_crt_parse_time(const mbedtls_x509_time *t)
     vstr_t vstr_time;
     vstr_init(&vstr_time, 0);
     vstr_printf(&vstr_time, "%04d-%02d-%02d %02d:%02d:%02d", t->year, t->mon, t->day, t->hour, t->min, t->sec);
-    return mp_obj_new_str_from_vstr(&mp_type_str, &vstr_time);
+    return mp_obj_new_str(vstr_time.buf, vstr_time.len);
 }
 
 STATIC mp_obj_t x509_crt_parse_name(const mbedtls_x509_name *dn)
@@ -1762,7 +1746,7 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
     mbedtls_ecp_group_load(&ecp.grp, MBEDTLS_ECP_DP_SECP256R1);
-    if (mbedtls_ecp_read_key(ecp.grp.id, &ecp, vstr_private_bytes.buf, vstr_private_bytes.len) != 0)
+    if (mbedtls_ecp_read_key(ecp.grp.id, &ecp, (const byte *)vstr_private_bytes.buf, vstr_private_bytes.len) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
         return mp_const_none;
@@ -1891,7 +1875,7 @@ STATIC mp_obj_t aesgcm_encrypt(size_t n_args, const mp_obj_t *args)
 
     vstr_add_strn(&vstr_output, vstr_tag.buf, vstr_len(&vstr_tag));
 
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_output);
+    return mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_aesgcm_encrypt_obj, 4, 4, aesgcm_encrypt);
@@ -1928,7 +1912,7 @@ STATIC mp_obj_t aesgcm_decrypt(size_t n_args, const mp_obj_t *args)
     mbedtls_gcm_finish(&ctx, (unsigned char *)vstr_tag.buf, vstr_len(&vstr_tag));
     mbedtls_gcm_free(&ctx);
 
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_output);
+    return mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_aesgcm_decrypt_obj, 4, 4, aesgcm_decrypt);
@@ -1961,11 +1945,11 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
 
     if (mp_obj_is_type(args[1], &ciphers_modes_cbc_type))
     {
-        mode_type = 1;
+        mode_type = CIPHER_MODE_CBC;
     }
     else if (mp_obj_is_type(args[1], &ciphers_modes_gcm_type))
     {
-        mode_type = 2;
+        mode_type = CIPHER_MODE_GCM;
     }
     else
     {
@@ -2017,25 +2001,22 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    vstr_t vstr_data;
-    vstr_init(&vstr_data, 0);
-    if (self->data != mp_const_empty_bytes)
-    {
-        mp_buffer_info_t bufinfo_self_data;
-        mp_get_buffer_raise(self->data, &bufinfo_self_data, MP_BUFFER_READ);
-        vstr_add_strn(&vstr_data, bufinfo_self_data.buf, bufinfo_self_data.len);
-    }
-    vstr_add_strn(&vstr_data, bufinfo_data.buf, bufinfo_data.len);
+    vstr_t vstr_input;
+    vstr_init(&vstr_input, 0);
+    mp_buffer_info_t bufinfo_self_data;
+    mp_get_buffer_raise(self->data, &bufinfo_self_data, MP_BUFFER_READ);
+    vstr_add_strn(&vstr_input, bufinfo_self_data.buf, bufinfo_self_data.len);
+    vstr_add_strn(&vstr_input, bufinfo_data.buf, bufinfo_data.len);
 
-    self->data = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_data);
+    self->data = mp_obj_new_bytes((const byte *)vstr_input.buf, vstr_input.len);
 
-    if (self->cipher->mode_type == 1)
+    if (self->cipher->mode_type == CIPHER_MODE_CBC)
     {
         mp_buffer_info_t bufinfo_key;
         mp_get_buffer_raise(self->cipher->algorithm->key, &bufinfo_key, MP_BUFFER_READ);
 
         mp_ciphers_modes_cbc_t *mode = (mp_ciphers_modes_cbc_t *)MP_OBJ_TO_PTR(self->cipher->mode);
-        
+
         mp_buffer_info_t bufinfo_initialization_vector;
         mp_get_buffer_raise(mode->initialization_vector, &bufinfo_initialization_vector, MP_BUFFER_READ);
 
@@ -2044,17 +2025,20 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
         vstr_add_strn(&vstr_iv, bufinfo_initialization_vector.buf, bufinfo_initialization_vector.len);
 
         vstr_t vstr_output;
-        vstr_init_len(&vstr_output, vstr_data.len);
+        vstr_init_len(&vstr_output, vstr_input.len);
 
         mbedtls_aes_context ctx;
         mbedtls_aes_init(&ctx);
         mbedtls_aes_setkey_enc(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
-        mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_ENCRYPT, vstr_data.len, vstr_iv.buf, vstr_data.buf, vstr_output.buf);
+        mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_ENCRYPT, vstr_input.len, (byte *)vstr_iv.buf, (const byte *)vstr_input.buf, (byte *)vstr_output.buf);
         mbedtls_aes_free(&ctx);
 
-        return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_output);
+        return mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
     }
-    return mp_const_none;
+    else
+    {
+        mp_raise_TypeError("EXPECTED INSTANCE OF modes.CBC or modes.GCM");
+    }
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encryptor_update_obj, encryptor_update);
@@ -2102,19 +2086,47 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
 
-    mp_buffer_info_t bufinfo_self_data;
-    mp_get_buffer_raise(self->data, &bufinfo_self_data, MP_BUFFER_READ);
-
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    vstr_t vstr_data;
-    vstr_init(&vstr_data, 0);
-    vstr_add_strn(&vstr_data, bufinfo_self_data.buf, bufinfo_self_data.len);
-    vstr_add_strn(&vstr_data, bufinfo_data.buf, bufinfo_data.len);
+    vstr_t vstr_input;
+    vstr_init(&vstr_input, 0);
+    mp_buffer_info_t bufinfo_self_data;
+    mp_get_buffer_raise(self->data, &bufinfo_self_data, MP_BUFFER_READ);
+    vstr_add_strn(&vstr_input, bufinfo_self_data.buf, bufinfo_self_data.len);
+    vstr_add_strn(&vstr_input, bufinfo_data.buf, bufinfo_data.len);
 
-    self->data = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_data);
-    return mp_const_none;
+    self->data = mp_obj_new_bytes((const byte *)vstr_input.buf, vstr_input.len);
+
+    if (self->cipher->mode_type == CIPHER_MODE_CBC)
+    {
+        mp_buffer_info_t bufinfo_key;
+        mp_get_buffer_raise(self->cipher->algorithm->key, &bufinfo_key, MP_BUFFER_READ);
+
+        mp_ciphers_modes_cbc_t *mode = (mp_ciphers_modes_cbc_t *)MP_OBJ_TO_PTR(self->cipher->mode);
+
+        mp_buffer_info_t bufinfo_initialization_vector;
+        mp_get_buffer_raise(mode->initialization_vector, &bufinfo_initialization_vector, MP_BUFFER_READ);
+
+        vstr_t vstr_iv;
+        vstr_init(&vstr_iv, 0);
+        vstr_add_strn(&vstr_iv, bufinfo_initialization_vector.buf, bufinfo_initialization_vector.len);
+
+        vstr_t vstr_output;
+        vstr_init_len(&vstr_output, vstr_input.len);
+
+        mbedtls_aes_context ctx;
+        mbedtls_aes_init(&ctx);
+        mbedtls_aes_setkey_dec(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
+        mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_DECRYPT, vstr_input.len, (byte *)vstr_iv.buf, (const byte *)vstr_input.buf, (byte *)vstr_output.buf);
+        mbedtls_aes_free(&ctx);
+
+        return mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
+    }
+    else
+    {
+        mp_raise_TypeError("EXPECTED INSTANCE OF modes.CBC or modes.GCM");
+    }
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_decryptor_update_obj, decryptor_update);
@@ -2127,7 +2139,7 @@ STATIC mp_obj_t decryptor_finalize(mp_obj_t self_o)
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
     self->finalized = true;
-    return mp_const_none;
+    return mp_const_empty_bytes;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_decryptor_finalize_obj, decryptor_finalize);
