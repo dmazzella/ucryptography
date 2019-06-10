@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2017-2019 Damiano Mazzella
+ * Copyright (c) 2019 Damiano Mazzella
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -89,12 +89,6 @@ STATIC int mp_random(void *rng_state, unsigned char *output, size_t len)
 #if defined(MBEDTLS_VERSION_C)
 #include "mbedtls/version.h"
 
-STATIC void version_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
-
 STATIC mp_obj_t version_get_number(void)
 {
     return mp_obj_new_int(mbedtls_version_get_number());
@@ -151,7 +145,6 @@ STATIC MP_DEFINE_CONST_DICT(version_locals_dict, version_locals_dict_table);
 STATIC mp_obj_type_t version_type = {
     {&mp_type_type},
     .name = MP_QSTR_version,
-    .print = version_print,
     .locals_dict = (void *)&version_locals_dict,
 };
 #endif
@@ -162,6 +155,7 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/sha256.h"
 #include "mbedtls/cipher.h"
 #include "mbedtls/gcm.h"
+#include "mbedtls/aes.h"
 
 struct _mp_ec_curve_t;
 typedef struct _mp_ec_curve_t mp_ec_curve_t;
@@ -192,6 +186,24 @@ typedef struct _mp_x509_certificate_t mp_x509_certificate_t;
 
 struct _mp_ciphers_aesgcm_t;
 typedef struct _mp_ciphers_aesgcm_t mp_ciphers_aesgcm_t;
+
+struct _mp_ciphers_cipher_t;
+typedef struct _mp_ciphers_cipher_t mp_ciphers_cipher_t;
+
+struct _mp_ciphers_cipher_encryptor_t;
+typedef struct _mp_ciphers_cipher_encryptor_t mp_ciphers_cipher_encryptor_t;
+
+struct _mp_ciphers_cipher_decryptor_t;
+typedef struct _mp_ciphers_cipher_decryptor_t mp_ciphers_cipher_decryptor_t;
+
+struct _mp_ciphers_algorithms_aes_t;
+typedef struct _mp_ciphers_algorithms_aes_t mp_ciphers_algorithms_aes_t;
+
+struct _mp_ciphers_modes_cbc_t;
+typedef struct _mp_ciphers_modes_cbc_t mp_ciphers_modes_cbc_t;
+
+struct _mp_ciphers_modes_gcm_t;
+typedef struct _mp_ciphers_modes_gcm_t mp_ciphers_modes_gcm_t;
 
 typedef struct _mp_ec_curve_t
 {
@@ -281,6 +293,52 @@ typedef struct _mp_ciphers_aesgcm_t
     mp_obj_t key;
 } mp_ciphers_aesgcm_t;
 
+typedef struct _mp_ciphers_algorithms_aes_t
+{
+    mp_obj_base_t base;
+    mp_obj_t key;
+} mp_ciphers_algorithms_aes_t;
+
+typedef struct _mp_ciphers_modes_cbc_t
+{
+    mp_obj_base_t base;
+    mp_obj_t initialization_vector;
+} mp_ciphers_modes_cbc_t;
+
+typedef struct _mp_ciphers_modes_gcm_t
+{
+    mp_obj_base_t base;
+    mp_obj_t initialization_vector;
+    mp_obj_t tag;
+    mp_obj_t min_tag_length;
+} mp_ciphers_modes_gcm_t;
+
+typedef struct _mp_ciphers_cipher_t
+{
+    mp_obj_base_t base;
+    mp_ciphers_algorithms_aes_t *algorithm;
+    mp_obj_t mode;
+    int mode_type;
+    mp_ciphers_cipher_encryptor_t *encryptor;
+    mp_ciphers_cipher_decryptor_t *decryptor;
+} mp_ciphers_cipher_t;
+
+typedef struct _mp_ciphers_cipher_encryptor_t
+{
+    mp_obj_base_t base;
+    mp_ciphers_cipher_t *cipher;
+    mp_obj_t data;
+    bool finalized;
+} mp_ciphers_cipher_encryptor_t;
+
+typedef struct _mp_ciphers_cipher_decryptor_t
+{
+    mp_obj_base_t base;
+    mp_ciphers_cipher_t *cipher;
+    mp_obj_t data;
+    bool finalized;
+} mp_ciphers_cipher_decryptor_t;
+
 STATIC mp_obj_type_t ec_curve_type;
 STATIC mp_obj_type_t ec_public_numbers_type;
 STATIC mp_obj_type_t ec_private_numbers_type;
@@ -291,6 +349,12 @@ STATIC mp_obj_type_t hash_context_type;
 STATIC mp_obj_type_t hmac_context_type;
 STATIC mp_obj_type_t x509_certificate_type;
 STATIC mp_obj_type_t ciphers_aesgcm_type;
+STATIC mp_obj_type_t ciphers_cipher_type;
+STATIC mp_obj_type_t ciphers_cipher_encryptor_type;
+STATIC mp_obj_type_t ciphers_cipher_decryptor_type;
+STATIC mp_obj_type_t ciphers_algorithms_aes_type;
+STATIC mp_obj_type_t ciphers_modes_cbc_type;
+STATIC mp_obj_type_t ciphers_modes_gcm_type;
 
 STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t encoding_o)
 {
@@ -352,12 +416,6 @@ STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t enc
         }
     }
     return mp_const_none;
-}
-
-STATIC void ec_curve_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
 }
 
 STATIC mp_obj_t ec_curve_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
@@ -454,18 +512,11 @@ STATIC mp_obj_type_t ec_curve_type = {
     {&mp_type_type},
     .name = MP_QSTR_SECP256R1,
     .make_new = ec_curve_make_new,
-    .print = ec_curve_print,
     .attr = ec_curve_attr,
     .locals_dict = (void *)&ec_curve_locals_dict,
 };
 
 const mp_ec_curve_t mp_const_elliptic_curve_obj = {{&ec_curve_type}};
-
-STATIC void ec_public_numbers_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -559,16 +610,9 @@ STATIC mp_obj_type_t ec_public_numbers_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurvePublicNumbers,
     .make_new = ec_public_numbers_make_new,
-    .print = ec_public_numbers_print,
     .attr = ec_public_numbers_attr,
     .locals_dict = (void *)&ec_public_numbers_locals_dict,
 };
-
-STATIC void ec_private_numbers_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -650,16 +694,9 @@ STATIC mp_obj_type_t ec_private_numbers_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurvePrivateNumbers,
     .make_new = ec_private_numbers_make_new,
-    .print = ec_private_numbers_print,
     .attr = ec_private_numbers_attr,
     .locals_dict = (void *)&ec_private_numbers_locals_dict,
 };
-
-STATIC void ec_public_key_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t ec_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t digest)
 {
@@ -725,15 +762,8 @@ STATIC MP_DEFINE_CONST_DICT(ec_public_key_locals_dict, ec_public_key_locals_dict
 STATIC mp_obj_type_t ec_public_key_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurvePublicKey,
-    .print = ec_public_key_print,
     .locals_dict = (void *)&ec_public_key_locals_dict,
 };
-
-STATIC void ec_private_key_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t ec_private_numbers(mp_obj_t obj)
 {
@@ -814,7 +844,6 @@ STATIC MP_DEFINE_CONST_DICT(ec_private_key_locals_dict, ec_private_key_locals_di
 STATIC mp_obj_type_t ec_private_key_type = {
     {&mp_type_type},
     .name = MP_QSTR_EllipticCurvePrivateKey,
-    .print = ec_private_key_print,
     .locals_dict = (void *)&ec_private_key_locals_dict,
 };
 
@@ -877,12 +906,6 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
 }
 
-STATIC void hash_algorithm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
-
 STATIC mp_obj_t hash_algorithm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
@@ -902,17 +925,10 @@ STATIC mp_obj_type_t hash_algorithm_type = {
     {&mp_type_type},
     .name = MP_QSTR_SHA256,
     .make_new = hash_algorithm_make_new,
-    .print = hash_algorithm_print,
     .locals_dict = (void *)&hash_algorithm_locals_dict,
 };
 
 const mp_hash_algorithm_t mp_const_hash_algorithm_obj = {{&hash_algorithm_type}};
-
-STATIC void hash_context_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1032,16 +1048,9 @@ STATIC mp_obj_type_t hash_context_type = {
     {&mp_type_type},
     .name = MP_QSTR_HashContext,
     .make_new = hash_context_make_new,
-    .print = hash_context_print,
     .attr = hash_context_attr,
     .locals_dict = (void *)&hash_context_locals_dict,
 };
-
-STATIC void hashes_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SHA256), MP_ROM_PTR(&hash_algorithm_type)},
@@ -1053,15 +1062,8 @@ STATIC MP_DEFINE_CONST_DICT(hashes_locals_dict, hashes_locals_dict_table);
 STATIC mp_obj_type_t hashes_type = {
     {&mp_type_type},
     .name = MP_QSTR_hashes,
-    .print = hashes_print,
     .locals_dict = (void *)&hashes_locals_dict,
 };
-
-STATIC void hmac_context_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1191,15 +1193,8 @@ STATIC mp_obj_type_t hmac_context_type = {
     {&mp_type_type},
     .name = MP_QSTR_HMACContext,
     .make_new = hmac_context_make_new,
-    .print = hmac_context_print,
     .locals_dict = (void *)&hmac_context_locals_dict,
 };
-
-STATIC void hmac_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC const mp_rom_map_elem_t hmac_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_HMAC), MP_ROM_PTR(&hmac_context_type)},
@@ -1210,15 +1205,8 @@ STATIC MP_DEFINE_CONST_DICT(hmac_locals_dict, hmac_locals_dict_table);
 STATIC mp_obj_type_t hmac_type = {
     {&mp_type_type},
     .name = MP_QSTR_hmac,
-    .print = hmac_print,
     .locals_dict = (void *)&hmac_locals_dict,
 };
-
-STATIC void util_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC uint8_t constant_time_bytes_eq(uint8_t *a, size_t len_a, uint8_t *b, size_t len_b)
 {
@@ -1326,15 +1314,8 @@ STATIC MP_DEFINE_CONST_DICT(util_locals_dict, util_locals_dict_table);
 STATIC mp_obj_type_t util_type = {
     {&mp_type_type},
     .name = MP_QSTR_util,
-    .print = util_print,
     .locals_dict = (void *)&util_locals_dict,
 };
-
-STATIC void x509_certificate_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t x509_public_key(mp_obj_t obj)
 {
@@ -1453,16 +1434,9 @@ STATIC MP_DEFINE_CONST_DICT(x509_certificate_locals_dict, x509_certificate_local
 STATIC mp_obj_type_t x509_certificate_type = {
     {&mp_type_type},
     .name = MP_QSTR_Certificate,
-    .print = x509_certificate_print,
     .attr = x509_certificate_attr,
     .locals_dict = (void *)&x509_certificate_locals_dict,
 };
-
-STATIC void x509_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_t *type)
 {
@@ -1663,15 +1637,8 @@ STATIC MP_DEFINE_CONST_DICT(x509_locals_dict, x509_locals_dict_table);
 STATIC mp_obj_type_t x509_type = {
     {&mp_type_type},
     .name = MP_QSTR_x509,
-    .print = x509_print,
     .locals_dict = (void *)&x509_locals_dict,
 };
-
-STATIC void serialization_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
 {
@@ -1750,15 +1717,8 @@ STATIC MP_DEFINE_CONST_DICT(serialization_locals_dict, serialization_locals_dict
 STATIC mp_obj_type_t serialization_type = {
     {&mp_type_type},
     .name = MP_QSTR_serialization,
-    .print = serialization_print,
     .locals_dict = (void *)&serialization_locals_dict,
 };
-
-STATIC void ec_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
 {
@@ -1835,15 +1795,8 @@ STATIC MP_DEFINE_CONST_DICT(ec_locals_dict, ec_locals_dict_table);
 STATIC mp_obj_type_t ec_type = {
     {&mp_type_type},
     .name = MP_QSTR_ec,
-    .print = ec_print,
     .locals_dict = (void *)&ec_locals_dict,
 };
-
-STATIC void exceptions_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_InvalidSignature), MP_ROM_PTR(&mp_type_InvalidSignature)},
@@ -1857,15 +1810,8 @@ STATIC MP_DEFINE_CONST_DICT(exceptions_locals_dict, exceptions_locals_dict_table
 STATIC mp_obj_type_t exceptions_type = {
     {&mp_type_type},
     .name = MP_QSTR_exceptions,
-    .print = exceptions_print,
     .locals_dict = (void *)&exceptions_locals_dict,
 };
-
-STATIC void aesgcm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
-}
 
 STATIC mp_obj_t aesgcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1999,18 +1945,355 @@ STATIC mp_obj_type_t ciphers_aesgcm_type = {
     {&mp_type_type},
     .name = MP_QSTR_AESGCM,
     .make_new = aesgcm_make_new,
-    .print = aesgcm_print,
     .locals_dict = (void *)&aesgcm_locals_dict,
 };
 
-STATIC void ciphers_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
+STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
-    (void)kind;
-    mp_printf(print, mp_obj_get_type_str(self_in));
+    mp_arg_check_num(n_args, n_kw, 2, 2, false);
+    if (!mp_obj_is_type(args[0], &ciphers_algorithms_aes_type))
+    {
+        mp_raise_TypeError("EXPECTED INSTANCE OF algorithms.AES");
+    }
+    mp_ciphers_algorithms_aes_t *algorithm = MP_OBJ_TO_PTR(args[0]);
+
+    int mode_type = -1;
+
+    if (mp_obj_is_type(args[1], &ciphers_modes_cbc_type))
+    {
+        mode_type = 1;
+    }
+    else if (mp_obj_is_type(args[1], &ciphers_modes_gcm_type))
+    {
+        mode_type = 2;
+    }
+    else
+    {
+        mp_raise_TypeError("EXPECTED INSTANCE OF modes.CBC or modes.GCM");
+    }
+
+    mp_obj_t mode = args[1];
+
+    mp_ciphers_cipher_t *cipher = m_new_obj(mp_ciphers_cipher_t);
+    cipher->base.type = &ciphers_cipher_type;
+    cipher->algorithm = algorithm;
+    cipher->mode = mode;
+    cipher->mode_type = mode_type;
+
+    mp_ciphers_cipher_encryptor_t* encryptor = m_new_obj(mp_ciphers_cipher_encryptor_t);
+    encryptor->base.type = &ciphers_cipher_encryptor_type;
+    encryptor->data = mp_const_empty_bytes;
+    encryptor->finalized = false;
+    encryptor->cipher = cipher;
+
+    mp_ciphers_cipher_decryptor_t* decryptor = m_new_obj(mp_ciphers_cipher_decryptor_t);
+    decryptor->base.type = &ciphers_cipher_decryptor_type;
+    decryptor->data = mp_const_empty_bytes;
+    decryptor->finalized = false;
+    decryptor->cipher = cipher;
+
+    cipher->encryptor = encryptor;
+    cipher->decryptor = decryptor;
+
+    return MP_OBJ_FROM_PTR(cipher);
 }
+
+STATIC mp_obj_t encryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_ciphers_cipher_encryptor_t* encryptor = MP_OBJ_TO_PTR(self_in);
+    encryptor->data = mp_const_empty_bytes;
+    encryptor->finalized = false;
+    return MP_OBJ_FROM_PTR(encryptor);
+}
+
+STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
+{
+    mp_ciphers_cipher_encryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    if (self->finalized)
+    {
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
+    }
+
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
+
+    vstr_t vstr_data;
+    vstr_init(&vstr_data, 0);
+    if (self->data != mp_const_empty_bytes)
+    {
+        mp_buffer_info_t bufinfo_self_data;
+        mp_get_buffer_raise(self->data, &bufinfo_self_data, MP_BUFFER_READ);
+        vstr_add_strn(&vstr_data, bufinfo_self_data.buf, bufinfo_self_data.len);
+    }
+    vstr_add_strn(&vstr_data, bufinfo_data.buf, bufinfo_data.len);
+
+    self->data = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_data);
+
+    if (self->cipher->mode_type == 1)
+    {
+        mp_buffer_info_t bufinfo_key;
+        mp_get_buffer_raise(self->cipher->algorithm->key, &bufinfo_key, MP_BUFFER_READ);
+
+        mp_ciphers_modes_cbc_t *mode = (mp_ciphers_modes_cbc_t *)MP_OBJ_TO_PTR(self->cipher->mode);
+        
+        mp_buffer_info_t bufinfo_initialization_vector;
+        mp_get_buffer_raise(mode->initialization_vector, &bufinfo_initialization_vector, MP_BUFFER_READ);
+
+        vstr_t vstr_iv;
+        vstr_init(&vstr_iv, 0);
+        vstr_add_strn(&vstr_iv, bufinfo_initialization_vector.buf, bufinfo_initialization_vector.len);
+
+        vstr_t vstr_output;
+        vstr_init_len(&vstr_output, vstr_data.len);
+
+        mbedtls_aes_context ctx;
+        mbedtls_aes_init(&ctx);
+        mbedtls_aes_setkey_enc(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
+        mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_ENCRYPT, vstr_data.len, vstr_iv.buf, vstr_data.buf, vstr_output.buf);
+        mbedtls_aes_free(&ctx);
+
+        return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_output);
+    }
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encryptor_update_obj, encryptor_update);
+
+STATIC mp_obj_t encryptor_finalize(mp_obj_t self_o)
+{
+    mp_ciphers_cipher_encryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    if (self->finalized)
+    {
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
+    }
+    self->finalized = true;
+    return mp_const_empty_bytes;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_encryptor_finalize_obj, encryptor_finalize);
+
+STATIC const mp_rom_map_elem_t encryptor_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mod_encryptor_update_obj)},
+    {MP_ROM_QSTR(MP_QSTR_finalize), MP_ROM_PTR(&mod_encryptor_finalize_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(encryptor_locals_dict, encryptor_locals_dict_table);
+
+STATIC mp_obj_type_t ciphers_cipher_encryptor_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_encryptor,
+    .call = encryptor_call,
+    .locals_dict = (void *)&encryptor_locals_dict,
+};
+
+STATIC mp_obj_t decryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_ciphers_cipher_decryptor_t* decryptor = MP_OBJ_TO_PTR(self_in);
+    decryptor->data = mp_const_empty_bytes;
+    decryptor->finalized = false;
+    return MP_OBJ_FROM_PTR(decryptor);
+}
+
+STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
+{
+    mp_ciphers_cipher_decryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    if (self->finalized)
+    {
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
+    }
+
+    mp_buffer_info_t bufinfo_self_data;
+    mp_get_buffer_raise(self->data, &bufinfo_self_data, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
+
+    vstr_t vstr_data;
+    vstr_init(&vstr_data, 0);
+    vstr_add_strn(&vstr_data, bufinfo_self_data.buf, bufinfo_self_data.len);
+    vstr_add_strn(&vstr_data, bufinfo_data.buf, bufinfo_data.len);
+
+    self->data = mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_data);
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_decryptor_update_obj, decryptor_update);
+
+STATIC mp_obj_t decryptor_finalize(mp_obj_t self_o)
+{
+    mp_ciphers_cipher_decryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    if (self->finalized)
+    {
+        mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
+    }
+    self->finalized = true;
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_decryptor_finalize_obj, decryptor_finalize);
+
+STATIC const mp_rom_map_elem_t decryptor_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mod_decryptor_update_obj)},
+    {MP_ROM_QSTR(MP_QSTR_finalize), MP_ROM_PTR(&mod_decryptor_finalize_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(decryptor_locals_dict, decryptor_locals_dict_table);
+
+STATIC mp_obj_type_t ciphers_cipher_decryptor_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_decryptor,
+    .call = decryptor_call,
+    .locals_dict = (void *)&decryptor_locals_dict,
+};
+
+STATIC void cipher_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_ciphers_cipher_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_encryptor)
+            {
+                dest[0] = self->encryptor;
+                return;
+            }
+            if (attr == MP_QSTR_decryptor)
+            {
+                dest[0] = self->decryptor;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t ciphers_cipher_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_encryptor), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_decryptor), MP_ROM_PTR(mp_const_none)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ciphers_cipher_locals_dict, ciphers_cipher_locals_dict_table);
+
+STATIC mp_obj_type_t ciphers_cipher_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_Cipher,
+    .make_new = cipher_make_new,
+    .attr = cipher_attr,
+    .locals_dict = (void *)&ciphers_cipher_locals_dict,
+};
+
+STATIC mp_obj_t algorithms_aes_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 1, 1, false);
+    mp_obj_t key = args[0];
+
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(key, &bufinfo, MP_BUFFER_READ);
+
+    mp_ciphers_algorithms_aes_t *AES = m_new_obj(mp_ciphers_algorithms_aes_t);
+    AES->base.type = &ciphers_algorithms_aes_type;
+    AES->key = key;
+
+    return MP_OBJ_FROM_PTR(AES);
+}
+
+STATIC mp_obj_type_t ciphers_algorithms_aes_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_AES,
+    .make_new = algorithms_aes_make_new,
+};
+
+STATIC const mp_rom_map_elem_t ciphers_algorithms_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_AES), MP_ROM_PTR(&ciphers_algorithms_aes_type)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ciphers_algorithms_locals_dict, ciphers_algorithms_locals_dict_table);
+
+STATIC mp_obj_type_t ciphers_algorithms_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_algorithms,
+    .locals_dict = (void *)&ciphers_algorithms_locals_dict,
+};
+
+STATIC mp_obj_t modes_cbc_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 1, 1, false);
+    mp_obj_t initialization_vector = args[0];
+
+    mp_buffer_info_t bufinfo_iv;
+    mp_get_buffer_raise(initialization_vector, &bufinfo_iv, MP_BUFFER_READ);
+
+    mp_ciphers_modes_cbc_t *CBC = m_new_obj(mp_ciphers_modes_cbc_t);
+    CBC->base.type = &ciphers_modes_cbc_type;
+    CBC->initialization_vector = initialization_vector;
+
+    return MP_OBJ_FROM_PTR(CBC);
+}
+
+STATIC mp_obj_type_t ciphers_modes_cbc_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_CBC,
+    .make_new = modes_cbc_make_new,
+};
+
+STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+{
+    mp_arg_check_num(n_args, n_kw, 1, 3, true);
+    enum { ARG_initialization_vector, ARG_tag, ARG_min_tag_length };
+    static const mp_arg_t allowed_args[] = {
+        { MP_QSTR_initialization_vector, MP_ARG_OBJ },
+        { MP_QSTR_tag, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+        { MP_QSTR_min_tag_length, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 16} },
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_buffer_info_t bufinfo_iv;
+    mp_get_buffer_raise(args[ARG_initialization_vector].u_obj, &bufinfo_iv, MP_BUFFER_READ);
+
+    if (args[ARG_tag].u_obj != MP_OBJ_NULL)
+    {
+        mp_buffer_info_t bufinfo_tag;
+        mp_get_buffer_raise(args[ARG_tag].u_obj, &bufinfo_tag, MP_BUFFER_READ);
+    }
+
+    mp_ciphers_modes_gcm_t *GCM = m_new_obj(mp_ciphers_modes_gcm_t);
+    GCM->base.type = &ciphers_modes_gcm_type;
+    GCM->initialization_vector = args[ARG_initialization_vector].u_obj;
+    GCM->tag = ( args[ARG_tag].u_obj != MP_OBJ_NULL ? args[ARG_tag].u_obj : mp_const_none );
+    GCM->min_tag_length = mp_obj_new_int(args[ARG_min_tag_length].u_int);
+
+    return MP_OBJ_FROM_PTR(GCM);
+}
+
+STATIC mp_obj_type_t ciphers_modes_gcm_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_GCM,
+    .make_new = modes_gcm_make_new,
+};
+
+STATIC const mp_rom_map_elem_t ciphers_modes_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_CBC), MP_ROM_PTR(&ciphers_modes_cbc_type)},
+    {MP_ROM_QSTR(MP_QSTR_GCM), MP_ROM_PTR(&ciphers_modes_gcm_type)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(ciphers_modes_locals_dict, ciphers_modes_locals_dict_table);
+
+STATIC mp_obj_type_t ciphers_modes_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_modes,
+    .locals_dict = (void *)&ciphers_modes_locals_dict,
+};
 
 STATIC const mp_rom_map_elem_t ciphers_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_AESGCM), MP_ROM_PTR(&ciphers_aesgcm_type)},
+    {MP_ROM_QSTR(MP_QSTR_Cipher), MP_ROM_PTR(&ciphers_cipher_type)},
+    {MP_ROM_QSTR(MP_QSTR_algorithms), MP_ROM_PTR(&ciphers_algorithms_type)},
+    {MP_ROM_QSTR(MP_QSTR_modes), MP_ROM_PTR(&ciphers_modes_type)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ciphers_locals_dict, ciphers_locals_dict_table);
@@ -2018,7 +2301,6 @@ STATIC MP_DEFINE_CONST_DICT(ciphers_locals_dict, ciphers_locals_dict_table);
 STATIC mp_obj_type_t ciphers_type = {
     {&mp_type_type},
     .name = MP_QSTR_ciphers,
-    .print = ciphers_print,
     .locals_dict = (void *)&ciphers_locals_dict,
 };
 
