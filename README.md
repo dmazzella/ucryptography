@@ -102,6 +102,30 @@ import cryptography
     - encrypt(nonce: **bytes**, plain_text_data: **bytes**, aad: **bytes** or **None**) -> **bytes**
     - decrypt(nonce: **bytes**, encrypted_data: **bytes**, aad: **bytes** or **None**) -> **bytes**
 
+- ### **cryptography.ciphers.algorithms.AES(key: **bytes**)**
+
+- ### **cryptography.ciphers.modes.CBC(initialization_vector: **bytes**)**
+
+- ### **cryptography.ciphers.modes.GCM(initialization_vector: **bytes**, tag=**None**|**bytes**, min_tag_length=**16**)**
+
+- ### **cryptography.ciphers.Cipher.encryptor**:
+    - update(data: **bytes**) -> **bytes**
+    - finalize() -> **bytes**
+    - authenticate_additional_data(data: **bytes**) -> None
+        - only for **cryptography.ciphers.modes.GCM**
+    - tag -> **bytes**
+        - only for **cryptography.ciphers.modes.GCM**
+
+- ### **cryptography.ciphers.Cipher.decryptor**:
+    - update(data: **bytes**) -> **bytes**
+    - finalize() -> **bytes**
+    - authenticate_additional_data(data: **bytes**) -> None
+        - only for **cryptography.ciphers.modes.GCM**
+
+- ### **cryptography.ciphers.Cipher**:
+    - encryptor() -> **cryptography.ciphers.Cipher.encryptor**
+    - decryptor() -> **cryptography.ciphers.Cipher.decryptor**
+
 ## Methods
 
 - ### **cryptography.serialization**:
@@ -125,6 +149,8 @@ import cryptography
 - ### **cryptography.ciphers**:
     ```python
     cryptography.ciphers.AESGCM(key: cryptography.ciphers.AESGCM.generate_key(256)) -> AESGCM
+    cryptography.ciphers.Cipher(cryptography.ciphers.algorithms.AES(key: bytes), cryptography.ciphers.modes.CBC(iv: bytes)) -> Cipher
+    cryptography.ciphers.Cipher(cryptography.ciphers.algorithms.AES(key: bytes), cryptography.ciphers.modes.GCM(iv: bytes)) -> Cipher
     ```
 - ### **cryptography.ec**:
     ```python

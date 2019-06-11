@@ -22,7 +22,7 @@ from cryptography import ciphers
 
 def main():
     data = b"a secret message"
-    def GCM():
+    def AES_GCM():
         aad = b"authenticated but unencrypted data"
         key = b'\xd1}\x9c"e\x0c\xe0\xafb\x1c\xf3J^\xd7\xa7y<\x17\xdd\xed`eD\x051\xae\xbb\xa2\x91\xfeD\xe1'
         nonce = b'7M\xb4xy\x01t\x88\xd8\xf3\x9e\xc0'
@@ -33,6 +33,28 @@ def main():
         ct = aesgcm.encrypt(nonce, data, aad)
         print(ct)
         dt = aesgcm.decrypt(nonce, ct, aad)
+        print(dt)
+
+    print("AESGCM")
+    AES_GCM()
+
+    def GCM():
+        aad = b"authenticated but unencrypted data"
+        key = b'\xd1}\x9c"e\x0c\xe0\xafb\x1c\xf3J^\xd7\xa7y<\x17\xdd\xed`eD\x051\xae\xbb\xa2\x91\xfeD\xe1'
+        nonce = iv = b'7M\xb4xy\x01t\x88\xd8\xf3\x9e\xc0'
+        # key = ciphers.AESGCM.generate_key(256)
+        # nonce = iv = urandom(12)
+
+        cipher = ciphers.Cipher(ciphers.algorithms.AES(key), ciphers.modes.GCM(iv))
+        encryptor = cipher.encryptor()
+        encryptor.authenticate_additional_data(aad)
+        ct = encryptor.update(data) + encryptor.finalize()
+        tag = encryptor.tag
+        print(ct + tag)
+        cipher = ciphers.Cipher(ciphers.algorithms.AES(key), ciphers.modes.GCM(iv, tag=tag))
+        decryptor = cipher.decryptor()
+        decryptor.authenticate_additional_data(aad)
+        dt = decryptor.update(ct) + decryptor.finalize()
         print(dt)
 
     print("AES GCM")
