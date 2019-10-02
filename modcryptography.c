@@ -157,7 +157,10 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/cipher.h"
 #include "mbedtls/gcm.h"
 #include "mbedtls/aes.h"
+#include "mbedtls/ecdh.h"
 
+struct _mp_ec_ecdsa_t;
+struct _mp_ec_ecdh_t;
 struct _mp_ec_curve_t;
 struct _mp_ec_public_numbers_t;
 struct _mp_ec_private_numbers_t;
@@ -174,6 +177,16 @@ struct _mp_ciphers_cipher_decryptor_t;
 struct _mp_ciphers_algorithms_aes_t;
 struct _mp_ciphers_modes_cbc_t;
 struct _mp_ciphers_modes_gcm_t;
+
+typedef struct _mp_ec_ecdh_t
+{
+    mp_obj_base_t base;
+} mp_ec_ecdh_t;
+
+typedef struct _mp_ec_ecdsa_t
+{
+    mp_obj_base_t base;
+} mp_ec_ecdsa_t;
 
 typedef struct _mp_ec_curve_t
 {
@@ -321,6 +334,8 @@ enum {
     SERIALIZATION_ENCODING_PEM = 2,
 };
 
+STATIC mp_obj_type_t ec_ecdsa_type;
+STATIC mp_obj_type_t ec_ecdh_type;
 STATIC mp_obj_type_t ec_curve_type;
 STATIC mp_obj_type_t ec_public_numbers_type;
 STATIC mp_obj_type_t ec_private_numbers_type;
@@ -337,6 +352,34 @@ STATIC mp_obj_type_t ciphers_cipher_decryptor_type;
 STATIC mp_obj_type_t ciphers_algorithms_aes_type;
 STATIC mp_obj_type_t ciphers_modes_cbc_type;
 STATIC mp_obj_type_t ciphers_modes_gcm_type;
+
+STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 0, 1, true);
+    mp_ec_ecdsa_t *ECDSA = m_new_obj(mp_ec_ecdsa_t);
+    ECDSA->base.type = &ec_ecdsa_type;
+    return MP_OBJ_FROM_PTR(ECDSA);
+}
+
+STATIC mp_obj_type_t ec_ecdsa_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_ECDSA,
+    .make_new = ec_ecdsa_make_new
+};
+
+STATIC mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 0, 1, true);
+    mp_ec_ecdh_t *ECDH = m_new_obj(mp_ec_ecdh_t);
+    ECDH->base.type = &ec_ecdh_type;
+    return MP_OBJ_FROM_PTR(ECDH);
+}
+
+STATIC mp_obj_type_t ec_ecdh_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_ECDH,
+    .make_new = ec_ecdh_make_new
+};
 
 STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t encoding_o)
 {
@@ -812,12 +855,62 @@ STATIC mp_obj_t ec_private_bytes(size_t n_args, const mp_obj_t *args)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_private_bytes_obj, 1, 2, ec_private_bytes);
 
+STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
+{
+    mp_ec_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
+
+    mp_obj_t peer_public_key_o = (n_args == 2?args[1]:args[2]);
+    
+    if (n_args == 3 && !mp_obj_is_type(args[1], &ec_ecdh_type))
+    {
+        mp_raise_TypeError("EXPECTED INSTANCE OF ec.ECDH");
+    }
+
+    if (!mp_obj_is_type(peer_public_key_o, &ec_public_key_type))
+    {
+        mp_raise_TypeError("EXPECTED INSTANCE OF ec.EllipticCurvePublicKey");
+    }
+
+    mp_buffer_info_t bufinfo_private_bytes;
+    mp_get_buffer_raise(self->private_bytes, &bufinfo_private_bytes, MP_BUFFER_READ);
+
+    mp_ec_public_key_t *peer_public_key = MP_OBJ_TO_PTR(peer_public_key_o);
+
+    mp_buffer_info_t bufinfo_peer_public_bytes;
+    mp_get_buffer_raise(peer_public_key->public_bytes, &bufinfo_peer_public_bytes, MP_BUFFER_READ);
+
+    mbedtls_ecp_keypair ecp;
+    mbedtls_ecp_keypair_init(&ecp);
+    mbedtls_ecp_group_load(&ecp.grp, MBEDTLS_ECP_DP_SECP256R1);
+    mbedtls_mpi_read_binary(&ecp.d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
+
+    mbedtls_ecp_point peer_Q;
+    mbedtls_ecp_point_init(&peer_Q);
+    mbedtls_ecp_point_read_binary(&ecp.grp, &peer_Q, (const byte *)bufinfo_peer_public_bytes.buf, bufinfo_peer_public_bytes.len);
+
+    mbedtls_mpi z;
+    mbedtls_mpi_init(&z);
+    mbedtls_ecdh_compute_shared(&ecp.grp, &z, &peer_Q, &ecp.d, mp_random, NULL);
+
+    vstr_t vstr_z_bytes;
+    vstr_init_len(&vstr_z_bytes, mbedtls_mpi_size(&z));
+    mbedtls_mpi_write_binary(&z, (byte *)vstr_z_bytes.buf, vstr_len(&vstr_z_bytes));
+
+    mbedtls_ecp_keypair_free(&ecp);
+    mbedtls_mpi_free(&z);
+    mbedtls_ecp_point_free(&peer_Q);
+    return mp_obj_new_bytes((const byte *)vstr_z_bytes.buf, vstr_z_bytes.len);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_exchange_obj, 2, 3, ec_exchange);
+
 STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(MP_OBJ_FROM_PTR(&mp_const_elliptic_curve_obj))},
     {MP_ROM_QSTR(MP_QSTR_private_numbers), MP_ROM_PTR(&mod_ec_private_numbers_obj)},
     {MP_ROM_QSTR(MP_QSTR_sign), MP_ROM_PTR(&mod_ec_sign_obj)},
     {MP_ROM_QSTR(MP_QSTR_private_bytes), MP_ROM_PTR(&mod_ec_private_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_ec_public_key_obj)},
+    {MP_ROM_QSTR(MP_QSTR_exchange), MP_ROM_PTR(&mod_ec_exchange_obj)},
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(256)},
 };
 
@@ -1768,6 +1861,8 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_derive_private_key_obj, ec_derive_privat
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_derive_private_key_obj, MP_ROM_PTR(&mod_ec_derive_private_key_obj));
 
 STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_ECDH), MP_ROM_PTR(&ec_ecdh_type)},
+    {MP_ROM_QSTR(MP_QSTR_ECDSA), MP_ROM_PTR(&ec_ecdsa_type)},
     {MP_ROM_QSTR(MP_QSTR_SECP256R1), MP_ROM_PTR(&ec_curve_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicKey), MP_ROM_PTR(&ec_public_key_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicNumbers), MP_ROM_PTR(&ec_public_numbers_type)},
