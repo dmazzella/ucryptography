@@ -56,6 +56,7 @@ import cryptography
 
 - ### **cryptography.ec.EllipticCurvePrivateKey**:
     - curve -> **cryptography.ec.SECP256R1**
+    - exchange([algorithm:cryptography.ec.ECDH], peer_public_key:**cryptography.ec.EllipticCurvePublicKey**) -> **bytes**
     - public_key() -> **cryptography.ec.EllipticCurvePublicKey**
     - private_numbers() -> **cryptography.ec.EllipticCurvePrivateNumbers**
     - private_bytes() -> **bytes**

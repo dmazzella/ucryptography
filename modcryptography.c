@@ -857,6 +857,10 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_private_bytes_obj, 1, 2, ec_pr
 
 STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
 {
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
 
     mp_obj_t peer_public_key_o = (n_args == 2?args[1]:args[2]);
@@ -1802,6 +1806,10 @@ STATIC mp_obj_type_t serialization_type = {
 
 STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
 {
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
     if (!mp_obj_is_type(EllipticCurve, &ec_curve_type))
     {
@@ -1826,6 +1834,10 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_generate_private_key_obj, 
 
 STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
 {
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
     if (!mp_obj_is_int(private_value))
     {
         mp_raise_TypeError("EXPECTED private_value int");
@@ -1912,6 +1924,10 @@ STATIC mp_obj_t aesgcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t
 
 STATIC mp_obj_t aesgcm_generate_key(mp_obj_t bit_length)
 {
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
     if (!mp_obj_is_int(bit_length))
     {
         mp_raise_TypeError("EXPECTED bit_length int");
@@ -1922,11 +1938,6 @@ STATIC mp_obj_t aesgcm_generate_key(mp_obj_t bit_length)
     {
         mp_raise_ValueError("bit_length MUST BE 128, 192 OR 256");
     }
-
-#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
-    time_t t;
-    srand((unsigned)time(&t));
-#endif
 
     vstr_t vstr_key;
     vstr_init_len(&vstr_key, nbit / 8);
