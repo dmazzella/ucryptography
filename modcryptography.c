@@ -192,6 +192,7 @@ typedef struct _mp_ec_curve_t
 {
     mp_obj_base_t base;
     mp_obj_t p;
+    mp_obj_t a;
     mp_obj_t b;
     mp_obj_t n;
     mp_obj_t G_x;
@@ -458,6 +459,8 @@ STATIC mp_obj_t ec_curve_make_new(const mp_obj_type_t *type, size_t n_args, size
     mbedtls_mpi_write_binary(&grp.P, (byte *)vstr_p.buf, vstr_len(&vstr_p));
     EllipticCurve->p = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_p), (const byte *)vstr_p.buf);
 
+    EllipticCurve->a = mp_obj_new_int(-3);
+
     vstr_t vstr_b;
     vstr_init_len(&vstr_b, mbedtls_mpi_size(&grp.B));
     mbedtls_mpi_write_binary(&grp.B, (byte *)vstr_b.buf, vstr_len(&vstr_b));
@@ -496,6 +499,11 @@ STATIC void ec_curve_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
                 dest[0] = self->p;
                 return;
             }
+            if (attr == MP_QSTR_a)
+            {
+                dest[0] = self->a;
+                return;
+            }
             if (attr == MP_QSTR_b)
             {
                 dest[0] = self->b;
@@ -525,6 +533,7 @@ STATIC const mp_rom_map_elem_t ec_curve_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_secp256r1)},
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(256)},
     {MP_ROM_QSTR(MP_QSTR_p), MP_ROM_INT(0)},
+    {MP_ROM_QSTR(MP_QSTR_a), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_b), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_n), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_G_x), MP_ROM_INT(0)},

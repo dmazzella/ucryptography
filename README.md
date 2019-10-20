@@ -27,6 +27,8 @@ import cryptography
         - _256_
     - p -> **int**
         - _0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff_
+    - a -> **int**
+        - _-3_
     - b -> **int**
         - _0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b_
     - n -> **int**
