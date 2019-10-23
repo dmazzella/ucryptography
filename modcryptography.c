@@ -158,6 +158,7 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/gcm.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/ecdh.h"
+#include "mbedtls/asn1write.h"
 
 struct _mp_ec_ecdsa_t;
 struct _mp_ec_ecdh_t;
@@ -353,6 +354,55 @@ STATIC mp_obj_type_t ciphers_cipher_decryptor_type;
 STATIC mp_obj_type_t ciphers_algorithms_aes_type;
 STATIC mp_obj_type_t ciphers_modes_cbc_type;
 STATIC mp_obj_type_t ciphers_modes_gcm_type;
+
+STATIC mpz_t *cryptography_mpz_for_int(mp_obj_t arg, mpz_t *temp)
+{
+    if (mp_obj_is_small_int(arg))
+    {
+        mpz_init_from_int(temp, MP_OBJ_SMALL_INT_VALUE(arg));
+        return temp;
+    }
+    else
+    {
+        mp_obj_int_t *arp_p = MP_OBJ_TO_PTR(arg);
+        return &(arp_p->mpz);
+    }
+}
+
+STATIC void cryptography_get_buffer(mp_obj_t o, bool big_endian, size_t len, mp_buffer_info_t *bufinfo)
+{
+    if (mp_obj_is_int(o))
+    {
+        vstr_t vstr;
+        vstr_init_len(&vstr, len);
+
+        mpz_t o_temp;
+        mpz_t *o_temp_p = cryptography_mpz_for_int(o, &o_temp);
+        bool is_neg = mpz_is_neg(o_temp_p);
+        if (is_neg)
+        {
+            mpz_abs_inpl(o_temp_p, o_temp_p);
+        }
+        mpz_as_bytes(o_temp_p, big_endian, len, (byte *)vstr.buf);
+        if (is_neg)
+        {
+            mpz_neg_inpl(o_temp_p, o_temp_p);
+        }
+        if (o_temp_p == &o_temp)
+        {
+            mpz_deinit(o_temp_p);
+        }
+
+        if (!mp_get_buffer(mp_obj_new_bytearray_by_ref(vstr.len, (byte *)vstr.buf), bufinfo, MP_BUFFER_READ))
+        {
+            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, "object with buffer protocol or int required, got %s", mp_obj_get_type_str(o)));
+        }
+    }
+    else if (!mp_get_buffer(o, bufinfo, MP_BUFFER_READ))
+    {
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, "object with buffer protocol or int required, got %s", mp_obj_get_type_str(o)));
+    }
+}
 
 STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1392,9 +1442,131 @@ STATIC mp_obj_t int_bit_length(mp_obj_t x)
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_int_bit_length_obj, int_bit_length);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_int_bit_length_obj, MP_ROM_PTR(&mod_int_bit_length_obj));
 
+STATIC int util_decode_dss_signature(const unsigned char *sig, size_t slen, mbedtls_mpi *r, mbedtls_mpi *s)
+{
+    int ret;
+    unsigned char *p = (unsigned char *)sig;
+    const unsigned char *end = sig + slen;
+    size_t len;
+    MBEDTLS_INTERNAL_VALIDATE_RET(sig != NULL, MBEDTLS_ERR_ECP_BAD_INPUT_DATA);
+
+    if ((ret = mbedtls_asn1_get_tag(&p, end, &len, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0)
+    {
+        ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    if (p + len != end)
+    {
+        ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA + MBEDTLS_ERR_ASN1_LENGTH_MISMATCH;
+        goto cleanup;
+    }
+
+    if ((ret = mbedtls_asn1_get_mpi(&p, end, r)) != 0 || (ret = mbedtls_asn1_get_mpi(&p, end, s)) != 0)
+    {
+        ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    if (p != end)
+    {
+        ret = MBEDTLS_ERR_ECP_SIG_LEN_MISMATCH;
+    }
+
+cleanup:
+
+    return (ret);
+}
+
+STATIC mp_obj_t mod_decode_dss_signature(mp_obj_t signature_obj)
+{
+    mp_buffer_info_t bufinfo_signature;
+    mp_get_buffer_raise(signature_obj, &bufinfo_signature, MP_BUFFER_READ);
+
+    mbedtls_mpi r;
+    mbedtls_mpi_init(&r);
+
+    mbedtls_mpi s;
+    mbedtls_mpi_init(&s);
+
+    util_decode_dss_signature(bufinfo_signature.buf, bufinfo_signature.len, &r, &s);
+
+    vstr_t vstr_r;
+    vstr_init_len(&vstr_r, mbedtls_mpi_size(&r));
+    mbedtls_mpi_write_binary(&r, (byte *)vstr_r.buf, vstr_len(&vstr_r));
+
+    vstr_t vstr_s;
+    vstr_init_len(&vstr_s, mbedtls_mpi_size(&s));
+    mbedtls_mpi_write_binary(&s, (byte *)vstr_s.buf, vstr_len(&vstr_s));
+
+    mp_obj_t rs[2] = {
+        mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_r), (const byte *)vstr_r.buf),
+        mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_s), (const byte *)vstr_s.buf)};
+
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
+
+    return mp_obj_new_tuple(2, rs);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_decode_dss_signature_obj, mod_decode_dss_signature);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_decode_dss_signature_obj, MP_ROM_PTR(&mod_decode_dss_signature_obj));
+
+STATIC int util_encode_dss_signature(const mbedtls_mpi *r, const mbedtls_mpi *s, unsigned char *sig, size_t *slen)
+{
+    int ret;
+    unsigned char buf[MBEDTLS_ECDSA_MAX_LEN];
+    unsigned char *p = buf + sizeof(buf);
+    size_t len = 0;
+
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, s));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, buf, len));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+
+    memcpy(sig, p, len);
+    *slen = len;
+
+    return (0);
+}
+
+STATIC mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
+{
+    mp_buffer_info_t bufinfo_r;
+    cryptography_get_buffer(r_obj, true, 32, &bufinfo_r);
+
+    mp_buffer_info_t bufinfo_s;
+    cryptography_get_buffer(s_obj, true, 32, &bufinfo_s);
+
+    mbedtls_mpi r;
+    mbedtls_mpi_init(&r);
+    mbedtls_mpi_read_binary(&r, (const byte *)bufinfo_r.buf, bufinfo_r.len);
+
+    mbedtls_mpi s;
+    mbedtls_mpi_init(&s);
+    mbedtls_mpi_read_binary(&s, (const byte *)bufinfo_s.buf, bufinfo_s.len);
+
+    vstr_t vstr_sig;
+    vstr_init_len(&vstr_sig, MBEDTLS_ECDSA_MAX_LEN);
+
+    size_t size_sig = 0;
+    util_encode_dss_signature(&r, &s, (byte *)vstr_sig.buf, &size_sig);
+
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
+
+    return mp_obj_new_bytes((const byte *)vstr_sig.buf, size_sig);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encode_dss_signature_obj, mod_encode_dss_signature);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_encode_dss_signature_obj, MP_ROM_PTR(&mod_encode_dss_signature_obj));
+
 STATIC const mp_rom_map_elem_t util_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_constant_time_bytes_eq), MP_ROM_PTR(&mod_static_constant_time_bytes_eq_obj)},
     {MP_ROM_QSTR(MP_QSTR_bit_length), MP_ROM_PTR(&mod_static_int_bit_length_obj)},
+    {MP_ROM_QSTR(MP_QSTR_encode_dss_signature), MP_ROM_PTR(&mod_static_encode_dss_signature_obj)},
+    {MP_ROM_QSTR(MP_QSTR_decode_dss_signature), MP_ROM_PTR(&mod_static_decode_dss_signature_obj)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(util_locals_dict, util_locals_dict_table);
