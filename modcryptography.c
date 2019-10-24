@@ -1551,10 +1551,15 @@ STATIC mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
     vstr_init_len(&vstr_sig, MBEDTLS_ECDSA_MAX_LEN);
 
     size_t size_sig = 0;
-    util_encode_dss_signature(&r, &s, (byte *)vstr_sig.buf, &size_sig);
+    int res = util_encode_dss_signature(&r, &s, (byte *)vstr_sig.buf, &size_sig);
 
     mbedtls_mpi_free(&r);
     mbedtls_mpi_free(&s);
+
+    if (res != 0)
+    {
+        mp_raise_ValueError("signature malformed");
+    }
 
     return mp_obj_new_bytes((const byte *)vstr_sig.buf, size_sig);
 }
