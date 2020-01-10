@@ -539,7 +539,7 @@ STATIC void ec_curve_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     mp_ec_curve_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
     {
-        mp_obj_type_t *type = mp_obj_get_type(obj);
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
         mp_map_t *locals_map = &type->locals_dict->map;
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
@@ -656,7 +656,7 @@ STATIC void ec_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     mp_ec_public_numbers_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
     {
-        mp_obj_type_t *type = mp_obj_get_type(obj);
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
         mp_map_t *locals_map = &type->locals_dict->map;
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
@@ -746,7 +746,7 @@ STATIC void ec_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     mp_ec_private_numbers_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
     {
-        mp_obj_type_t *type = mp_obj_get_type(obj);
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
         mp_map_t *locals_map = &type->locals_dict->map;
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
@@ -1158,7 +1158,7 @@ STATIC void hash_context_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     mp_hash_context_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
     {
-        mp_obj_type_t *type = mp_obj_get_type(obj);
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
         mp_map_t *locals_map = &type->locals_dict->map;
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
@@ -1611,7 +1611,7 @@ STATIC void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
     {
-        mp_obj_type_t *type = mp_obj_get_type(obj);
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
         mp_map_t *locals_map = &type->locals_dict->map;
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
@@ -2427,7 +2427,7 @@ STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     mp_ciphers_cipher_encryptor_t* self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
     {
-        mp_obj_type_t *type = mp_obj_get_type(obj);
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
         mp_map_t *locals_map = &type->locals_dict->map;
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
@@ -2634,7 +2634,7 @@ STATIC void cipher_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     mp_ciphers_cipher_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
     {
-        mp_obj_type_t *type = mp_obj_get_type(obj);
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
         mp_map_t *locals_map = &type->locals_dict->map;
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
