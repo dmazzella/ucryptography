@@ -9,6 +9,9 @@ endif
 CFLAGS_USERMOD += -DMICROPY_PY_UCRYPTOGRAPHY=1
 CFLAGS_USERMOD += -I$(MBEDTLS_DIR)/include
 ifeq ($(MICROPY_SSL_MBEDTLS),)
+    ifneq ($(wildcard $(MBEDTLS_DIR)/crypto/*),)
+        CFLAGS_USERMOD += -I$(MBEDTLS_DIR)/crypto/include
+    endif
     CFLAGS_USERMOD += -I$(MOD_UCRYPTOGRAPHY_DIR)
     CFLAGS_USERMOD += -DMBEDTLS_USER_CONFIG_FILE='"modcryptography_config.h"'
 else
@@ -24,7 +27,11 @@ endif
 
 SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/modcryptography.c
 ifeq ($(MICROPY_SSL_MBEDTLS),)
-$(foreach src, $(wildcard $(MBEDTLS_DIR)/library/*.c), \
-    $(eval SRC_USERMOD += $(src))\
-)
+$(foreach src, $(wildcard $(MBEDTLS_DIR)/library/*.c), $(eval SRC_USERMOD += $(src)))
+ifneq ($(wildcard $(MBEDTLS_DIR)/crypto/*),)
+    $(foreach src, $(wildcard $(MBEDTLS_DIR)/crypto/library/*.c), $(eval SRC_USERMOD += $(src)))
+    ifneq ($(filter $(MBEDTLS_DIR)/crypto/library/error.c,$(SRC_USERMOD)),)
+        SRC_USERMOD := $(filter-out $(MBEDTLS_DIR)/crypto/library/error.c, $(SRC_USERMOD))
+    endif
+endif
 endif
