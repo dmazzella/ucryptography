@@ -355,6 +355,56 @@ STATIC mp_obj_type_t ciphers_algorithms_aes_type;
 STATIC mp_obj_type_t ciphers_modes_cbc_type;
 STATIC mp_obj_type_t ciphers_modes_gcm_type;
 
+#if defined(MBEDTLS_GCM_ALT) || defined(MBEDTLS_AES_ALT)
+void HAL_CRYP_MspInit(CRYP_HandleTypeDef *hcryp)
+{
+    if (hcryp->Instance == AES1)
+    {
+        __HAL_RCC_AES1_CLK_ENABLE();
+    }
+    else if (hcryp->Instance == AES2)
+    {
+        __HAL_RCC_AES2_CLK_ENABLE();
+    }
+}
+
+void HAL_CRYP_MspDeInit(CRYP_HandleTypeDef *hcryp)
+{
+    if (hcryp->Instance == AES1)
+    {
+        __HAL_RCC_AES1_FORCE_RESET();
+        __HAL_RCC_AES1_RELEASE_RESET();
+        __HAL_RCC_AES1_CLK_DISABLE();
+    }
+    else if (hcryp->Instance == AES2)
+    {
+        __HAL_RCC_AES2_FORCE_RESET();
+        __HAL_RCC_AES2_RELEASE_RESET();
+        __HAL_RCC_AES2_CLK_DISABLE();
+    }
+}
+#endif
+
+#if defined(MBEDTLS_ECP_ALT)
+void HAL_PKA_MspInit(PKA_HandleTypeDef *hpka)
+{
+    if (hpka->Instance == PKA)
+    {
+        __HAL_RCC_PKA_CLK_ENABLE();
+    }
+}
+
+void HAL_PKA_MspDeInit(PKA_HandleTypeDef *hpka)
+{
+    if (hpka->Instance == PKA)
+    {
+        __HAL_RCC_PKA_FORCE_RESET();
+        __HAL_RCC_PKA_RELEASE_RESET();
+        __HAL_RCC_PKA_CLK_DISABLE();
+    }
+}
+#endif
+
 STATIC mpz_t *cryptography_mpz_for_int(mp_obj_t arg, mpz_t *temp)
 {
     if (mp_obj_is_small_int(arg))

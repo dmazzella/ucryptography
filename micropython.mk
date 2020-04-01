@@ -23,6 +23,10 @@ CFLAGS_USERMOD += -DMBEDTLS_ASN1_WRITE_C
 CFLAGS_USERMOD += -DMBEDTLS_ECDSA_C
 CFLAGS_USERMOD += -DMBEDTLS_ECDH_C
 CFLAGS_USERMOD += -DMBEDTLS_GCM_C
+ifeq ($(MCU_SERIES),wb)
+CFLAGS_USERMOD += -DMBEDTLS_GCM_ALT
+CFLAGS_USERMOD += -DMBEDTLS_ECP_ALT
+endif
 endif
 
 SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/modcryptography.c
@@ -33,5 +37,12 @@ ifneq ($(wildcard $(MBEDTLS_DIR)/crypto/*),)
     ifneq ($(filter $(MBEDTLS_DIR)/crypto/library/error.c,$(SRC_USERMOD)),)
         SRC_USERMOD := $(filter-out $(MBEDTLS_DIR)/crypto/library/error.c, $(SRC_USERMOD))
     endif
+endif
+ifeq ($(MCU_SERIES),wb)
+    SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/aes_alt.c
+    SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/gcm_alt.c
+    SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/ecp_curves_alt.c
+    SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/ecp_alt.c
+    SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/ecdsa_alt.c
 endif
 endif

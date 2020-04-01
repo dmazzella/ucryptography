@@ -10,7 +10,7 @@ from cryptography.hazmat.backends import default_backend
 def main():
     data = b"a secret message"
     def AES_GCM():
-        aad = b"authenticated but unencrypted data"
+        aad = b'\xDE\xAD\xBE\xEF'
         key = b'\xd1}\x9c"e\x0c\xe0\xafb\x1c\xf3J^\xd7\xa7y<\x17\xdd\xed`eD\x051\xae\xbb\xa2\x91\xfeD\xe1'
         nonce = b'7M\xb4xy\x01t\x88\xd8\xf3\x9e\xc0'
         # key = AESGCM.generate_key(256)
@@ -26,7 +26,7 @@ def main():
     AES_GCM()
 
     def GCM():
-        aad = b"authenticated but unencrypted data"
+        aad = b'\xDE\xAD\xBE\xEF'
         key = b'\xd1}\x9c"e\x0c\xe0\xafb\x1c\xf3J^\xd7\xa7y<\x17\xdd\xed`eD\x051\xae\xbb\xa2\x91\xfeD\xe1'
         nonce = iv = b'7M\xb4xy\x01t\x88\xd8\xf3\x9e\xc0'
         # key = ciphers.AESGCM.generate_key(256)

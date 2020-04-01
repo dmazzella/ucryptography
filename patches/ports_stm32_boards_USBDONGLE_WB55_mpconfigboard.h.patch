@@ -1,0 +1,15 @@
+diff --git a/ports/stm32/boards/USBDONGLE_WB55/mpconfigboard.h b/ports/stm32/boards/USBDONGLE_WB55/mpconfigboard.h
+index 0ff751d61..dc50013a9 100644
+--- a/ports/stm32/boards/USBDONGLE_WB55/mpconfigboard.h
++++ b/ports/stm32/boards/USBDONGLE_WB55/mpconfigboard.h
+@@ -6,6 +6,10 @@
+ #define MICROPY_HW_MCU_NAME         "STM32WB55CGU6"
+ 
+ #define MICROPY_PY_PYB_LEGACY       (0)
++#define MICROPY_PY_THREAD           (1)
++#define MICROPY_PY_FRAMEBUF         (0)
++#define MICROPY_PY_USOCKET          (0)
++#define MICROPY_PY_NETWORK          (0)
+ 
+ #define MICROPY_HW_HAS_FLASH        (1)
+ #define MICROPY_HW_ENABLE_RTC       (1)
