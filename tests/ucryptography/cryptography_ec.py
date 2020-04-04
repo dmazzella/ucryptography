@@ -14,6 +14,7 @@ def main():
     private_value = 30140591704819636439763775594845282823510480635318954373469177244302428654865
     pr_k = crypto_ec.derive_private_key(private_value, crypto_ec.SECP256R1())
     pu_k = pr_k.public_key()
+    print(pu_k.public_numbers().x, pu_k.public_numbers().y)
     digest = crypto_hashes.Hash(crypto_hashes.SHA256())
     digest.update(b'cacca')
     digest.update(b'cacca')

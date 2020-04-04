@@ -63,6 +63,18 @@ MP_DEFINE_EXCEPTION(NotYetFinalized, Exception);
 MP_DEFINE_EXCEPTION(UnsupportedAlgorithm, Exception);
 MP_DEFINE_EXCEPTION(InvalidKey, Exception);
 
+#define CHK_NE_GOTO(EC, ERR, LABEL) \
+    if ((EC) != (ERR))              \
+    {                               \
+        goto LABEL;                 \
+    }
+
+#define CHK_EQ_GOTO(EC, ERR, LABEL) \
+    if ((EC) == (ERR))              \
+    {                               \
+        goto LABEL;                 \
+    }
+
 STATIC int mp_random(void *rng_state, byte *output, size_t len)
 {
     size_t use_len;
@@ -326,12 +338,14 @@ typedef struct _mp_ciphers_cipher_decryptor_t
     bool finalized;
 } mp_ciphers_cipher_decryptor_t;
 
-enum {
+enum
+{
     CIPHER_MODE_CBC = 1,
     CIPHER_MODE_GCM = 2,
 };
 
-enum {
+enum
+{
     SERIALIZATION_ENCODING_DER = 1,
     SERIALIZATION_ENCODING_PEM = 2,
 };
@@ -405,6 +419,23 @@ void HAL_PKA_MspDeInit(PKA_HandleTypeDef *hpka)
 }
 #endif
 
+STATIC mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
+{
+    if (!mp_obj_is_int(arg))
+    {
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, "int required, got %s", mp_obj_get_type_str(arg)));
+    }
+
+    if (mp_obj_is_small_int(arg))
+    {
+        mp_obj_int_t *o = mp_obj_int_new_mpz();
+        mpz_init_from_int(&o->mpz, MP_OBJ_SMALL_INT_VALUE(arg));
+        return MP_OBJ_FROM_PTR(o);
+    }
+
+    return arg;
+}
+
 STATIC mpz_t *cryptography_mpz_for_int(mp_obj_t arg, mpz_t *temp)
 {
     if (mp_obj_is_small_int(arg))
@@ -465,8 +496,7 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
 STATIC mp_obj_type_t ec_ecdsa_type = {
     {&mp_type_type},
     .name = MP_QSTR_ECDSA,
-    .make_new = ec_ecdsa_make_new
-};
+    .make_new = ec_ecdsa_make_new};
 
 STATIC mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -479,8 +509,7 @@ STATIC mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_
 STATIC mp_obj_type_t ec_ecdh_type = {
     {&mp_type_type},
     .name = MP_QSTR_ECDH,
-    .make_new = ec_ecdh_make_new
-};
+    .make_new = ec_ecdh_make_new};
 
 STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t encoding_o)
 {
@@ -674,8 +703,8 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
     vstr_t vstr_public_bytes;
     vstr_init_len(&vstr_public_bytes, 64);
     vstr_ins_byte(&vstr_public_bytes, 0, 0x04);
-    mp_obj_int_to_bytes_impl(x, true, 32, (byte *)vstr_public_bytes.buf + 1);
-    mp_obj_int_to_bytes_impl(y, true, 32, (byte *)vstr_public_bytes.buf + 1 + 32);
+    mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(x), true, 32, (byte *)vstr_public_bytes.buf + 1);
+    mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(y), true, 32, (byte *)vstr_public_bytes.buf + 1 + 32);
 
     mp_ec_public_numbers_t *EllipticCurvePublicNumbers = m_new_obj(mp_ec_public_numbers_t);
     EllipticCurvePublicNumbers->base.type = &ec_public_numbers_type;
@@ -764,7 +793,7 @@ STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_
 
     vstr_t vstr_private_bytes;
     vstr_init_len(&vstr_private_bytes, 32);
-    mp_obj_int_to_bytes_impl(private_value, true, 32, (byte *)vstr_private_bytes.buf);
+    mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(private_value), true, 32, (byte *)vstr_private_bytes.buf);
 
     mp_ec_private_numbers_t *EllipticCurvePrivateNumbers = m_new_obj(mp_ec_private_numbers_t);
     EllipticCurvePrivateNumbers->base.type = &ec_private_numbers_type;
@@ -972,8 +1001,8 @@ STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
 #endif
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
 
-    mp_obj_t peer_public_key_o = (n_args == 2?args[1]:args[2]);
-    
+    mp_obj_t peer_public_key_o = (n_args == 2 ? args[1] : args[2]);
+
     if (n_args == 3 && !mp_obj_is_type(args[1], &ec_ecdh_type))
     {
         mp_raise_TypeError("EXPECTED INSTANCE OF ec.ECDH");
@@ -1785,7 +1814,7 @@ STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_
     }
     else
     {
-        return mp_obj_new_bytes((const byte*)vstr_oid.buf, vstr_oid.len);
+        return mp_obj_new_bytes((const byte *)vstr_oid.buf, vstr_oid.len);
     }
 }
 
@@ -2078,15 +2107,17 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
     {
         mp_raise_TypeError("EXPECTED private_value int");
     }
-    vstr_t vstr_private_bytes;
-    vstr_init_len(&vstr_private_bytes, 32);
-    mp_obj_int_to_bytes_impl(private_value, true, 32, (byte *)vstr_private_bytes.buf);
 
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
     if (!mp_obj_is_type(EllipticCurve, &ec_curve_type))
     {
         mp_raise_TypeError("EXPECTED INSTANCE OF ec.SECP256R1");
     }
+
+    vstr_t vstr_private_bytes;
+    vstr_init_len(&vstr_private_bytes, 32);
+    mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(private_value), true, 32, (byte *)vstr_private_bytes.buf);
+
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
     mbedtls_ecp_group_load(&ecp.grp, MBEDTLS_ECP_DP_SECP256R1);
@@ -2309,14 +2340,14 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
     cipher->mode = mode;
     cipher->mode_type = mode_type;
 
-    mp_ciphers_cipher_encryptor_t* encryptor = m_new_obj(mp_ciphers_cipher_encryptor_t);
+    mp_ciphers_cipher_encryptor_t *encryptor = m_new_obj(mp_ciphers_cipher_encryptor_t);
     encryptor->base.type = &ciphers_cipher_encryptor_type;
     encryptor->data = mp_const_empty_bytes;
     encryptor->aadata = mp_const_empty_bytes;
     encryptor->finalized = false;
     encryptor->cipher = cipher;
 
-    mp_ciphers_cipher_decryptor_t* decryptor = m_new_obj(mp_ciphers_cipher_decryptor_t);
+    mp_ciphers_cipher_decryptor_t *decryptor = m_new_obj(mp_ciphers_cipher_decryptor_t);
     decryptor->base.type = &ciphers_cipher_decryptor_type;
     decryptor->data = mp_const_empty_bytes;
     decryptor->aadata = mp_const_empty_bytes;
@@ -2331,7 +2362,7 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
 
 STATIC mp_obj_t encryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
-    mp_ciphers_cipher_encryptor_t* encryptor = MP_OBJ_TO_PTR(self_in);
+    mp_ciphers_cipher_encryptor_t *encryptor = MP_OBJ_TO_PTR(self_in);
     encryptor->data = mp_const_empty_bytes;
     encryptor->finalized = false;
     return MP_OBJ_FROM_PTR(encryptor);
@@ -2339,7 +2370,7 @@ STATIC mp_obj_t encryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, con
 
 STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
 {
-    mp_ciphers_cipher_encryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->finalized)
     {
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
@@ -2434,7 +2465,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encryptor_update_obj, encryptor_update);
 
 STATIC mp_obj_t encryptor_finalize(mp_obj_t self_o)
 {
-    mp_ciphers_cipher_encryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->finalized)
     {
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
@@ -2447,7 +2478,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_encryptor_finalize_obj, encryptor_finalize)
 
 STATIC mp_obj_t encryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t aadata)
 {
-    mp_ciphers_cipher_encryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->cipher->mode_type == CIPHER_MODE_CBC)
     {
         mp_raise_TypeError("EXPECTED INSTANCE OF modes.GCM");
@@ -2474,7 +2505,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encryptor_authenticate_additional_data_obj,
 
 STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
-    mp_ciphers_cipher_encryptor_t* self = MP_OBJ_TO_PTR(obj);
+    mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
@@ -2498,7 +2529,7 @@ STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
                 dest[0] = mode->tag;
                 return;
             }
-            
+
             mp_convert_member_lookup(obj, type, elem->value, dest);
         }
     }
@@ -2523,7 +2554,7 @@ STATIC mp_obj_type_t ciphers_cipher_encryptor_type = {
 
 STATIC mp_obj_t decryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
-    mp_ciphers_cipher_decryptor_t* decryptor = MP_OBJ_TO_PTR(self_in);
+    mp_ciphers_cipher_decryptor_t *decryptor = MP_OBJ_TO_PTR(self_in);
     decryptor->data = mp_const_empty_bytes;
     decryptor->finalized = false;
     return MP_OBJ_FROM_PTR(decryptor);
@@ -2531,7 +2562,7 @@ STATIC mp_obj_t decryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, con
 
 STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
 {
-    mp_ciphers_cipher_decryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    mp_ciphers_cipher_decryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->finalized)
     {
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
@@ -2624,7 +2655,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_decryptor_update_obj, decryptor_update);
 
 STATIC mp_obj_t decryptor_finalize(mp_obj_t self_o)
 {
-    mp_ciphers_cipher_decryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    mp_ciphers_cipher_decryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->finalized)
     {
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
@@ -2637,7 +2668,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_decryptor_finalize_obj, decryptor_finalize)
 
 STATIC mp_obj_t decryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t aadata)
 {
-    mp_ciphers_cipher_decryptor_t* self = MP_OBJ_TO_PTR(self_o);
+    mp_ciphers_cipher_decryptor_t *self = MP_OBJ_TO_PTR(self_o);
 
     if (self->cipher->mode_type == CIPHER_MODE_CBC)
     {
@@ -2662,7 +2693,6 @@ STATIC mp_obj_t decryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_decryptor_authenticate_additional_data_obj, decryptor_authenticate_additional_data);
-
 
 STATIC const mp_rom_map_elem_t decryptor_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mod_decryptor_update_obj)},
@@ -2781,11 +2811,16 @@ STATIC mp_obj_type_t ciphers_modes_cbc_type = {
 STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 3, true);
-    enum { ARG_initialization_vector, ARG_tag, ARG_min_tag_length };
+    enum
+    {
+        ARG_initialization_vector,
+        ARG_tag,
+        ARG_min_tag_length
+    };
     static const mp_arg_t allowed_args[] = {
-        { MP_QSTR_initialization_vector, MP_ARG_OBJ },
-        { MP_QSTR_tag, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
-        { MP_QSTR_min_tag_length, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 16} },
+        {MP_QSTR_initialization_vector, MP_ARG_OBJ},
+        {MP_QSTR_tag, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_min_tag_length, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 16}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -2804,8 +2839,8 @@ STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, siz
     mp_ciphers_modes_gcm_t *GCM = m_new_obj(mp_ciphers_modes_gcm_t);
     GCM->base.type = &ciphers_modes_gcm_type;
     GCM->initialization_vector = mp_obj_new_bytes((const byte *)bufinfo_iv.buf, bufinfo_iv.len);
-    GCM->tag = ( args[ARG_tag].u_obj != MP_OBJ_NULL ? args[ARG_tag].u_obj : mp_const_none );
-    GCM->min_tag_length = mp_obj_new_int(( args[ARG_min_tag_length].u_int < 16 ? 16 : args[ARG_min_tag_length].u_int ));
+    GCM->tag = (args[ARG_tag].u_obj != MP_OBJ_NULL ? args[ARG_tag].u_obj : mp_const_none);
+    GCM->min_tag_length = mp_obj_new_int((args[ARG_min_tag_length].u_int < 16 ? 16 : args[ARG_min_tag_length].u_int));
 
     return MP_OBJ_FROM_PTR(GCM);
 }
