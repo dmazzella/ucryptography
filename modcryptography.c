@@ -423,7 +423,7 @@ STATIC mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
 {
     if (!mp_obj_is_int(arg))
     {
-        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, "int required, got %s", mp_obj_get_type_str(arg)));
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("int required, got %s"), mp_obj_get_type_str(arg)));
     }
 
     if (mp_obj_is_small_int(arg))
@@ -476,12 +476,12 @@ STATIC void cryptography_get_buffer(mp_obj_t o, bool big_endian, size_t len, mp_
 
         if (!mp_get_buffer(mp_obj_new_bytearray_by_ref(vstr.len, (byte *)vstr.buf), bufinfo, MP_BUFFER_READ))
         {
-            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, "object with buffer protocol or int required, got %s", mp_obj_get_type_str(o)));
+            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("object with buffer protocol or int required, got %s"), mp_obj_get_type_str(o)));
         }
     }
     else if (!mp_get_buffer(o, bufinfo, MP_BUFFER_READ))
     {
-        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, "object with buffer protocol or int required, got %s", mp_obj_get_type_str(o)));
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("object with buffer protocol or int required, got %s"), mp_obj_get_type_str(o)));
     }
 }
 
@@ -515,12 +515,12 @@ STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t enc
 {
     if (!mp_obj_is_int(encoding_o))
     {
-        mp_raise_TypeError("EXPECTED encoding int");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED encoding int"));
     }
     mp_int_t encoding = mp_obj_get_int(encoding_o);
     if (encoding != SERIALIZATION_ENCODING_DER && encoding != SERIALIZATION_ENCODING_PEM)
     {
-        mp_raise_ValueError("EXPECTED encoding value 1 (DER) or 2 (PEM)");
+        mp_raise_ValueError(MP_ERROR_TEXT("EXPECTED encoding value 1 (DER) or 2 (PEM)"));
     }
 
     vstr_t vstr_out;
@@ -689,15 +689,15 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(args[2]);
     if (!mp_obj_is_int(x))
     {
-        mp_raise_TypeError("EXPECTED X int");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED X int"));
     }
     if (!mp_obj_is_int(y))
     {
-        mp_raise_TypeError("EXPECTED Y int");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED Y int"));
     }
     if (!mp_obj_is_type(EllipticCurve, &ec_curve_type))
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF ec.SECP256R1");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1"));
     }
 
     vstr_t vstr_public_bytes;
@@ -784,11 +784,11 @@ STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_
     mp_ec_public_numbers_t *EllipticCurvePublicNumbers = MP_OBJ_TO_PTR(args[1]);
     if (!mp_obj_is_int(private_value))
     {
-        mp_raise_TypeError("EXPECTED private_value int");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED private_value int"));
     }
     if (!mp_obj_is_type(EllipticCurvePublicNumbers, &ec_public_numbers_type))
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF ec.EllipticCurvePublicNumbers");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.EllipticCurvePublicNumbers"));
     }
 
     vstr_t vstr_private_bytes;
@@ -1005,12 +1005,12 @@ STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
 
     if (n_args == 3 && !mp_obj_is_type(args[1], &ec_ecdh_type))
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF ec.ECDH");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.ECDH"));
     }
 
     if (!mp_obj_is_type(peer_public_key_o, &ec_public_key_type))
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF ec.EllipticCurvePublicKey");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.EllipticCurvePublicKey"));
     }
 
     mp_buffer_info_t bufinfo_private_bytes;
@@ -1152,7 +1152,7 @@ STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     if (!mp_obj_is_type(args[0], &hash_algorithm_type))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, "hashes.SHA256");
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("hashes.SHA256"));
     }
     mp_hash_context_t *HashContext = m_new_obj(mp_hash_context_t);
     HashContext->base.type = &hash_context_type;
@@ -1287,11 +1287,11 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     mp_arg_check_num(n_args, n_kw, 2, 2, false);
     if (!mp_obj_is_type(args[0], &mp_type_bytes))
     {
-        mp_raise_TypeError("EXPECTED key bytes");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED key bytes"));
     }
     if (!mp_obj_is_type(args[1], &hash_algorithm_type))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, "hashes.SHA256");
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("hashes.SHA256"));
     }
     mp_hmac_context_t *HMACContext = m_new_obj(mp_hmac_context_t);
     HMACContext->base.type = &hmac_context_type;
@@ -1637,7 +1637,7 @@ STATIC mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
 
     if (res != 0)
     {
-        mp_raise_ValueError("signature malformed");
+        mp_raise_ValueError(MP_ERROR_TEXT("signature malformed"));
     }
 
     return mp_obj_new_bytes((const byte *)vstr_sig.buf, size_sig);
@@ -1795,7 +1795,7 @@ STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_
 
         if (((value << 7) >> 7) != value)
         {
-            mp_raise_ValueError("OID BUF TOO SMALL");
+            mp_raise_ValueError(MP_ERROR_TEXT("OID BUF TOO SMALL"));
         }
 
         value <<= 7;
@@ -1906,21 +1906,21 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError("CERTIFICATE FORMAT");
+        mp_raise_ValueError(MP_ERROR_TEXT("CERTIFICATE FORMAT"));
     }
 
     if (crt.sig_md != MBEDTLS_MD_SHA256)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, "ONLY SHA256 IS SUPPORTED");
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ONLY SHA256 IS SUPPORTED"));
     }
 
     if (crt.sig_pk != MBEDTLS_PK_ECDSA)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError("ONLY ECDSA IS SUPPORTED");
+        mp_raise_ValueError(MP_ERROR_TEXT("ONLY ECDSA IS SUPPORTED"));
     }
 
     mp_obj_t extensions = mp_obj_new_dict(0);
@@ -1955,14 +1955,14 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         mbedtls_pk_free(&pk);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_msg(&mp_type_InvalidKey, "PUBLIC KEY");
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("PUBLIC KEY"));
     }
 
     if (mbedtls_pk_get_type(&pk) != MBEDTLS_PK_ECKEY)
     {
         mbedtls_pk_free(&pk);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_msg(&mp_type_InvalidKey, "ONLY EC KEY IS SUPPORTED");
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("ONLY EC KEY IS SUPPORTED"));
     }
 
     Certificate->public_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
@@ -1999,7 +1999,7 @@ STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
     if (mbedtls_pk_parse_public_key(&pk, (const byte *)bufinfo.buf, bufinfo.len) != 0)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_msg(&mp_type_InvalidKey, "PUBLIC KEY");
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("PUBLIC KEY"));
     }
 
     mp_obj_t pub_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
@@ -2024,13 +2024,13 @@ STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
     if (mbedtls_pk_parse_key(&pk, (const byte *)bufinfo.buf, bufinfo.len, (use_password ? (const byte *)bufinfo1.buf : NULL), bufinfo1.len) != 0)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_msg(&mp_type_InvalidKey, "PRIVATE KEY");
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("PRIVATE KEY"));
     }
 
     if (mbedtls_pk_get_type(&pk) != MBEDTLS_PK_ECKEY)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_msg(&mp_type_InvalidKey, "ONLY EC KEY IS SUPPORTED");
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("ONLY EC KEY IS SUPPORTED"));
     }
 
     mp_obj_t priv_key = ec_parse_keypair(mbedtls_pk_ec(pk), true);
@@ -2078,7 +2078,7 @@ STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
     if (!mp_obj_is_type(EllipticCurve, &ec_curve_type))
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF ec.SECP256R1");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1"));
     }
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
@@ -2105,13 +2105,13 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
 #endif
     if (!mp_obj_is_int(private_value))
     {
-        mp_raise_TypeError("EXPECTED private_value int");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED private_value int"));
     }
 
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
     if (!mp_obj_is_type(EllipticCurve, &ec_curve_type))
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF ec.SECP256R1");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1"));
     }
 
     vstr_t vstr_private_bytes;
@@ -2197,13 +2197,13 @@ STATIC mp_obj_t aesgcm_generate_key(mp_obj_t bit_length)
 #endif
     if (!mp_obj_is_int(bit_length))
     {
-        mp_raise_TypeError("EXPECTED bit_length int");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED bit_length int"));
     }
 
     mp_int_t nbit = mp_obj_get_int(bit_length);
     if (nbit != 128 && nbit != 192 && nbit != 256)
     {
-        mp_raise_ValueError("bit_length MUST BE 128, 192 OR 256");
+        mp_raise_ValueError(MP_ERROR_TEXT("bit_length MUST BE 128, 192 OR 256"));
     }
 
     vstr_t vstr_key;
@@ -2313,7 +2313,7 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
     mp_arg_check_num(n_args, n_kw, 2, 2, false);
     if (!mp_obj_is_type(args[0], &ciphers_algorithms_aes_type))
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF algorithms.AES");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF algorithms.AES"));
     }
     mp_ciphers_algorithms_aes_t *algorithm = MP_OBJ_TO_PTR(args[0]);
 
@@ -2329,7 +2329,7 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
     }
     else
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF modes.CBC or modes.GCM");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.CBC or modes.GCM"));
     }
 
     mp_obj_t mode = args[1];
@@ -2381,7 +2381,7 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
 
     if (bufinfo_data.len % 16)
     {
-        mp_raise_ValueError("The length of the provided data is not a multiple of the block length");
+        mp_raise_ValueError(MP_ERROR_TEXT("The length of the provided data is not a multiple of the block length"));
     }
 
     vstr_t vstr_input;
@@ -2457,7 +2457,7 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
     }
     else
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF modes.CBC or modes.GCM");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.CBC or modes.GCM"));
     }
 }
 
@@ -2481,7 +2481,7 @@ STATIC mp_obj_t encryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t
     mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->cipher->mode_type == CIPHER_MODE_CBC)
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF modes.GCM");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.GCM"));
     }
 
     if (self->finalized)
@@ -2517,7 +2517,7 @@ STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
             {
                 if (self->cipher->mode_type == CIPHER_MODE_CBC)
                 {
-                    mp_raise_TypeError("EXPECTED INSTANCE OF modes.GCM");
+                    mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.GCM"));
                 }
 
                 if (!self->finalized)
@@ -2573,7 +2573,7 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
 
     if (bufinfo_data.len % 16)
     {
-        mp_raise_ValueError("The length of the provided data is not a multiple of the block length");
+        mp_raise_ValueError(MP_ERROR_TEXT("The length of the provided data is not a multiple of the block length"));
     }
 
     vstr_t vstr_input;
@@ -2647,7 +2647,7 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
     }
     else
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF modes.CBC or modes.GCM");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.CBC or modes.GCM"));
     }
 }
 
@@ -2672,7 +2672,7 @@ STATIC mp_obj_t decryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t
 
     if (self->cipher->mode_type == CIPHER_MODE_CBC)
     {
-        mp_raise_TypeError("EXPECTED INSTANCE OF modes.GCM");
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.GCM"));
     }
 
     if (self->finalized)
@@ -2792,7 +2792,7 @@ STATIC mp_obj_t modes_cbc_make_new(const mp_obj_type_t *type, size_t n_args, siz
 
     if (bufinfo_iv.len != 16)
     {
-        mp_raise_ValueError("Invalid IV size for CBC");
+        mp_raise_ValueError(MP_ERROR_TEXT("Invalid IV size for CBC"));
     }
 
     mp_ciphers_modes_cbc_t *CBC = m_new_obj(mp_ciphers_modes_cbc_t);
