@@ -1,0 +1,15 @@
+diff --git a/ports/stm32/boards/NUCLEO_WB55/stm32wbxx_hal_conf.h b/ports/stm32/boards/NUCLEO_WB55/stm32wbxx_hal_conf.h
+index 176857220..a81b0e08d 100644
+--- a/ports/stm32/boards/NUCLEO_WB55/stm32wbxx_hal_conf.h
++++ b/ports/stm32/boards/NUCLEO_WB55/stm32wbxx_hal_conf.h
+@@ -16,4 +16,10 @@
+ 
+ #include "boards/stm32wbxx_hal_conf_base.h"
+ 
++#define HAL_CRYP_MODULE_ENABLED
++#define HAL_PKA_MODULE_ENABLED
++
++#include "stm32wbxx_hal_cryp.h"
++#include "stm32wbxx_hal_pka.h"
++
+ #endif // MICROPY_INCLUDED_STM32WBXX_HAL_CONF_H
