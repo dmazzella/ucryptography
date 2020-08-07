@@ -23,6 +23,7 @@ def main():
     digest.update(b'cacca')
     msg_hash = digest.finalize()
     signature = pr_k.sign(msg_hash)
+    print(signature)
     pu_k.verify(signature, msg_hash)
     pr_k1 = crypto_ec.generate_private_key(crypto_ec.SECP256R1())
     delta_t = utime.ticks_diff(utime.ticks_us(), t)

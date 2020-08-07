@@ -25,6 +25,7 @@ def main():
     digest.update(b'cacca')
     msg_hash = digest.finalize()
     signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(crypto_hashes.SHA256())))
+    print(signature)
     pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(crypto_hashes.SHA256())))
     pr_k1 = crypto_ec.generate_private_key(crypto_ec.SECP256R1(), default_backend())
     delta_t = time.time() - t

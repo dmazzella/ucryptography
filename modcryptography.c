@@ -1044,24 +1044,10 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1 or ec.SECP521R1"));
     }
 
-    int pksize = 64;
-    switch (mp_obj_get_int(EllipticCurve->group))
-    {
-    case MBEDTLS_ECP_DP_SECP256R1:
-    {
-        pksize = 64;
-        break;
-    }
-    case MBEDTLS_ECP_DP_SECP521R1:
-    {
-        pksize = 128;
-        break;
-    }
-    default:
-    {
-        break;
-    }
-    }
+    mbedtls_ecp_group grp;
+    mbedtls_ecp_group_init(&grp);
+    mbedtls_ecp_group_load(&grp, mp_obj_get_int(EllipticCurve->group));
+    int pksize = mbedtls_mpi_size(&grp.N) * 2;
 
     vstr_t vstr_public_bytes;
     vstr_init_len(&vstr_public_bytes, pksize);
@@ -1154,7 +1140,10 @@ STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.EllipticCurvePublicNumbers"));
     }
 
-    int pksize = (mp_obj_get_int(int_bit_length(private_value)) / 8) + 1;
+    mbedtls_ecp_group grp;
+    mbedtls_ecp_group_init(&grp);
+    mbedtls_ecp_group_load(&grp, mp_obj_get_int(EllipticCurvePublicNumbers->curve->group));
+    int pksize = mbedtls_mpi_size(&grp.N);
     vstr_t vstr_private_bytes;
     vstr_init_len(&vstr_private_bytes, pksize);
     mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(private_value), true, pksize, (byte *)vstr_private_bytes.buf);
@@ -1241,10 +1230,11 @@ STATIC mp_obj_t ec_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t digest)
     mbedtls_ecp_keypair_init(&ecp);
     mbedtls_ecp_group_load(&ecp.grp, mp_obj_get_int(self->public_numbers->curve->group));
     mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
-    if (mbedtls_ecdsa_read_signature(&ecp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (const byte *)bufinfo_signature.buf, bufinfo_signature.len) != 0)
+    int read_signature = 0;
+    if ((read_signature = mbedtls_ecdsa_read_signature(&ecp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
-        mp_raise_msg(&mp_type_InvalidSignature, NULL);
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), read_signature);
     }
     mbedtls_ecp_keypair_free(&ecp);
     return mp_const_none;
@@ -1361,12 +1351,12 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
 
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, mp_obj_get_int(self->public_key->public_numbers->curve->group));
+    mbedtls_ecp_group_load(&ecp.grp, mp_obj_get_int(self->curve->group));
     mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
     mbedtls_mpi_read_binary(&ecp.d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
 
     vstr_t vstr_signature;
-    vstr_init_len(&vstr_signature, MBEDTLS_ECDSA_MAX_SIG_LEN(ecp.grp.nbits));
+    vstr_init_len(&vstr_signature, MBEDTLS_ECDSA_MAX_LEN);
     mbedtls_ecdsa_write_signature(&ecp, MBEDTLS_MD_SHA256, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (byte *)vstr_signature.buf, &vstr_signature.len, mp_random, NULL);
 
     mbedtls_ecp_keypair_free(&ecp);
@@ -2344,7 +2334,10 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1 or ec.SECP521R1"));
     }
 
-    int pksize = (mp_obj_get_int(int_bit_length(private_value)) / 8) + 1;
+    mbedtls_ecp_group grp;
+    mbedtls_ecp_group_init(&grp);
+    mbedtls_ecp_group_load(&grp, mp_obj_get_int(EllipticCurve->group));
+    int pksize = mbedtls_mpi_size(&grp.N);
     vstr_t vstr_private_bytes;
     vstr_init_len(&vstr_private_bytes, pksize);
     mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(private_value), true, pksize, (byte *)vstr_private_bytes.buf);
