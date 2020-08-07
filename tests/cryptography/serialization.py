@@ -48,6 +48,7 @@ def main():
     public_key = private_key.public_key()
     public_numbers = public_key.public_numbers()
     print("public_key.curve", public_key.curve.name)
+    print(dir(serialization.Encoding))
     public_bytes = public_key.public_bytes(
         encoding=serialization.Encoding.X962,
         format=serialization.PublicFormat.UncompressedPoint
