@@ -204,7 +204,7 @@ typedef struct _mp_ec_ecdsa_t
 typedef struct _mp_ec_curve_t
 {
     mp_obj_base_t base;
-    mp_obj_t group;
+    mp_int_t grp_id;
     mp_obj_t p;
     mp_obj_t a;
     mp_obj_t b;
@@ -354,6 +354,7 @@ enum
 STATIC mp_obj_type_t ec_ecdsa_type;
 STATIC mp_obj_type_t ec_ecdh_type;
 STATIC mp_obj_type_t ec_curve_secp256r1_type;
+STATIC mp_obj_type_t ec_curve_secp384r1_type;
 STATIC mp_obj_type_t ec_curve_secp521r1_type;
 STATIC mp_obj_type_t ec_public_numbers_type;
 STATIC mp_obj_type_t ec_private_numbers_type;
@@ -420,6 +421,15 @@ void HAL_PKA_MspDeInit(PKA_HandleTypeDef *hpka)
     }
 }
 #endif
+
+#define DEBUG_MICROPYTHON_NEXTCHR "\n:"
+STATIC inline void micropython_printh(const uint8_t *b, size_t l)
+{
+    for (size_t i = 0; i < l; i++)
+    {
+        printf("%02X%c", b[i], DEBUG_MICROPYTHON_NEXTCHR[i < l - 1]);
+    }
+}
 
 STATIC mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
 {
@@ -675,10 +685,12 @@ STATIC int util_encode_dss_signature(const mbedtls_mpi *r, const mbedtls_mpi *s,
 STATIC mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
 {
     mp_buffer_info_t bufinfo_r;
-    cryptography_get_buffer(r_obj, true, 32, &bufinfo_r);
+    int r_len = (mp_obj_get_int(int_bit_length(r_obj)) + 7) / 8;
+    cryptography_get_buffer(r_obj, true, r_len, &bufinfo_r);
 
     mp_buffer_info_t bufinfo_s;
-    cryptography_get_buffer(s_obj, true, 32, &bufinfo_s);
+    int s_len = (mp_obj_get_int(int_bit_length(s_obj)) + 7) / 8;
+    cryptography_get_buffer(s_obj, true, s_len, &bufinfo_s);
 
     mbedtls_mpi r;
     mbedtls_mpi_init(&r);
@@ -816,11 +828,11 @@ STATIC mp_obj_t ec_curve_secp256r1_make_new(const mp_obj_type_t *type, size_t n_
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
     EllipticCurve->base.type = &ec_curve_secp256r1_type;
-    EllipticCurve->group = mp_obj_new_int(MBEDTLS_ECP_DP_SECP256R1);
+    EllipticCurve->grp_id = MBEDTLS_ECP_DP_SECP256R1;
 
     mbedtls_ecp_group grp;
     mbedtls_ecp_group_init(&grp);
-    mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
+    mbedtls_ecp_group_load(&grp, EllipticCurve->grp_id);
 
     vstr_t vstr_p;
     vstr_init_len(&vstr_p, mbedtls_mpi_size(&grp.P));
@@ -918,16 +930,123 @@ STATIC mp_obj_type_t ec_curve_secp256r1_type ={
     .locals_dict = (void *)&ec_curve_secp256r1_locals_dict,
 };
 
+STATIC mp_obj_t ec_curve_secp384r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 0, 1, true);
+    mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
+    EllipticCurve->base.type = &ec_curve_secp384r1_type;
+    EllipticCurve->grp_id = MBEDTLS_ECP_DP_SECP384R1;
+
+    mbedtls_ecp_group grp;
+    mbedtls_ecp_group_init(&grp);
+    mbedtls_ecp_group_load(&grp, EllipticCurve->grp_id);
+
+    vstr_t vstr_p;
+    vstr_init_len(&vstr_p, mbedtls_mpi_size(&grp.P));
+    mbedtls_mpi_write_binary(&grp.P, (byte *)vstr_p.buf, vstr_len(&vstr_p));
+    EllipticCurve->p = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_p), (const byte *)vstr_p.buf);
+
+    EllipticCurve->a = mp_obj_new_int(-3);
+
+    vstr_t vstr_b;
+    vstr_init_len(&vstr_b, mbedtls_mpi_size(&grp.B));
+    mbedtls_mpi_write_binary(&grp.B, (byte *)vstr_b.buf, vstr_len(&vstr_b));
+    EllipticCurve->b = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_b), (const byte *)vstr_b.buf);
+
+    vstr_t vstr_n;
+    vstr_init_len(&vstr_n, mbedtls_mpi_size(&grp.N));
+    mbedtls_mpi_write_binary(&grp.N, (byte *)vstr_n.buf, vstr_len(&vstr_n));
+    EllipticCurve->n = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_n), (const byte *)vstr_n.buf);
+
+    vstr_t vstr_G_x;
+    vstr_init_len(&vstr_G_x, mbedtls_mpi_size(&grp.G.X));
+    mbedtls_mpi_write_binary(&grp.G.X, (byte *)vstr_G_x.buf, vstr_len(&vstr_G_x));
+    EllipticCurve->G_x = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_G_x), (const byte *)vstr_G_x.buf);
+
+    vstr_t vstr_G_y;
+    vstr_init_len(&vstr_G_y, mbedtls_mpi_size(&grp.G.Y));
+    mbedtls_mpi_write_binary(&grp.G.Y, (byte *)vstr_G_y.buf, vstr_len(&vstr_G_y));
+    EllipticCurve->G_y = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_G_y), (const byte *)vstr_G_y.buf);
+
+    return MP_OBJ_FROM_PTR(EllipticCurve);
+}
+
+STATIC void ec_curve_secp384r1_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_ec_curve_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_p)
+            {
+                dest[0] = self->p;
+                return;
+            }
+            if (attr == MP_QSTR_a)
+            {
+                dest[0] = self->a;
+                return;
+            }
+            if (attr == MP_QSTR_b)
+            {
+                dest[0] = self->b;
+                return;
+            }
+            if (attr == MP_QSTR_n)
+            {
+                dest[0] = self->n;
+                return;
+            }
+            if (attr == MP_QSTR_G_x)
+            {
+                dest[0] = self->G_x;
+                return;
+            }
+            if (attr == MP_QSTR_G_y)
+            {
+                dest[0] = self->G_y;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t ec_curve_secp384r1_locals_dict_table[] ={
+    { MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_secp384r1) },
+    { MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(384) },
+    { MP_ROM_QSTR(MP_QSTR_p), MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_a), MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_b), MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_n), MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_G_x), MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_G_y), MP_ROM_INT(0) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(ec_curve_secp384r1_locals_dict, ec_curve_secp384r1_locals_dict_table);
+
+STATIC mp_obj_type_t ec_curve_secp384r1_type ={
+    { &mp_type_type },
+    .name = MP_QSTR_SECP384R1,
+    .make_new = ec_curve_secp384r1_make_new,
+    .attr = ec_curve_secp384r1_attr,
+    .locals_dict = (void *)&ec_curve_secp384r1_locals_dict,
+};
+
 STATIC mp_obj_t ec_curve_secp521r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
     EllipticCurve->base.type = &ec_curve_secp521r1_type;
-    EllipticCurve->group = mp_obj_new_int(MBEDTLS_ECP_DP_SECP521R1);
+    EllipticCurve->grp_id = MBEDTLS_ECP_DP_SECP521R1;
 
     mbedtls_ecp_group grp;
     mbedtls_ecp_group_init(&grp);
-    mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP521R1);
+    mbedtls_ecp_group_load(&grp, EllipticCurve->grp_id);
 
     vstr_t vstr_p;
     vstr_init_len(&vstr_p, mbedtls_mpi_size(&grp.P));
@@ -1039,21 +1158,27 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
     {
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED Y int"));
     }
-    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
+    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)&& !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1 or ec.SECP521R1"));
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
     }
+
+    mp_obj_t s2b_x = cryptography_small_to_big_int(x);
+    int x_len = (mp_obj_get_int(int_bit_length(s2b_x)) + 7) / 8;
+
+    mp_obj_t s2b_y = cryptography_small_to_big_int(y);
+    int y_len = (mp_obj_get_int(int_bit_length(s2b_y)) + 7) / 8;
 
     mbedtls_ecp_group grp;
     mbedtls_ecp_group_init(&grp);
-    mbedtls_ecp_group_load(&grp, mp_obj_get_int(EllipticCurve->group));
-    int pksize = mbedtls_mpi_size(&grp.N) * 2;
-
+    mbedtls_ecp_group_load(&grp, EllipticCurve->grp_id);
+    int n_size = mbedtls_mpi_size(&grp.N);
+    int pksize = (n_size * 2);
     vstr_t vstr_public_bytes;
     vstr_init_len(&vstr_public_bytes, pksize);
     vstr_ins_byte(&vstr_public_bytes, 0, 0x04);
-    mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(x), true, (pksize / 2), (byte *)vstr_public_bytes.buf + 1);
-    mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(y), true, (pksize / 2), (byte *)vstr_public_bytes.buf + 1 + (pksize / 2));
+    mp_obj_int_to_bytes_impl(s2b_x, true, x_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len));
+    mp_obj_int_to_bytes_impl(s2b_y, true, y_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len) + (n_size - y_len) + x_len);
 
     mp_ec_public_numbers_t *EllipticCurvePublicNumbers = m_new_obj(mp_ec_public_numbers_t);
     EllipticCurvePublicNumbers->base.type = &ec_public_numbers_type;
@@ -1142,7 +1267,7 @@ STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_
 
     mbedtls_ecp_group grp;
     mbedtls_ecp_group_init(&grp);
-    mbedtls_ecp_group_load(&grp, mp_obj_get_int(EllipticCurvePublicNumbers->curve->group));
+    mbedtls_ecp_group_load(&grp, EllipticCurvePublicNumbers->curve->grp_id);
     int pksize = mbedtls_mpi_size(&grp.N);
     vstr_t vstr_private_bytes;
     vstr_init_len(&vstr_private_bytes, pksize);
@@ -1228,15 +1353,26 @@ STATIC mp_obj_t ec_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t digest)
 
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, mp_obj_get_int(self->public_numbers->curve->group));
+    mbedtls_ecp_group_load(&ecp.grp, self->public_numbers->curve->grp_id);
     mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+
+    mbedtls_mpi r;
+    mbedtls_mpi_init(&r);
+
+    mbedtls_mpi s;
+    mbedtls_mpi_init(&s);
+
+    util_decode_dss_signature(bufinfo_signature.buf, bufinfo_signature.len, &r, &s);
+
     int read_signature = 0;
-    if ((read_signature = mbedtls_ecdsa_read_signature(&ecp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
+    // if ((read_signature = mbedtls_ecdsa_read_signature(&ecp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
+    if ((read_signature = mbedtls_ecdsa_verify(&ecp.grp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, &ecp.Q, &r, &s)) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
         mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), read_signature);
     }
     mbedtls_ecp_keypair_free(&ecp);
+
     return mp_const_none;
 }
 
@@ -1259,7 +1395,7 @@ STATIC mp_obj_t ec_public_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        return ec_key_dumps(self->public_bytes, mp_const_none, args[1], mp_obj_get_int(self->public_numbers->curve->group));
+        return ec_key_dumps(self->public_bytes, mp_const_none, args[1], self->public_numbers->curve->grp_id);
     }
     return mp_const_none;
 }
@@ -1283,23 +1419,10 @@ STATIC void ec_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
             }
             if (attr == MP_QSTR_key_size)
             {
-                switch (mp_obj_get_int(self->public_numbers->curve->group))
-                {
-                case MBEDTLS_ECP_DP_SECP256R1:
-                {
-                    dest[0] = mp_obj_new_int(256);
-                    break;
-                }
-                case MBEDTLS_ECP_DP_SECP521R1:
-                {
-                    dest[0] = mp_obj_new_int(521);
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
-                }
+                mbedtls_ecp_group grp;
+                mbedtls_ecp_group_init(&grp);
+                mbedtls_ecp_group_load(&grp, self->public_numbers->curve->grp_id);
+                dest[0] = mp_obj_new_int(grp.nbits);
                 return;
             }
             mp_convert_member_lookup(obj, type, elem->value, dest);
@@ -1351,15 +1474,28 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
 
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, mp_obj_get_int(self->curve->group));
+    mbedtls_ecp_group_load(&ecp.grp, self->curve->grp_id);
     mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
     mbedtls_mpi_read_binary(&ecp.d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
 
+    mbedtls_mpi r;
+    mbedtls_mpi_init(&r);
+
+    mbedtls_mpi s;
+    mbedtls_mpi_init(&s);
+
     vstr_t vstr_signature;
     vstr_init_len(&vstr_signature, MBEDTLS_ECDSA_MAX_LEN);
-    mbedtls_ecdsa_write_signature(&ecp, MBEDTLS_MD_SHA256, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (byte *)vstr_signature.buf, &vstr_signature.len, mp_random, NULL);
+    int write_signature = 0;
+    //if ((write_signature = mbedtls_ecdsa_write_signature(&ecp, MBEDTLS_MD_SHA256, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (byte *)vstr_signature.buf, &vstr_signature.len, mp_random, NULL) != 0))
+    if ((write_signature = mbedtls_ecdsa_sign(&ecp.grp, &r, &s, &ecp.d, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, mp_random, NULL) != 0))
+    {
+        mbedtls_ecp_keypair_free(&ecp);
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), write_signature);
+    }
 
     mbedtls_ecp_keypair_free(&ecp);
+    util_encode_dss_signature(&r, &s, (byte *)vstr_signature.buf, &vstr_signature.len);
     return mp_obj_new_bytes((const byte *)vstr_signature.buf, vstr_signature.len);
 }
 
@@ -1382,7 +1518,7 @@ STATIC mp_obj_t ec_private_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        return ec_key_dumps(self->public_key->public_bytes, self->private_bytes, args[1], mp_obj_get_int(self->public_key->public_numbers->curve->group));
+        return ec_key_dumps(self->public_key->public_bytes, self->private_bytes, args[1], self->public_key->public_numbers->curve->grp_id);
     }
     return mp_const_none;
 }
@@ -1419,7 +1555,7 @@ STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
 
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, mp_obj_get_int(self->public_key->public_numbers->curve->group));
+    mbedtls_ecp_group_load(&ecp.grp, self->public_key->public_numbers->curve->grp_id);
     mbedtls_mpi_read_binary(&ecp.d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
 
     mbedtls_ecp_point peer_Q;
@@ -1459,23 +1595,10 @@ STATIC void ec_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
             }
             if (attr == MP_QSTR_key_size)
             {
-                switch (mp_obj_get_int(self->public_key->public_numbers->curve->group))
-                {
-                case MBEDTLS_ECP_DP_SECP256R1:
-                {
-                    dest[0] = mp_obj_new_int(256);
-                    break;
-                }
-                case MBEDTLS_ECP_DP_SECP521R1:
-                {
-                    dest[0] = mp_obj_new_int(521);
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
-                }
+                mbedtls_ecp_group grp;
+                mbedtls_ecp_group_init(&grp);
+                mbedtls_ecp_group_load(&grp, self->public_key->public_numbers->curve->grp_id);
+                dest[0] = mp_obj_new_int(grp.nbits);
                 return;
             }
             mp_convert_member_lookup(obj, type, elem->value, dest);
@@ -1512,17 +1635,17 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     vstr_init_len(&vstr_q_y, mbedtls_mpi_size(&ecp_keypair->Q.Y));
     mbedtls_mpi_write_binary(&ecp_keypair->Q.Y, (byte *)vstr_q_y.buf, vstr_len(&vstr_q_y));
 
-    size_t olen = 0;
-    vstr_t vstr_public_bytes;
-    vstr_init_len(&vstr_public_bytes, mbedtls_mpi_size(&ecp_keypair->Q.X) + mbedtls_mpi_size(&ecp_keypair->Q.Y) + 1);
-    mbedtls_ecp_point_write_binary(&ecp_keypair->grp, &ecp_keypair->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, (byte *)vstr_public_bytes.buf, vstr_len(&vstr_public_bytes));
-
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
     switch (ecp_keypair->grp.id)
     {
     case MBEDTLS_ECP_DP_SECP256R1:
     {
         EllipticCurve->base.type = &ec_curve_secp256r1_type;
+        break;
+    }
+    case MBEDTLS_ECP_DP_SECP384R1:
+    {
+        EllipticCurve->base.type = &ec_curve_secp384r1_type;
         break;
     }
     case MBEDTLS_ECP_DP_SECP521R1:
@@ -1536,7 +1659,7 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
     }
 
-    EllipticCurve->group = mp_obj_new_int(ecp_keypair->grp.id);
+    EllipticCurve->grp_id = ecp_keypair->grp.id;
 
     mp_ec_public_key_t *EllipticCurvePublicKey = m_new_obj(mp_ec_public_key_t);
     EllipticCurvePublicKey->base.type = &ec_public_key_type;
@@ -1548,29 +1671,43 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     EllipticCurvePublicNumbers->y = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_q_y), (const byte *)vstr_q_y.buf);
     EllipticCurvePublicNumbers->public_key = EllipticCurvePublicKey;
 
+    mp_obj_t s2b_x = EllipticCurvePublicNumbers->x;
+    int x_len = (mp_obj_get_int(int_bit_length(s2b_x)) + 7) / 8;
+
+    mp_obj_t s2b_y = EllipticCurvePublicNumbers->y;
+    int y_len = (mp_obj_get_int(int_bit_length(s2b_y)) + 7) / 8;
+
+    int n_size = mbedtls_mpi_size(&ecp_keypair->grp.N);
+    int pksize = (n_size * 2);
+    vstr_t vstr_public_bytes;
+    vstr_init_len(&vstr_public_bytes, pksize);
+    vstr_ins_byte(&vstr_public_bytes, 0, 0x04);
+    mp_obj_int_to_bytes_impl(s2b_x, true, x_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len));
+    mp_obj_int_to_bytes_impl(s2b_y, true, y_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len) + (n_size - y_len) + x_len);
+
     EllipticCurvePublicKey->public_numbers = EllipticCurvePublicNumbers;
     EllipticCurvePublicKey->public_bytes = mp_obj_new_bytes((const byte *)vstr_public_bytes.buf, vstr_public_bytes.len);
 
+    vstr_t vstr_private_bytes;
+    vstr_init_len(&vstr_private_bytes, mbedtls_mpi_size(&ecp_keypair->d));
+    mbedtls_mpi_write_binary(&ecp_keypair->d, (byte *)vstr_private_bytes.buf, vstr_len(&vstr_private_bytes));
+
+    mp_ec_private_numbers_t *EllipticCurvePrivateNumbers = m_new_obj(mp_ec_private_numbers_t);
+    EllipticCurvePrivateNumbers->base.type = &ec_private_numbers_type;
+    EllipticCurvePrivateNumbers->private_value = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_private_bytes), (const byte *)vstr_private_bytes.buf);
+    EllipticCurvePrivateNumbers->public_numbers = EllipticCurvePublicNumbers;
+
+    mp_ec_private_key_t *EllipticCurvePrivateKey = m_new_obj(mp_ec_private_key_t);
+    EllipticCurvePrivateKey->base.type = &ec_private_key_type;
+    EllipticCurvePrivateKey->curve = EllipticCurve;
+    EllipticCurvePrivateKey->private_numbers = EllipticCurvePrivateNumbers;
+    EllipticCurvePrivateKey->public_key = EllipticCurvePublicKey;
+    EllipticCurvePrivateKey->private_bytes = mp_obj_new_bytes((const byte *)vstr_private_bytes.buf, vstr_private_bytes.len);
+
+    EllipticCurvePrivateNumbers->private_key = EllipticCurvePrivateKey;
+
     if (private)
     {
-        vstr_t vstr_private_bytes;
-        vstr_init_len(&vstr_private_bytes, mbedtls_mpi_size(&ecp_keypair->d));
-        mbedtls_mpi_write_binary(&ecp_keypair->d, (byte *)vstr_private_bytes.buf, vstr_len(&vstr_private_bytes));
-
-        mp_ec_private_numbers_t *EllipticCurvePrivateNumbers = m_new_obj(mp_ec_private_numbers_t);
-        EllipticCurvePrivateNumbers->base.type = &ec_private_numbers_type;
-        EllipticCurvePrivateNumbers->private_value = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_private_bytes), (const byte *)vstr_private_bytes.buf);
-        EllipticCurvePrivateNumbers->public_numbers = EllipticCurvePublicNumbers;
-
-        mp_ec_private_key_t *EllipticCurvePrivateKey = m_new_obj(mp_ec_private_key_t);
-        EllipticCurvePrivateKey->base.type = &ec_private_key_type;
-        EllipticCurvePrivateKey->curve = EllipticCurve;
-        EllipticCurvePrivateKey->private_numbers = EllipticCurvePrivateNumbers;
-        EllipticCurvePrivateKey->public_key = EllipticCurvePublicKey;
-        EllipticCurvePrivateKey->private_bytes = mp_obj_new_bytes((const byte *)vstr_private_bytes.buf, vstr_private_bytes.len);
-
-        EllipticCurvePrivateNumbers->private_key = EllipticCurvePrivateKey;
-
         return EllipticCurvePrivateKey;
     }
     else
@@ -1682,6 +1819,8 @@ STATIC mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
     vstr_init_len(&vstr_digest, 32);
 
     mbedtls_sha256_ret((const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf, 0);
+
+    self->data = mp_const_empty_bytes;
 
     return mp_obj_new_bytes((const byte *)vstr_digest.buf, vstr_digest.len);
 }
@@ -1848,6 +1987,8 @@ STATIC mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
 
     mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const byte *)bufinfo_key.buf, bufinfo_key.len, (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
 
+    self->data = mp_const_empty_bytes;
+
     return mp_obj_new_bytes((const byte *)vstr_digest.buf, vstr_digest.len);
 }
 
@@ -1898,7 +2039,7 @@ STATIC mp_obj_t x509_public_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        return ec_key_dumps(self->public_bytes, mp_const_none, args[1], mp_obj_get_int(self->public_key->public_numbers->curve->group));
+        return ec_key_dumps(self->public_bytes, mp_const_none, args[1], self->public_key->public_numbers->curve->grp_id);
     }
     return mp_const_none;
 }
@@ -2296,13 +2437,13 @@ STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
     srand((unsigned)time(&t));
     #endif
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
-    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
+    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)&& !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1 or ec.SECP521R1"));
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
     }
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, mp_obj_get_int(EllipticCurve->group));
+    mbedtls_ecp_group_load(&ecp.grp, EllipticCurve->grp_id);
     if (mbedtls_ecp_gen_keypair(&ecp.grp, &ecp.d, &ecp.Q, mp_random, NULL) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
@@ -2329,22 +2470,19 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
     }
 
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
-    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
+    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)&& !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1 or ec.SECP521R1"));
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
     }
 
-    mbedtls_ecp_group grp;
-    mbedtls_ecp_group_init(&grp);
-    mbedtls_ecp_group_load(&grp, mp_obj_get_int(EllipticCurve->group));
-    int pksize = mbedtls_mpi_size(&grp.N);
+    mbedtls_ecp_keypair ecp;
+    mbedtls_ecp_keypair_init(&ecp);
+    mbedtls_ecp_group_load(&ecp.grp, EllipticCurve->grp_id);
+    int pksize = mbedtls_mpi_size(&ecp.grp.N);
     vstr_t vstr_private_bytes;
     vstr_init_len(&vstr_private_bytes, pksize);
     mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(private_value), true, pksize, (byte *)vstr_private_bytes.buf);
 
-    mbedtls_ecp_keypair ecp;
-    mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, mp_obj_get_int(EllipticCurve->group));
     if (mbedtls_ecp_read_key(ecp.grp.id, &ecp, (const byte *)vstr_private_bytes.buf, vstr_private_bytes.len) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
@@ -2367,6 +2505,7 @@ STATIC const mp_rom_map_elem_t ec_locals_dict_table[] ={
     { MP_ROM_QSTR(MP_QSTR_ECDH), MP_ROM_PTR(&ec_ecdh_type) },
     { MP_ROM_QSTR(MP_QSTR_ECDSA), MP_ROM_PTR(&ec_ecdsa_type) },
     { MP_ROM_QSTR(MP_QSTR_SECP256R1), MP_ROM_PTR(&ec_curve_secp256r1_type) },
+    { MP_ROM_QSTR(MP_QSTR_SECP384R1), MP_ROM_PTR(&ec_curve_secp384r1_type) },
     { MP_ROM_QSTR(MP_QSTR_SECP521R1), MP_ROM_PTR(&ec_curve_secp521r1_type) },
     { MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicKey), MP_ROM_PTR(&ec_public_key_type) },
     { MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicNumbers), MP_ROM_PTR(&ec_public_numbers_type) },

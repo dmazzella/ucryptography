@@ -118,6 +118,7 @@ int mbedtls_ecdsa_sign(mbedtls_ecp_group *grp, mbedtls_mpi *r, mbedtls_mpi *s,
 
     /* Initialize HW peripheral */
     hpka.Instance = PKA;
+    MBEDTLS_MPI_CHK((HAL_PKA_DeInit(&hpka) != HAL_OK) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0);
     MBEDTLS_MPI_CHK((HAL_PKA_Init(&hpka) != HAL_OK) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0);
 
     /* Launch the signature */
@@ -132,6 +133,8 @@ int mbedtls_ecdsa_sign(mbedtls_ecp_group *grp, mbedtls_mpi *r, mbedtls_mpi *s,
 
     /* Get the signature into allocated space */
     HAL_PKA_ECDSASign_GetResult(&hpka, &ECDSA_SignOut, NULL);
+
+    HAL_PKA_RAMReset(&hpka);
 
     /* Convert the signature into mpi format */
     MBEDTLS_MPI_CHK(mbedtls_mpi_read_binary(r, ECDSA_SignOut.RSign, grp->st_order_size));
@@ -256,6 +259,7 @@ int mbedtls_ecdsa_verify(mbedtls_ecp_group *grp,
 
     /* Initialize HW peripheral */
     hpka.Instance = PKA;
+    MBEDTLS_MPI_CHK((HAL_PKA_DeInit(&hpka) != HAL_OK) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0);
     MBEDTLS_MPI_CHK((HAL_PKA_Init(&hpka) != HAL_OK) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0);
 
     /* Launch the signature verification */
@@ -263,6 +267,8 @@ int mbedtls_ecdsa_verify(mbedtls_ecp_group *grp,
 
     /* Check the result */
     MBEDTLS_MPI_CHK((HAL_PKA_ECDSAVerif_IsValidSignature(&hpka) != 1U) ? MBEDTLS_ERR_ECP_VERIFY_FAILED : 0);
+
+    HAL_PKA_RAMReset(&hpka);
 
 cleanup:
     /* De-initialize HW peripheral */

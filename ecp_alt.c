@@ -1533,7 +1533,7 @@ static int ecp_mul_comb(mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
 
     /* Initialize HW peripheral */
     hpka.Instance = PKA;
-    HAL_PKA_DeInit(&hpka);
+    MBEDTLS_MPI_CHK((HAL_PKA_DeInit(&hpka) != HAL_OK) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0);
     MBEDTLS_MPI_CHK((HAL_PKA_Init(&hpka) != HAL_OK) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0);
 
     /* Launch the scalar multiplication */
@@ -1937,7 +1937,7 @@ static int ecp_check_pubkey_sw(const mbedtls_ecp_group *grp, const mbedtls_ecp_p
 
     /* Initialize HW peripheral */
     hpka.Instance = PKA;
-    HAL_PKA_DeInit(&hpka);
+    MBEDTLS_MPI_CHK((HAL_PKA_DeInit(&hpka) != HAL_OK) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0);
     MBEDTLS_MPI_CHK((HAL_PKA_Init(&hpka) != HAL_OK) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0);
 
     /* Launch the point check */

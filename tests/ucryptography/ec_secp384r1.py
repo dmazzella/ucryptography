@@ -105,11 +105,11 @@ def generate(curve):
 
 
 def main():
-    curve = crypto_ec.SECP256R1()
+    curve = crypto_ec.SECP384R1()
 
-    Qx = 0xc150d3429b39371d85e9046df28ebe68b40ef530d3f3d58e6208f0e38c6762ba
-    Qy = 0xd619e7ecd3728bfe7ac0dee9b915b80b8006ca4308e91b3f58c2acc39d53d974
-    d = 0x76b81ab1afe277ba098688808f4bac472ff36d3094332ae62344c060f7b0055e
+    Qx = 0xbe840aab595c86298b60c7ab9ebcb198ce3e9f884c5ff403a3eb67ababdc2312febefb16a0913bd1e66b07371abad8fc
+    Qy = 0x6e218ab3dc163166fbe6f10824b0e1850a838e68db798bf3eff483841a16628c00458ea9d116ab53b0557514ce9ba5b7
+    d = 0x94f45b7de01d13ce1ae70219f011b6bb05c2b0b552c755cae9d9714c072f55537ea94ed86511e8c7956b10a812125dfa
 
     try:
         print("@"*20, "NUMBERS", "@"*20)
