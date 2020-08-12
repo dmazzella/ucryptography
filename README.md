@@ -75,6 +75,17 @@ import cryptography
         - _0x11839296a789a3bc0045c8a5fb42c7d1bd998f54449579b446817afbd17273e662c97ee72995ef42640c550b9013fad0761353c7086a272c24088be94769fd16650_
 
 
+- ### **cryptography.utils.Prehashed**:
+    - _algorithm -> **cryptography.hashes.SHA256|cryptography.hashes.SHA384|cryptography.hashes.SHA512**
+    - _digest_size -> **int**
+        - _32|48|64_
+    - digest_size' -> **int**
+        - _32|48|64_
+
+- ### **cryptography.ec.ECDSA**:
+    - _algorithm -> **cryptography.hashes.SHA256|cryptography.hashes.SHA384|cryptography.hashes.SHA512|cryptography.utils.Prehashed**
+    - algorithm -> **cryptography.hashes.SHA256|cryptography.hashes.SHA384|cryptography.hashes.SHA512|cryptography.utils.Prehashed**
+
 - ### **cryptography.ec.EllipticCurvePublicNumbers**:
     - curve -> **cryptography.ec.SECP256R1**
     - x -> **int**
@@ -89,9 +100,9 @@ import cryptography
 - ### **cryptography.ec.EllipticCurvePublicKey**:
     - public_numbers() -> **cryptography.ec.EllipticCurvePublicNumbers**
     - public_bytes() -> **bytes**
-    - verify(signature:**bytes**, digest: **bytes**) -> raise: **InvalidSignature**
+    - verify(signature:**bytes**, digest: **bytes**, ecdsa: **cryptography.ec.ECDSA**) -> raise: **InvalidSignature**
     - key_size -> **int**
-        - _256_
+        - _256|384|521_
 
 - ### **cryptography.ec.EllipticCurvePrivateKey**:
     - curve -> **cryptography.ec.SECP256R1**
@@ -99,9 +110,9 @@ import cryptography
     - public_key() -> **cryptography.ec.EllipticCurvePublicKey**
     - private_numbers() -> **cryptography.ec.EllipticCurvePrivateNumbers**
     - private_bytes() -> **bytes**
-    - sign(digest: **bytes**) -> **bytes**
+    - sign(digest: **bytes**, ecdsa: **cryptography.ec.ECDSA**) -> **bytes**
     - key_size -> **int**
-        - _256_
+        - _256|384|521_
 
 - ### **cryptography.hashes.SHA256**:
     - name -> **str**
@@ -109,8 +120,20 @@ import cryptography
     - digest_size -> **int**
         - _32_
 
+- ### **cryptography.hashes.SHA384**:
+    - name -> **str**
+        - _"sha384"_
+    - digest_size -> **int**
+        - _48_
+
+- ### **cryptography.hashes.SHA512**:
+    - name -> **str**
+        - _"sha512"_
+    - digest_size -> **int**
+        - _64_
+
 - ### **cryptography.hashes.Hash**:
-    - algorithm -> **cryptography.hashes.SHA256**
+    - algorithm -> **cryptography.hashes.SHA256|cryptography.hashes.SHA384|cryptography.hashes.SHA512**
     - update(data: **bytes**)
     - copy() -> **cryptography.hashes.Hash**
     - finalize() -> **bytes**
@@ -130,7 +153,7 @@ import cryptography
     - issuer -> **dict**
     - subject -> **dict**
     - signature_algorithm_oid -> **dict**
-    - signature_hash_algorithm -> **cryptography.ec.SHA256**
+    - signature_hash_algorithm -> **cryptography.hashes.SHA256|cryptography.hashes.SHA384|cryptography.hashes.SHA512**
     - ~~fingerprint -> **bytes**~~
     - extensions -> **dict**
     - signature -> **bytes**

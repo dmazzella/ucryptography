@@ -6,7 +6,7 @@
 import utime
 from cryptography import ec as crypto_ec
 from cryptography import hashes as crypto_hashes
-from cryptography import util as crypto_utils
+from cryptography import utils as crypto_utils
 
 
 def numbers(curve, x, y, private_value):
@@ -26,19 +26,22 @@ def numbers(curve, x, y, private_value):
     print("public_key.public_numbers().y", hex(pu_k.public_numbers().y))
     print("public_key.curve", pu_k.curve)
 
-    digest = crypto_hashes.Hash(crypto_hashes.SHA256())
+    chosen_hash = crypto_hashes.SHA256()
+    digest = crypto_hashes.Hash(chosen_hash)
     digest.update(b'\x25' * 100)
     msg_hash = digest.finalize()
 
     t = utime.ticks_us()
-    signature = pr_k.sign(msg_hash)
+    signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(
+        crypto_utils.Prehashed(chosen_hash)))
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print('{:6.3f}'.format(delta_t/1000))
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     t = utime.ticks_us()
-    pu_k.verify(signature, msg_hash)
+    pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(
+        crypto_utils.Prehashed(chosen_hash)))
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print('{:6.3f}'.format(delta_t/1000))
 
@@ -58,19 +61,22 @@ def derive(curve, private_value):
     print("public_key.public_numbers().y", hex(pu_k.public_numbers().y))
     print("public_key.curve", pu_k.curve)
 
-    digest = crypto_hashes.Hash(crypto_hashes.SHA256())
+    chosen_hash = crypto_hashes.SHA256()
+    digest = crypto_hashes.Hash(chosen_hash)
     digest.update(b'\x25' * 100)
     msg_hash = digest.finalize()
 
     t = utime.ticks_us()
-    signature = pr_k.sign(msg_hash)
+    signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(
+        crypto_utils.Prehashed(chosen_hash)))
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print('{:6.3f}'.format(delta_t/1000))
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     t = utime.ticks_us()
-    pu_k.verify(signature, msg_hash)
+    pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(
+        crypto_utils.Prehashed(chosen_hash)))
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print('{:6.3f}'.format(delta_t/1000))
 
@@ -90,19 +96,22 @@ def generate(curve):
     print("public_key.public_numbers().y", hex(pu_k.public_numbers().y))
     print("public_key.curve", pu_k.curve)
 
-    digest = crypto_hashes.Hash(crypto_hashes.SHA256())
+    chosen_hash = crypto_hashes.SHA256()
+    digest = crypto_hashes.Hash(chosen_hash)
     digest.update(b'\x25' * 100)
     msg_hash = digest.finalize()
 
     t = utime.ticks_us()
-    signature = pr_k.sign(msg_hash)
+    signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(
+        crypto_utils.Prehashed(chosen_hash)))
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print('{:6.3f}'.format(delta_t/1000))
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     t = utime.ticks_us()
-    pu_k.verify(signature, msg_hash)
+    pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(
+        crypto_utils.Prehashed(chosen_hash)))
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print('{:6.3f}'.format(delta_t/1000))
 

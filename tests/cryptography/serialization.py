@@ -57,7 +57,8 @@ def main():
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
 
-    digest = hashes.Hash(hashes.SHA256(), default_backend())
+    chosen_hash = hashes.SHA256()
+    digest = hashes.Hash(chosen_hash, default_backend())
     digest.update(b'cacca')
     digest.update(b'cacca')
     digest.update(b'cacca')
@@ -65,10 +66,10 @@ def main():
     digest.update(b'cacca')
     msg_hash = digest.finalize()
     signature = private_key.sign(
-        msg_hash, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
     print("len", len(signature), "signature", signature)
     public_key.verify(signature, msg_hash, ec.ECDSA(
-        utils.Prehashed(hashes.SHA256())))
+        utils.Prehashed(chosen_hash)))
 
 
 if __name__ == "__main__":

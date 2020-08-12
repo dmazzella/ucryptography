@@ -191,16 +191,7 @@ struct _mp_ciphers_cipher_decryptor_t;
 struct _mp_ciphers_algorithms_aes_t;
 struct _mp_ciphers_modes_cbc_t;
 struct _mp_ciphers_modes_gcm_t;
-
-typedef struct _mp_ec_ecdh_t
-{
-    mp_obj_base_t base;
-} mp_ec_ecdh_t;
-
-typedef struct _mp_ec_ecdsa_t
-{
-    mp_obj_base_t base;
-} mp_ec_ecdsa_t;
+struct _mp_util_prehashed_t;
 
 typedef struct _mp_ec_curve_t
 {
@@ -342,6 +333,23 @@ typedef struct _mp_ciphers_cipher_decryptor_t
     bool finalized;
 } mp_ciphers_cipher_decryptor_t;
 
+typedef struct _mp_ec_ecdh_t
+{
+    mp_obj_base_t base;
+} mp_ec_ecdh_t;
+
+typedef struct _mp_ec_ecdsa_t
+{
+    mp_obj_base_t base;
+    mp_hash_algorithm_t *algorithm;
+} mp_ec_ecdsa_t;
+
+typedef struct _mp_util_prehashed_t
+{
+    mp_obj_base_t base;
+    mp_hash_algorithm_t *algorithm;
+} mp_util_prehashed_t;
+
 enum
 {
     CIPHER_MODE_CBC = 1,
@@ -366,6 +374,7 @@ STATIC mp_obj_type_t ec_private_key_type;
 STATIC mp_obj_type_t hash_algorithm_sha256_type;
 STATIC mp_obj_type_t hash_algorithm_sha384_type;
 STATIC mp_obj_type_t hash_algorithm_sha512_type;
+STATIC mp_obj_type_t hash_algorithm_prehashed_type;
 STATIC mp_obj_type_t hash_context_type;
 STATIC mp_obj_type_t hmac_context_type;
 STATIC mp_obj_type_t x509_certificate_type;
@@ -725,33 +734,65 @@ STATIC mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encode_dss_signature_obj, mod_encode_dss_signature);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_encode_dss_signature_obj, MP_ROM_PTR(&mod_encode_dss_signature_obj));
 
-STATIC const mp_rom_map_elem_t util_locals_dict_table[] ={
-    { MP_ROM_QSTR(MP_QSTR_constant_time_bytes_eq), MP_ROM_PTR(&mod_static_constant_time_bytes_eq_obj) },
-    { MP_ROM_QSTR(MP_QSTR_bit_length), MP_ROM_PTR(&mod_static_int_bit_length_obj) },
-    { MP_ROM_QSTR(MP_QSTR_encode_dss_signature), MP_ROM_PTR(&mod_static_encode_dss_signature_obj) },
-    { MP_ROM_QSTR(MP_QSTR_decode_dss_signature), MP_ROM_PTR(&mod_static_decode_dss_signature_obj) },
-};
-
-STATIC MP_DEFINE_CONST_DICT(util_locals_dict, util_locals_dict_table);
-
-STATIC mp_obj_type_t util_type ={
-    { &mp_type_type },
-    .name = MP_QSTR_util,
-    .locals_dict = (void *)&util_locals_dict,
-};
-
-STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
-    mp_arg_check_num(n_args, n_kw, 0, 1, true);
+    mp_arg_check_num(n_args, n_kw, 1, 1, true);
+    enum
+    {
+        ARG_hash_algorithm
+    };
+    static const mp_arg_t allowed_args[] ={
+        { MP_QSTR_hash_algorithm, MP_ARG_OBJ }
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_obj_t hash_algorithm = args[ARG_hash_algorithm].u_obj;
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
+    }
+
     mp_ec_ecdsa_t *ECDSA = m_new_obj(mp_ec_ecdsa_t);
     ECDSA->base.type = &ec_ecdsa_type;
+    ECDSA->algorithm = hash_algorithm;
     return MP_OBJ_FROM_PTR(ECDSA);
 }
+
+STATIC void ec_ecdsa_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_ec_ecdsa_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_algorithm || attr == MP_QSTR__algorithm)
+            {
+                dest[0] = self->algorithm;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t ec_ecdsa_locals_dict_table[] ={
+    { MP_ROM_QSTR(MP_QSTR_algorithm), MP_ROM_PTR(mp_const_none) },
+    { MP_ROM_QSTR(MP_QSTR__algorithm), MP_ROM_PTR(mp_const_none) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(ec_ecdsa_locals_dict, ec_ecdsa_locals_dict_table);
 
 STATIC mp_obj_type_t ec_ecdsa_type ={
     { &mp_type_type },
     .name = MP_QSTR_ECDSA,
-    .make_new = ec_ecdsa_make_new };
+    .attr = ec_ecdsa_attr,
+    .make_new = ec_ecdsa_make_new,
+    .locals_dict = (void *)&ec_ecdsa_locals_dict,
+ };
 
 STATIC mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1344,14 +1385,45 @@ STATIC mp_obj_type_t ec_private_numbers_type ={
     .locals_dict = (void *)&ec_private_numbers_locals_dict,
 };
 
-STATIC mp_obj_t ec_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t digest)
+STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 {
+    mp_obj_t obj = args[0];
+    mp_obj_t signature = args[1];
+    mp_obj_t data = args[2];
+    mp_obj_t ecdsa_obj = args[3];
+
     mp_ec_public_key_t *self = MP_OBJ_TO_PTR(obj);
     mp_buffer_info_t bufinfo_signature;
     mp_get_buffer_raise(signature, &bufinfo_signature, MP_BUFFER_READ);
 
-    mp_buffer_info_t bufinfo_digest;
-    mp_get_buffer_raise(digest, &bufinfo_digest, MP_BUFFER_READ);
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
+
+    if (!mp_obj_is_type(ecdsa_obj, &ec_ecdsa_type))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.ECDSA"));
+    }
+
+    mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
+    }
+
+    vstr_t vstr_digest;
+    if (mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_hash_algorithm_t *HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(ecdsa->algorithm))->algorithm;
+        (void)HashAlgorithm;
+        vstr_init_len(&vstr_digest, 0);
+        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
+    }
+    else
+    {
+        mp_hash_algorithm_t *HashAlgorithm = MP_OBJ_TO_PTR(ecdsa->algorithm);
+        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type)));
+        mbedtls_md(mbedtls_md_info_from_type(HashAlgorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+    }
 
     mp_buffer_info_t bufinfo_public_bytes;
     mp_get_buffer_raise(self->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
@@ -1369,19 +1441,18 @@ STATIC mp_obj_t ec_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t digest)
 
     util_decode_dss_signature(bufinfo_signature.buf, bufinfo_signature.len, &r, &s);
 
-    int read_signature = 0;
-    // if ((read_signature = mbedtls_ecdsa_read_signature(&ecp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
-    if ((read_signature = mbedtls_ecdsa_verify(&ecp.grp, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, &ecp.Q, &r, &s)) != 0)
+    int ecdsa_verify = 0;
+    if ((ecdsa_verify = mbedtls_ecdsa_verify(&ecp.grp, (const byte *)vstr_digest.buf, vstr_digest.len, &ecp.Q, &r, &s)) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
-        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), read_signature);
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ecdsa_verify);
     }
     mbedtls_ecp_keypair_free(&ecp);
 
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_ec_verify_obj, ec_verify);
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_verify_obj, 4, 4, ec_verify);
 
 STATIC mp_obj_t ec_public_numbers(mp_obj_t obj)
 {
@@ -1460,7 +1531,7 @@ STATIC mp_obj_t ec_private_numbers(mp_obj_t obj)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_numbers_obj, ec_private_numbers);
 
-STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
+STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
 {
     #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -1468,8 +1539,34 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
     #endif
 
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
-    mp_buffer_info_t bufinfo_digest;
-    mp_get_buffer_raise(digest, &bufinfo_digest, MP_BUFFER_READ);
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
+
+    if (!mp_obj_is_type(ecdsa_obj, &ec_ecdsa_type))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.ECDSA"));
+    }
+
+    mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
+    }
+
+    vstr_t vstr_digest;
+    if (mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_hash_algorithm_t *HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(ecdsa->algorithm))->algorithm;
+        (void)HashAlgorithm;
+        vstr_init_len(&vstr_digest, 0);
+        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
+    }
+    else
+    {
+        mp_hash_algorithm_t *HashAlgorithm = MP_OBJ_TO_PTR(ecdsa->algorithm);
+        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type)));
+        mbedtls_md(mbedtls_md_info_from_type(HashAlgorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+    }
 
     mp_buffer_info_t bufinfo_private_bytes;
     mp_get_buffer_raise(self->private_bytes, &bufinfo_private_bytes, MP_BUFFER_READ);
@@ -1491,12 +1588,11 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
 
     vstr_t vstr_signature;
     vstr_init_len(&vstr_signature, MBEDTLS_ECDSA_MAX_LEN);
-    int write_signature = 0;
-    //if ((write_signature = mbedtls_ecdsa_write_signature(&ecp, MBEDTLS_MD_SHA256, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, (byte *)vstr_signature.buf, &vstr_signature.len, mp_random, NULL) != 0))
-    if ((write_signature = mbedtls_ecdsa_sign(&ecp.grp, &r, &s, &ecp.d, (const byte *)bufinfo_digest.buf, bufinfo_digest.len, mp_random, NULL) != 0))
+    int ecdsa_sign = 1;
+    if ((ecdsa_sign = mbedtls_ecdsa_sign(&ecp.grp, &r, &s, &ecp.d, (const byte *)vstr_digest.buf, vstr_digest.len, mp_random, NULL) != 0))
     {
         mbedtls_ecp_keypair_free(&ecp);
-        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), write_signature);
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ecdsa_sign);
     }
 
     mbedtls_ecp_keypair_free(&ecp);
@@ -1504,7 +1600,7 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t digest)
     return mp_obj_new_bytes((const byte *)vstr_signature.buf, vstr_signature.len);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_sign_obj, ec_sign);
+STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_ec_sign_obj, ec_sign);
 
 STATIC mp_obj_t ec_public_key(mp_obj_t obj)
 {
@@ -1721,6 +1817,80 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
 }
 
+STATIC void hash_algorithm_prehashed_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_util_prehashed_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_digest_size || attr == MP_QSTR__digest_size)
+            {
+                dest[0] = mp_obj_new_int(mbedtls_md_get_size(mbedtls_md_info_from_type(self->algorithm->md_type)));
+                return;
+            }
+            if (attr == MP_QSTR__algorithm)
+            {
+                dest[0] = self->algorithm;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t hash_algorithm_prehashed_locals_dict_table[] ={
+    { MP_ROM_QSTR(MP_QSTR__algorithm), MP_ROM_PTR(mp_const_none) },
+    { MP_ROM_QSTR(MP_QSTR__digest_size), MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(0) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(hash_algorithm_prehashed_locals_dict, hash_algorithm_prehashed_locals_dict_table);
+
+STATIC mp_obj_type_t hash_algorithm_prehashed_type ={
+    { &mp_type_type },
+    .name = MP_QSTR_Prehashed,
+    .attr = hash_algorithm_prehashed_attr,
+    .locals_dict = (void *)&hash_algorithm_prehashed_locals_dict,
+};
+
+STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
+{
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512"));
+    }
+
+    mp_util_prehashed_t *Prehashed = m_new_obj(mp_util_prehashed_t);
+    Prehashed->base.type = &hash_algorithm_prehashed_type;
+    Prehashed->algorithm = hash_algorithm;
+
+    return MP_OBJ_FROM_PTR(Prehashed);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_prehashed_obj, mod_hash_algorithm_prehashed);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_hash_algorithm_prehashed_obj, MP_ROM_PTR(&mod_hash_algorithm_prehashed_obj));
+
+
+STATIC const mp_rom_map_elem_t utils_locals_dict_table[] ={
+    { MP_ROM_QSTR(MP_QSTR_Prehashed), MP_ROM_PTR(&mod_static_hash_algorithm_prehashed_obj) },
+    { MP_ROM_QSTR(MP_QSTR_constant_time_bytes_eq), MP_ROM_PTR(&mod_static_constant_time_bytes_eq_obj) },
+    { MP_ROM_QSTR(MP_QSTR_bit_length), MP_ROM_PTR(&mod_static_int_bit_length_obj) },
+    { MP_ROM_QSTR(MP_QSTR_encode_dss_signature), MP_ROM_PTR(&mod_static_encode_dss_signature_obj) },
+    { MP_ROM_QSTR(MP_QSTR_decode_dss_signature), MP_ROM_PTR(&mod_static_decode_dss_signature_obj) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(utils_locals_dict, utils_locals_dict_table);
+
+STATIC mp_obj_type_t utils_type ={
+    { &mp_type_type },
+    .name = MP_QSTR_utils,
+    .locals_dict = (void *)&utils_locals_dict,
+};
+
 STATIC mp_obj_t hash_algorithm_sha256_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
@@ -1867,8 +2037,7 @@ STATIC mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
     mp_get_buffer_raise(self->data, &bufinfo_data, MP_BUFFER_READ);
 
     vstr_t vstr_digest;
-    int digest_len = mbedtls_md_get_size(mbedtls_md_info_from_type(self->algorithm->md_type));
-    vstr_init_len(&vstr_digest, digest_len);
+    vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(self->algorithm->md_type)));
     mbedtls_md(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
 
     self->data = mp_const_empty_bytes;
@@ -2045,8 +2214,7 @@ STATIC mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
     mp_get_buffer_raise(self->data, &bufinfo_data, MP_BUFFER_READ);
 
     vstr_t vstr_digest;
-    int digest_len = mbedtls_md_get_size(mbedtls_md_info_from_type(self->hash_context->algorithm->md_type));
-    vstr_init_len(&vstr_digest, digest_len);
+    vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(self->hash_context->algorithm->md_type)));
     mbedtls_md_hmac(mbedtls_md_info_from_type(self->hash_context->algorithm->md_type), (const byte *)bufinfo_key.buf, bufinfo_key.len, (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
 
     self->data = mp_const_empty_bytes;
@@ -2359,25 +2527,25 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     HashAlgorithm->md_type = crt.sig_md;
     switch (HashAlgorithm->md_type)
     {
-        case MBEDTLS_MD_SHA256:
-        {
-            HashAlgorithm->base.type = &hash_algorithm_sha256_type;
-            break;
-        }
-        case MBEDTLS_MD_SHA384:
-        {
-            HashAlgorithm->base.type = &hash_algorithm_sha384_type;
-            break;
-        }
-        case MBEDTLS_MD_SHA512:
-        {
-            HashAlgorithm->base.type = &hash_algorithm_sha512_type;
-            break;
-        }
-        default:
-        {
-            break;
-        }
+    case MBEDTLS_MD_SHA256:
+    {
+        HashAlgorithm->base.type = &hash_algorithm_sha256_type;
+        break;
+    }
+    case MBEDTLS_MD_SHA384:
+    {
+        HashAlgorithm->base.type = &hash_algorithm_sha384_type;
+        break;
+    }
+    case MBEDTLS_MD_SHA512:
+    {
+        HashAlgorithm->base.type = &hash_algorithm_sha512_type;
+        break;
+    }
+    default:
+    {
+        break;
+    }
     }
 
     mp_x509_certificate_t *Certificate = m_new_obj(mp_x509_certificate_t);
@@ -3335,7 +3503,7 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] ={
     { MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type) },
     { MP_ROM_QSTR(MP_QSTR_hmac), MP_ROM_PTR(&hmac_type) },
     { MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type) },
-    { MP_ROM_QSTR(MP_QSTR_util), MP_ROM_PTR(&util_type) },
+    { MP_ROM_QSTR(MP_QSTR_utils), MP_ROM_PTR(&utils_type) },
     #if defined(MBEDTLS_VERSION_C)
     { MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type) },
     #endif

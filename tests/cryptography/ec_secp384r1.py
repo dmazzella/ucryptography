@@ -25,17 +25,18 @@ def numbers(curve, x, y, private_value):
     print("public_key.public_numbers().y", hex(pu_k.public_numbers().y))
     print("public_key.curve", pu_k.curve)
 
-    digest = crypto_hashes.Hash(crypto_hashes.SHA256(), default_backend())
+    chosen_hash = crypto_hashes.SHA256()
+    digest = crypto_hashes.Hash(chosen_hash, default_backend())
     digest.update(b'\x25' * 100)
     msg_hash = digest.finalize()
 
     signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(
-        crypto_utils.Prehashed(crypto_hashes.SHA256())))
+        crypto_utils.Prehashed(chosen_hash)))
     print("msg_hash", msg_hash, len(msg_hash))
-    print("signature", signature)
+    print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(
-        crypto_utils.Prehashed(crypto_hashes.SHA256())))
+        crypto_utils.Prehashed(chosen_hash)))
 
 
 def derive(curve, private_value):
@@ -54,17 +55,18 @@ def derive(curve, private_value):
     print("public_key.public_numbers().y", hex(pu_k.public_numbers().y))
     print("public_key.curve", pu_k.curve)
 
-    digest = crypto_hashes.Hash(crypto_hashes.SHA256(), default_backend())
+    chosen_hash = crypto_hashes.SHA256()
+    digest = crypto_hashes.Hash(chosen_hash, default_backend())
     digest.update(b'\x25' * 100)
     msg_hash = digest.finalize()
 
     signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(
-        crypto_utils.Prehashed(crypto_hashes.SHA256())))
+        crypto_utils.Prehashed(chosen_hash)))
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(
-        crypto_utils.Prehashed(crypto_hashes.SHA256())))
+        crypto_utils.Prehashed(chosen_hash)))
 
 
 def generate(curve):
@@ -77,17 +79,18 @@ def generate(curve):
     print("public_key.public_numbers().y", hex(pu_k.public_numbers().y))
     print("public_key.curve", pu_k.curve)
 
-    digest = crypto_hashes.Hash(crypto_hashes.SHA256(), default_backend())
+    chosen_hash = crypto_hashes.SHA256()
+    digest = crypto_hashes.Hash(chosen_hash, default_backend())
     digest.update(b'\x25' * 100)
     msg_hash = digest.finalize()
 
     signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(
-        crypto_utils.Prehashed(crypto_hashes.SHA256())))
+        crypto_utils.Prehashed(chosen_hash)))
     print("msg_hash", msg_hash, len(msg_hash))
-    print("signature", signature)
+    print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(
-        crypto_utils.Prehashed(crypto_hashes.SHA256())))
+        crypto_utils.Prehashed(chosen_hash)))
 
 
 def main():
