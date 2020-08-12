@@ -62,11 +62,17 @@ def derive(curve, private_value):
     digest.update(b'\x25' * 100)
     msg_hash = digest.finalize()
 
+    t = utime.ticks_us()
     signature = pr_k.sign(msg_hash)
+    delta_t = utime.ticks_diff(utime.ticks_us(), t)
+    print('{:6.3f}'.format(delta_t/1000))
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
+    t = utime.ticks_us()
     pu_k.verify(signature, msg_hash)
+    delta_t = utime.ticks_diff(utime.ticks_us(), t)
+    print('{:6.3f}'.format(delta_t/1000))
 
 
 def generate(curve):
@@ -88,11 +94,17 @@ def generate(curve):
     digest.update(b'\x25' * 100)
     msg_hash = digest.finalize()
 
+    t = utime.ticks_us()
     signature = pr_k.sign(msg_hash)
+    delta_t = utime.ticks_diff(utime.ticks_us(), t)
+    print('{:6.3f}'.format(delta_t/1000))
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
+    t = utime.ticks_us()
     pu_k.verify(signature, msg_hash)
+    delta_t = utime.ticks_diff(utime.ticks_us(), t)
+    print('{:6.3f}'.format(delta_t/1000))
 
 
 def main():
