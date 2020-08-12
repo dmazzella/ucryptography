@@ -4,7 +4,7 @@
 # pylint: disable=no-member
 # pylint: disable=no-value-for-parameter
 from cryptography import exceptions, hashes, hmac
-from cryptography import util as crypto_util
+from cryptography import utils as crypto_util
 
 
 class RFC6979(object):
