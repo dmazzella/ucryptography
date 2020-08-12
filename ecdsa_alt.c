@@ -20,7 +20,7 @@
  *  This file implements ST ECDSA sign and verify HW services based on mbed TLS API
  */
 
-/* Includes ------------------------------------------------------------------*/
+ /* Includes ------------------------------------------------------------------*/
 #include "mbedtls/ecdsa.h"
 
 #if defined(MBEDTLS_ECDSA_C)
@@ -31,6 +31,8 @@
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define ST_ECDSA_TIMEOUT (5000U)
+/* STM32 PKA supports up to 640bit numbers */
+#define STM32_MAX_ECC_SIZE (80)
 
 /* Private macro -------------------------------------------------------------*/
 /* Parameter validation macros based on platform_util.h */
@@ -53,17 +55,18 @@
  * Compute ECDSA signature of a hashed message
  */
 int mbedtls_ecdsa_sign(mbedtls_ecp_group *grp, mbedtls_mpi *r, mbedtls_mpi *s,
-                       const mbedtls_mpi *d, const unsigned char *buf, size_t blen,
-                       int (*f_rng)(void *, unsigned char *, size_t), void *p_rng)
+    const mbedtls_mpi *d, const unsigned char *buf, size_t blen,
+    int (*f_rng)(void *, unsigned char *, size_t), void *p_rng)
 {
     int ret = 0;
     uint8_t *d_binary;
     uint8_t *k_binary = NULL;
+    uint8_t Hashbin[STM32_MAX_ECC_SIZE];
 
     mbedtls_mpi k;
-    PKA_HandleTypeDef hpka = {0};
-    PKA_ECDSASignInTypeDef ECDSA_SignIn;
-    PKA_ECDSASignOutTypeDef ECDSA_SignOut;
+    PKA_HandleTypeDef hpka ={ 0 };
+    PKA_ECDSASignInTypeDef ECDSA_SignIn ={ 0 };
+    PKA_ECDSASignOutTypeDef ECDSA_SignOut ={ 0 };
 
     ECDSA_VALIDATE_RET(grp != NULL);
     ECDSA_VALIDATE_RET(r != NULL);
@@ -91,7 +94,9 @@ int mbedtls_ecdsa_sign(mbedtls_ecp_group *grp, mbedtls_mpi *r, mbedtls_mpi *s,
     ECDSA_SignIn.primeOrder = grp->st_n;
 
     /* Set HW peripheral input parameter: hash content buffer to be signed */
-    ECDSA_SignIn.hash = buf;
+    memset(Hashbin, 0, STM32_MAX_ECC_SIZE);
+    memcpy(Hashbin + (grp->st_order_size - blen), buf, blen);
+    ECDSA_SignIn.hash = Hashbin;
 
     /* Set HW peripheral input parameter: private signing key */
     d_binary = mbedtls_calloc(grp->st_order_size, sizeof(uint8_t));
@@ -141,7 +146,7 @@ int mbedtls_ecdsa_sign(mbedtls_ecp_group *grp, mbedtls_mpi *r, mbedtls_mpi *s,
 
     MBEDTLS_MPI_CHK(mbedtls_mpi_read_binary(s, ECDSA_SignOut.SSign, grp->st_order_size));
 
-cleanup:
+    cleanup:
     /* De-initialize HW peripheral */
     HAL_PKA_DeInit(&hpka);
 
@@ -190,18 +195,19 @@ cleanup:
  * Verify ECDSA signature of hashed message
  */
 int mbedtls_ecdsa_verify(mbedtls_ecp_group *grp,
-                         const unsigned char *buf, size_t blen,
-                         const mbedtls_ecp_point *Q,
-                         const mbedtls_mpi *r,
-                         const mbedtls_mpi *s)
+    const unsigned char *buf, size_t blen,
+    const mbedtls_ecp_point *Q,
+    const mbedtls_mpi *r,
+    const mbedtls_mpi *s)
 {
     int ret = 0;
     size_t olen;
     uint8_t *Q_binary;
     uint8_t *r_binary = NULL;
     uint8_t *s_binary = NULL;
-    PKA_HandleTypeDef hpka = {0};
-    PKA_ECDSAVerifInTypeDef ECDSA_VerifyIn;
+    uint8_t Hashbin[STM32_MAX_ECC_SIZE];
+    PKA_HandleTypeDef hpka ={ 0 };
+    PKA_ECDSAVerifInTypeDef ECDSA_VerifyIn ={ 0 };
 
     /* Check parameters */
     ECDSA_VALIDATE_RET(grp != NULL);
@@ -230,7 +236,9 @@ int mbedtls_ecdsa_verify(mbedtls_ecp_group *grp,
     ECDSA_VerifyIn.primeOrder = grp->st_n;
 
     /* Set HW peripheral input parameter: hash content buffer that was signed */
-    ECDSA_VerifyIn.hash = buf;
+    memset(Hashbin, 0, STM32_MAX_ECC_SIZE);
+    memcpy(Hashbin + (grp->st_order_size - blen), buf, blen);
+    ECDSA_VerifyIn.hash = Hashbin;
 
     /* Set HW peripheral input parameter: public key */
     Q_binary = mbedtls_calloc((2U * grp->st_modulus_size) + 1U, sizeof(uint8_t));
@@ -270,7 +278,7 @@ int mbedtls_ecdsa_verify(mbedtls_ecp_group *grp,
 
     HAL_PKA_RAMReset(&hpka);
 
-cleanup:
+    cleanup:
     /* De-initialize HW peripheral */
     HAL_PKA_DeInit(&hpka);
 
