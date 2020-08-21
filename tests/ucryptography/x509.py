@@ -2,7 +2,6 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from uhashlib import sha256
 from cryptography import x509, hashes, serialization
 try:
     from util import loads_sequence
