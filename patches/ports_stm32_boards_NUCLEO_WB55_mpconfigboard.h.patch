@@ -10,6 +10,7 @@ index 206134941..1fceefea2 100644
 +#define MICROPY_PY_FRAMEBUF         (0)
 +#define MICROPY_PY_USOCKET          (0)
 +#define MICROPY_PY_NETWORK          (0)
- 
++#define MICROPY_PY_UHASHLIB         (0)
+
  #define MICROPY_HW_HAS_FLASH        (1)
  #define MICROPY_HW_ENABLE_RTC       (1)
