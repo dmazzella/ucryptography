@@ -380,8 +380,12 @@ enum
 STATIC mp_obj_type_t ec_ecdsa_type;
 STATIC mp_obj_type_t ec_ecdh_type;
 STATIC mp_obj_type_t ec_curve_secp256r1_type;
+#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
 STATIC mp_obj_type_t ec_curve_secp384r1_type;
+#endif
+#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
 STATIC mp_obj_type_t ec_curve_secp521r1_type;
+#endif
 STATIC mp_obj_type_t ec_public_numbers_type;
 STATIC mp_obj_type_t ec_private_numbers_type;
 STATIC mp_obj_type_t ec_public_key_type;
@@ -390,7 +394,9 @@ STATIC mp_obj_type_t ed25519_private_key_type;
 STATIC mp_obj_type_t ed25519_public_key_type;
 STATIC mp_obj_type_t ed25519_type;
 STATIC mp_obj_type_t hash_algorithm_sha256_type;
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
 STATIC mp_obj_type_t hash_algorithm_sha384_type;
+#endif
 STATIC mp_obj_type_t hash_algorithm_sha512_type;
 STATIC mp_obj_type_t hash_algorithm_prehashed_type;
 STATIC mp_obj_type_t hash_context_type;
@@ -765,7 +771,11 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
     mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     mp_obj_t hash_algorithm = args[ARG_hash_algorithm].u_obj;
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
     }
@@ -993,6 +1003,7 @@ STATIC mp_obj_type_t ec_curve_secp256r1_type = {
     .locals_dict = (void *)&ec_curve_secp256r1_locals_dict,
 };
 
+#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
 STATIC mp_obj_t ec_curve_secp384r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
@@ -1099,7 +1110,9 @@ STATIC mp_obj_type_t ec_curve_secp384r1_type = {
     .attr = ec_curve_secp384r1_attr,
     .locals_dict = (void *)&ec_curve_secp384r1_locals_dict,
 };
+#endif
 
+#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
 STATIC mp_obj_t ec_curve_secp521r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
@@ -1206,6 +1219,7 @@ STATIC mp_obj_type_t ec_curve_secp521r1_type = {
     .attr = ec_curve_secp521r1_attr,
     .locals_dict = (void *)&ec_curve_secp521r1_locals_dict,
 };
+#endif
 
 STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1221,7 +1235,15 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
     {
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED Y int"));
     }
-    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
+    if (
+        !mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)
+#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+        && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type)
+#endif
+#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+        && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type)
+#endif
+    )
     {
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
     }
@@ -1422,7 +1444,11 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
     }
@@ -1565,7 +1591,11 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
     }
@@ -1761,16 +1791,20 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
         EllipticCurve->base.type = &ec_curve_secp256r1_type;
         break;
     }
+#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
     case MBEDTLS_ECP_DP_SECP384R1:
     {
         EllipticCurve->base.type = &ec_curve_secp384r1_type;
         break;
     }
+#endif
+#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
     case MBEDTLS_ECP_DP_SECP521R1:
     {
         EllipticCurve->base.type = &ec_curve_secp521r1_type;
         break;
     }
+#endif
     default:
     {
         break;
@@ -1876,7 +1910,11 @@ STATIC mp_obj_type_t hash_algorithm_prehashed_type = {
 
 STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 {
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type))
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512"));
     }
@@ -1930,6 +1968,7 @@ STATIC mp_obj_type_t hash_algorithm_sha256_type = {
     .locals_dict = (void *)&hash_algorithm_sha256_locals_dict,
 };
 
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
 STATIC mp_obj_t hash_algorithm_sha384_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
@@ -1952,6 +1991,7 @@ STATIC mp_obj_type_t hash_algorithm_sha384_type = {
     .make_new = hash_algorithm_sha384_make_new,
     .locals_dict = (void *)&hash_algorithm_sha384_locals_dict,
 };
+#endif
 
 STATIC mp_obj_t hash_algorithm_sha512_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1979,7 +2019,11 @@ STATIC mp_obj_type_t hash_algorithm_sha512_type = {
 STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
-    if (!mp_obj_is_type(args[0], &hash_algorithm_sha256_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha384_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha512_type))
+    if (!mp_obj_is_type(args[0], &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(args[0], &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(args[0], &hash_algorithm_sha512_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384 or hashes.SHA512"));
     }
@@ -2101,7 +2145,9 @@ STATIC mp_obj_type_t hash_context_type = {
 
 STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SHA256), MP_ROM_PTR(&hash_algorithm_sha256_type)},
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
     {MP_ROM_QSTR(MP_QSTR_SHA384), MP_ROM_PTR(&hash_algorithm_sha384_type)},
+#endif
     {MP_ROM_QSTR(MP_QSTR_SHA512), MP_ROM_PTR(&hash_algorithm_sha512_type)},
     {MP_ROM_QSTR(MP_QSTR_Hash), MP_ROM_PTR(&hash_context_type)},
 };
@@ -2121,7 +2167,11 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     {
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED key bytes"));
     }
-    if (!mp_obj_is_type(args[1], &hash_algorithm_sha256_type) && !mp_obj_is_type(args[1], &hash_algorithm_sha384_type) && !mp_obj_is_type(args[1], &hash_algorithm_sha512_type))
+    if (!mp_obj_is_type(args[1], &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(args[1], &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(args[1], &hash_algorithm_sha512_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384 or hashes.SHA512"));
     }
@@ -2515,7 +2565,11 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         mp_raise_ValueError(MP_ERROR_TEXT("CERTIFICATE FORMAT"));
     }
 
-    if ((crt.sig_md != MBEDTLS_MD_SHA256) && (crt.sig_md != MBEDTLS_MD_SHA384) && (crt.sig_md != MBEDTLS_MD_SHA512))
+    if ((crt.sig_md != MBEDTLS_MD_SHA256)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && (crt.sig_md != MBEDTLS_MD_SHA384)
+#endif
+        && (crt.sig_md != MBEDTLS_MD_SHA512))
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
@@ -2547,11 +2601,13 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         HashAlgorithm->base.type = &hash_algorithm_sha256_type;
         break;
     }
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
     case MBEDTLS_MD_SHA384:
     {
         HashAlgorithm->base.type = &hash_algorithm_sha384_type;
         break;
     }
+#endif
     case MBEDTLS_MD_SHA512:
     {
         HashAlgorithm->base.type = &hash_algorithm_sha512_type;
@@ -2704,7 +2760,14 @@ STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
     srand((unsigned)time(&t));
 #endif
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
-    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
+    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)
+#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+        && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type)
+#endif
+#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+        && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type)
+#endif
+    )
     {
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
     }
@@ -2737,7 +2800,14 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
     }
 
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
-    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type) && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type))
+    if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)
+#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+        && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type)
+#endif
+#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+        && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type)
+#endif
+    )
     {
         mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
     }
@@ -2772,8 +2842,12 @@ STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_ECDH), MP_ROM_PTR(&ec_ecdh_type)},
     {MP_ROM_QSTR(MP_QSTR_ECDSA), MP_ROM_PTR(&ec_ecdsa_type)},
     {MP_ROM_QSTR(MP_QSTR_SECP256R1), MP_ROM_PTR(&ec_curve_secp256r1_type)},
+#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
     {MP_ROM_QSTR(MP_QSTR_SECP384R1), MP_ROM_PTR(&ec_curve_secp384r1_type)},
+#endif
+#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
     {MP_ROM_QSTR(MP_QSTR_SECP521R1), MP_ROM_PTR(&ec_curve_secp521r1_type)},
+#endif
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicKey), MP_ROM_PTR(&ec_public_key_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicNumbers), MP_ROM_PTR(&ec_public_numbers_type)},
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePrivateKey), MP_ROM_PTR(&ec_private_key_type)},
