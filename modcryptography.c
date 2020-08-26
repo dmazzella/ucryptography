@@ -36,6 +36,9 @@
 #include "py/objstr.h"
 #include "py/objint.h"
 #include "py/runtime.h"
+#if defined(MICROPY_HW_LED1)
+#include "led.h"
+#endif
 #if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
 #include "py/mpz.h"
 #endif
@@ -194,6 +197,7 @@ struct _mp_ciphers_algorithms_aes_t;
 struct _mp_ciphers_modes_cbc_t;
 struct _mp_ciphers_modes_gcm_t;
 struct _mp_util_prehashed_t;
+struct _mp_util_block_device_t;
 
 typedef struct _mp_ec_curve_t
 {
@@ -365,6 +369,14 @@ typedef struct _mp_util_prehashed_t
     mp_hash_algorithm_t *algorithm;
 } mp_util_prehashed_t;
 
+typedef struct _mp_util_block_device_t
+{
+    mp_obj_base_t base;
+    mp_int_t blocks;
+    mp_int_t erase_block_size;
+    vstr_t *data;
+} mp_util_block_device_t;
+
 enum
 {
     CIPHER_MODE_CBC = 1,
@@ -376,6 +388,14 @@ enum
     SERIALIZATION_ENCODING_DER = 1,
     SERIALIZATION_ENCODING_PEM = 2,
 };
+
+// constants for block protocol ioctl
+#define BLOCKDEV_IOCTL_INIT (1)
+#define BLOCKDEV_IOCTL_DEINIT (2)
+#define BLOCKDEV_IOCTL_SYNC (3)
+#define BLOCKDEV_IOCTL_BLOCK_COUNT (4)
+#define BLOCKDEV_IOCTL_BLOCK_SIZE (5)
+#define BLOCKDEV_IOCTL_BLOCK_ERASE (6)
 
 STATIC mp_obj_type_t ec_ecdsa_type;
 STATIC mp_obj_type_t ec_ecdh_type;
@@ -409,6 +429,7 @@ STATIC mp_obj_type_t ciphers_cipher_decryptor_type;
 STATIC mp_obj_type_t ciphers_algorithms_aes_type;
 STATIC mp_obj_type_t ciphers_modes_cbc_type;
 STATIC mp_obj_type_t ciphers_modes_gcm_type;
+STATIC mp_obj_type_t utils_block_device_type;
 
 #if defined(MBEDTLS_GCM_ALT) || defined(MBEDTLS_AES_ALT)
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef *hcryp)
@@ -1929,7 +1950,145 @@ STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_prehashed_obj, mod_hash_algorithm_prehashed);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_hash_algorithm_prehashed_obj, MP_ROM_PTR(&mod_hash_algorithm_prehashed_obj));
 
+STATIC mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *args)
+{
+    mp_util_block_device_t *self = MP_OBJ_TO_PTR(args[0]);
+    mp_int_t block = mp_obj_get_int(args[1]);
+    mp_buffer_info_t bufinfo_buf;
+    mp_get_buffer_raise(args[2], &bufinfo_buf, MP_BUFFER_WRITE);
+    mp_int_t off = mp_obj_get_int(args[3]);
+
+    mp_int_t addr = block * self->erase_block_size + off;
+    memcpy((byte *)bufinfo_buf.buf, ((byte *)self->data->buf) + addr, bufinfo_buf.len);
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_readblocks_obj, 4, 4, utils_block_device_readblocks);
+
+STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *args)
+{
+    mp_util_block_device_t *self = MP_OBJ_TO_PTR(args[0]);
+    mp_int_t block = mp_obj_get_int(args[1]);
+    mp_buffer_info_t bufinfo_buf;
+    mp_get_buffer_raise(args[2], &bufinfo_buf, MP_BUFFER_READ);
+    mp_int_t off = mp_obj_get_int(args[3]);
+
+    #if defined(MICROPY_HW_LED1)
+    led_state(PYB_LED_RED, 1); // indicate a dirty cache with LED on
+    #endif
+
+    mp_int_t addr = block * self->erase_block_size + off;
+    memcpy(((byte *)self->data->buf) + addr, ((byte *)bufinfo_buf.buf), bufinfo_buf.len);
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_writeblocks_obj, 4, 4, utils_block_device_writeblocks);
+
+STATIC mp_obj_t utils_block_device_ioctl(mp_obj_t self_in, mp_obj_t op_in, mp_obj_t arg_in)
+{
+    mp_util_block_device_t *self = MP_OBJ_TO_PTR(self_in);
+    mp_int_t op = mp_obj_get_int(op_in);
+    if (mp_obj_is_int(arg_in))
+    {
+        mp_int_t arg = mp_obj_get_int(arg_in);
+        if (arg == 0)
+        {
+        }
+    }
+
+    switch (op)
+    {
+    case BLOCKDEV_IOCTL_INIT:
+    {
+        return mp_obj_new_int(0);
+    }
+    case BLOCKDEV_IOCTL_DEINIT:
+    {
+        return mp_obj_new_int(0);
+    }
+    case BLOCKDEV_IOCTL_SYNC:
+    {
+        #if defined(MICROPY_HW_LED1)
+        led_state(PYB_LED_RED, 0); // indicate a clean cache with LED off
+        #endif
+        return mp_obj_new_int(0);
+    }
+    case BLOCKDEV_IOCTL_BLOCK_COUNT:
+    {
+        return mp_obj_new_int(self->data->len / self->erase_block_size);
+    }
+    case BLOCKDEV_IOCTL_BLOCK_SIZE:
+    {
+        return mp_obj_new_int(self->erase_block_size);
+    }
+    case BLOCKDEV_IOCTL_BLOCK_ERASE:
+    {
+        return mp_obj_new_int(0);
+    }
+    default:
+    {
+        break;
+    }
+    }
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_3(utils_block_device_ioctl_obj, utils_block_device_ioctl);
+
+STATIC const mp_rom_map_elem_t utils_block_device_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_readblocks), MP_ROM_PTR(&utils_block_device_readblocks_obj)},
+    {MP_ROM_QSTR(MP_QSTR_writeblocks), MP_ROM_PTR(&utils_block_device_writeblocks_obj)},
+    {MP_ROM_QSTR(MP_QSTR_ioctl), MP_ROM_PTR(&utils_block_device_ioctl_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(utils_block_device_locals_dict, utils_block_device_locals_dict_table);
+
+STATIC mp_obj_type_t utils_block_device_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_CipheredBlockDevice,
+    .locals_dict = (void *)&utils_block_device_locals_dict,
+};
+
+STATIC mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
+{
+    enum
+    {
+        ARG_blocks,
+        ARG_erase_block_size,
+        ARG_algorithm
+    };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_blocks, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 64}},
+        {MP_QSTR_erase_block_size, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 512}},
+        {MP_QSTR_algorithm, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+    };
+
+    mp_arg_val_t vals[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, vals);
+
+    mp_util_block_device_t *BlockDevice = m_new_obj(mp_util_block_device_t);
+    BlockDevice->base.type = &utils_block_device_type;
+    BlockDevice->erase_block_size = vals[ARG_erase_block_size].u_int;
+    BlockDevice->blocks = vals[ARG_blocks].u_int;
+    BlockDevice->data = NULL;
+    if ((BlockDevice->data = vstr_new(BlockDevice->blocks * BlockDevice->erase_block_size)) == NULL)
+    {
+        mp_raise_msg_varg(&mp_type_MemoryError, MP_ERROR_TEXT("memory allocation failed, allocating %d bytes"), BlockDevice->blocks);
+    }
+    BlockDevice->data->len = BlockDevice->data->alloc;
+    memset(BlockDevice->data->buf, 0, BlockDevice->data->len);
+
+    return MP_OBJ_FROM_PTR(BlockDevice);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_block_device_obj, 1, mod_block_device);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_block_device_obj, MP_ROM_PTR(&mod_block_device_obj));
+
 STATIC const mp_rom_map_elem_t utils_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_CipheredBlockDevice), MP_ROM_PTR(&mod_static_block_device_obj)},
     {MP_ROM_QSTR(MP_QSTR_Prehashed), MP_ROM_PTR(&mod_static_hash_algorithm_prehashed_obj)},
     {MP_ROM_QSTR(MP_QSTR_constant_time_bytes_eq), MP_ROM_PTR(&mod_static_constant_time_bytes_eq_obj)},
     {MP_ROM_QSTR(MP_QSTR_bit_length), MP_ROM_PTR(&mod_static_int_bit_length_obj)},
