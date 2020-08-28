@@ -32,21 +32,18 @@ def load_bytes(filename):
 
 try:
     try:
-        bdev = utils.CipheredBlockDevice(128, erase_block_size=512, algorithm=None)
+        bdev = utils.CipheredBlockDevice(128)
         uos.VfsLfs2.mkfs(bdev)
-        uos.mount(uos.VfsLfs2(bdev), "/cachefs")
+        uos.mount(uos.VfsLfs2(bdev), "/flash2")
     except OSError as ex:
-        print("error mounting /cachefs", ex)
+        print("error mounting /flash2", ex)
     else:
         data = b"\xaa" * 250
 
-        dump_bytes("/cachefs/test0.data", data)
-        print(uos.stat("/cachefs/test0.data"))
-        assert load_bytes("/cachefs/test0.data") == data
-        uos.remove("/cachefs/test0.data")
-        print(uos.statvfs("/cachefs"))
-        uos.mkdir("/cachefs/test0.dir")
-        uos.rmdir("/cachefs/test0.dir")
+        dump_bytes("/flash2/test0.data", data)
+        print(uos.stat("/flash2/test0.data"))
+        assert load_bytes("/flash2/test0.data") == data
+        print(uos.statvfs("/flash2"))
 
 except OSError as ex:
     print(ex)

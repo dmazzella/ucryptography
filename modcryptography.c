@@ -1956,7 +1956,7 @@ STATIC mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *arg
     mp_int_t block = mp_obj_get_int(args[1]);
     mp_buffer_info_t bufinfo_buf;
     mp_get_buffer_raise(args[2], &bufinfo_buf, MP_BUFFER_WRITE);
-    mp_int_t off = mp_obj_get_int(args[3]);
+    mp_int_t off = (n_args == 4 ? mp_obj_get_int(args[3]) : 0);
 
     mp_int_t addr = block * self->erase_block_size + off;
     memcpy((byte *)bufinfo_buf.buf, ((byte *)self->data->buf) + addr, bufinfo_buf.len);
@@ -1964,7 +1964,7 @@ STATIC mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *arg
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_readblocks_obj, 4, 4, utils_block_device_readblocks);
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_readblocks_obj, 3, 4, utils_block_device_readblocks);
 
 STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *args)
 {
@@ -1972,11 +1972,11 @@ STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *ar
     mp_int_t block = mp_obj_get_int(args[1]);
     mp_buffer_info_t bufinfo_buf;
     mp_get_buffer_raise(args[2], &bufinfo_buf, MP_BUFFER_READ);
-    mp_int_t off = mp_obj_get_int(args[3]);
+    mp_int_t off = (n_args == 4 ? mp_obj_get_int(args[3]) : 0);
 
-    #if defined(MICROPY_HW_LED1)
+#if defined(MICROPY_HW_LED1)
     led_state(PYB_LED_RED, 1); // indicate a dirty cache with LED on
-    #endif
+#endif
 
     mp_int_t addr = block * self->erase_block_size + off;
     memcpy(((byte *)self->data->buf) + addr, ((byte *)bufinfo_buf.buf), bufinfo_buf.len);
@@ -1984,7 +1984,7 @@ STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *ar
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_writeblocks_obj, 4, 4, utils_block_device_writeblocks);
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_writeblocks_obj, 3, 4, utils_block_device_writeblocks);
 
 STATIC mp_obj_t utils_block_device_ioctl(mp_obj_t self_in, mp_obj_t op_in, mp_obj_t arg_in)
 {
@@ -2010,9 +2010,9 @@ STATIC mp_obj_t utils_block_device_ioctl(mp_obj_t self_in, mp_obj_t op_in, mp_ob
     }
     case BLOCKDEV_IOCTL_SYNC:
     {
-        #if defined(MICROPY_HW_LED1)
+#if defined(MICROPY_HW_LED1)
         led_state(PYB_LED_RED, 0); // indicate a clean cache with LED off
-        #endif
+#endif
         return mp_obj_new_int(0);
     }
     case BLOCKDEV_IOCTL_BLOCK_COUNT:
@@ -2061,7 +2061,7 @@ STATIC mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *
         ARG_algorithm
     };
     static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_blocks, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 64}},
+        {MP_QSTR_blocks, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 128}},
         {MP_QSTR_erase_block_size, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 512}},
         {MP_QSTR_algorithm, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
     };
