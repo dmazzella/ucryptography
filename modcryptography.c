@@ -43,15 +43,9 @@
 #include "py/mpz.h"
 #endif
 
-// #if !defined(MBEDTLS_USER_CONFIG_FILE)
-// #define MBEDTLS_USER_CONFIG_FILE "modcryptography_config.h"
-// #endif //MBEDTLS_USER_CONFIG_FILE
-
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif // MBEDTLS_CONFIG_FILE
+#if !defined(MBEDTLS_USER_CONFIG_FILE)
+#define MBEDTLS_USER_CONFIG_FILE "modcryptography_config.h"
+#endif //MBEDTLS_USER_CONFIG_FILE
 
 #if defined(__thumb2__) || defined(__thumb__) || defined(__arm__)
 #if MICROPY_HW_ENABLE_RNG
@@ -2601,7 +2595,7 @@ STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_
     vstr_t vstr_oid;
     vstr_init(&vstr_oid, 0);
 
-    for (int i = 0; i < o->len; i++)
+    for (size_t i = 0; i < o->len; i++)
     {
         if (i == 0)
         {
