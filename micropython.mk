@@ -38,6 +38,7 @@ ifeq ($(MCU_SERIES),wb)
     SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/gcm_alt.c
     SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/ecp_curves_alt.c
     SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/ecp_alt.c
+    SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/rsa_alt.c
     SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/ecdsa_alt.c
 endif
 endif
