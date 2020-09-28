@@ -3,23 +3,23 @@
 # pylint: disable=no-name-in-module
 from cryptography import version
 
-RESET =         "\033[0m"
-BLACK =         "\033[30m" # Black
-RED =           "\033[31m" # Red
-GREEN =         "\033[32m" # Green
-YELLOW =        "\033[33m" # Yellow
-BLUE =          "\033[34m" # Blue
-MAGENTA =       "\033[35m" # Magenta
-CYAN =          "\033[36m" # Cyan
-WHITE =         "\033[37m" # White
-BOLDBLACK =     "\033[1m\033[30m" # Bold Black
-BOLDRED =       "\033[1m\033[31m" # Bold Red
-BOLDGREEN =     "\033[1m\033[32m" # Bold Green
-BOLDYELLOW =    "\033[1m\033[33m"  # Bold Yellow
-BOLDBLUE =      "\033[1m\033[34m" # Bold Blue
-BOLDMAGENTA =   "\033[1m\033[35m" # Bold Magenta
-BOLDCYAN =      "\033[1m\033[36m" # Bold Cyan
-BOLDWHITE =     "\033[1m\033[37m" # Bold White
+RESET = "\033[0m"
+BLACK = "\033[30m"  # Black
+RED = "\033[31m"  # Red
+GREEN = "\033[32m"  # Green
+YELLOW = "\033[33m"  # Yellow
+BLUE = "\033[34m"  # Blue
+MAGENTA = "\033[35m"  # Magenta
+CYAN = "\033[36m"  # Cyan
+WHITE = "\033[37m"  # White
+BOLDBLACK = "\033[1m\033[30m"  # Bold Black
+BOLDRED = "\033[1m\033[31m"  # Bold Red
+BOLDGREEN = "\033[1m\033[32m"  # Bold Green
+BOLDYELLOW = "\033[1m\033[33m"  # Bold Yellow
+BOLDBLUE = "\033[1m\033[34m"  # Bold Blue
+BOLDMAGENTA = "\033[1m\033[35m"  # Bold Magenta
+BOLDCYAN = "\033[1m\033[36m"  # Bold Cyan
+BOLDWHITE = "\033[1m\033[37m"  # Bold White
 
 VERSION_FEATURES = (
     "MBEDTLS_HAVE_ASM",
@@ -270,8 +270,9 @@ VERSION_FEATURES = (
     "MBEDTLS_X509_CREATE_C",
     "MBEDTLS_X509_CRT_WRITE_C",
     "MBEDTLS_X509_CSR_WRITE_C",
-    "MBEDTLS_XTEA_C"
+    "MBEDTLS_XTEA_C",
 )
+
 
 def main():
     print("number:", version.get_number())
@@ -281,6 +282,7 @@ def main():
         enabled = version.check_feature(feature)
         color = GREEN if enabled else RED
         print("check_feature: {:s}{:s}{:s}".format(color, feature, RESET))
+
 
 if __name__ == "__main__":
     main()

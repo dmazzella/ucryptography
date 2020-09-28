@@ -10,36 +10,48 @@ from cryptography.hazmat.primitives.asymmetric import utils
 from util import loads_sequence
 
 
-PRIVATE_KEY_DER = loads_sequence('''-----BEGIN EC PRIVATE KEY-----
+PRIVATE_KEY_DER = loads_sequence(
+    """-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIEKi+GleZpNE2E+oHgtnSkvTfAQ8zGhM+OHjqo74DM0RoAoGCCqGSM49
 AwEHoUQDQgAEQWfGXJw+X9PV2czte6S4pXBM4QuOORNL6DeWlqbnKMK1l7xf3wNe
 1GZQ5vs4617zr3nCVjPhbs1qCCi8Ny/YTg==
------END EC PRIVATE KEY-----''')
+-----END EC PRIVATE KEY-----"""
+)
 
 
 def main():
     private_key = serialization.load_der_private_key(
-        PRIVATE_KEY_DER, None, default_backend())
+        PRIVATE_KEY_DER, None, default_backend()
+    )
     print("curve", private_key.curve.name)
     print("key_size", private_key.key_size)
 
-    print("private_bytes", private_key.private_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    ))
+    print(
+        "private_bytes",
+        private_key.private_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ),
+    )
 
-    print("private_bytes DER", private_key.private_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    ))
+    print(
+        "private_bytes DER",
+        private_key.private_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ),
+    )
 
-    print("private_bytes PEM", private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    ))
+    print(
+        "private_bytes PEM",
+        private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ),
+    )
 
     private_numbers = private_key.private_numbers()
     print("private_numbers.private_value: ", private_numbers.private_value)
@@ -50,7 +62,7 @@ def main():
     print(dir(serialization.Encoding))
     public_bytes = public_key.public_bytes(
         encoding=serialization.Encoding.X962,
-        format=serialization.PublicFormat.UncompressedPoint
+        format=serialization.PublicFormat.UncompressedPoint,
     )
     print("public_key.public_bytes", public_bytes)
     print("public_key.public_numbers.x", public_numbers.x)
@@ -58,17 +70,15 @@ def main():
 
     chosen_hash = hashes.SHA256()
     digest = hashes.Hash(chosen_hash, default_backend())
-    digest.update(b'cacca')
-    digest.update(b'cacca')
-    digest.update(b'cacca')
-    digest.update(b'cacca')
-    digest.update(b'cacca')
+    digest.update(b"cacca")
+    digest.update(b"cacca")
+    digest.update(b"cacca")
+    digest.update(b"cacca")
+    digest.update(b"cacca")
     msg_hash = digest.finalize()
-    signature = private_key.sign(
-        msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
+    signature = private_key.sign(msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
     print("len", len(signature), "signature", signature)
-    public_key.verify(signature, msg_hash, ec.ECDSA(
-        utils.Prehashed(chosen_hash)))
+    public_key.verify(signature, msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
 
 
 if __name__ == "__main__":

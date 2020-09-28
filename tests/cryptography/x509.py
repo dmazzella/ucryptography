@@ -11,7 +11,8 @@ from cryptography.hazmat.primitives.asymmetric import utils
 from util import loads_sequence
 
 
-CERT_DER = loads_sequence('''-----BEGIN CERTIFICATE-----
+CERT_DER = loads_sequence(
+    """-----BEGIN CERTIFICATE-----
 MIICiDCCAi+gAwIBAgIUEkh9KHsIlsR5m73KoHd9dnoaE+EwCgYIKoZIzj0EAwIw
 gZkxCzAJBgNVBAYTAklUMQ4wDAYDVQQIDAVJdGFseTEPMA0GA1UEBwwGTmFwb2xp
 MRYwFAYDVQQKDA1CaXQ0aWQgcy5yLmwuMQwwCgYDVQQLDANSJkQxGTAXBgNVBAMM
@@ -26,7 +27,8 @@ uKVwTOELjjkTS+g3lpam5yjCtZe8X98DXtRmUOb7OOte8695wlYz4W7NaggovDcv
 gBR1cuI1e0csCOy/aY7P5zOeyPLShjAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49
 BAMCA0cAMEQCIGYm2Orv975+0CZZsKy7nYf4c5J+yTEKk329wk85CQ71AiBXXS5K
 s+LnrOm0QFpFTo1ZoMRiLiDVvqR/exKUFMF6OA==
------END CERTIFICATE-----''')
+-----END CERTIFICATE-----"""
+)
 
 
 def main():
@@ -58,15 +60,19 @@ def main():
     print("public_key.public_bytes", public_bytes)
     print("public_key.public_numbers.x", public_numbers.x)
     print("public_key.public_numbers.y", public_numbers.y)
-    print("public_key.public_bytes DER", public_key.public_bytes(
+    print(
+        "public_key.public_bytes DER",
+        public_key.public_bytes(
             encoding=serialization.Encoding.DER,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        ),
     )
-    print("public_key.public_bytes PEM", public_key.public_bytes(
+    print(
+        "public_key.public_bytes PEM",
+        public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        ),
     )
 
     digest = hashes.Hash(hashes.SHA256(), default_backend())
@@ -75,7 +81,7 @@ def main():
     public_key.verify(
         certificate.signature,
         tbs_certificate_hash,
-        ec.ECDSA(utils.Prehashed(hashes.SHA256()))
+        ec.ECDSA(utils.Prehashed(hashes.SHA256())),
     )
 
 

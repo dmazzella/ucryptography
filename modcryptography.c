@@ -169,6 +169,7 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/aes.h"
 #include "mbedtls/ecdh.h"
 #include "mbedtls/asn1write.h"
+#include "mbedtls/rsa_internal.h"
 
 struct _mp_ec_ecdsa_t;
 struct _mp_ec_ecdh_t;
@@ -179,6 +180,10 @@ struct _mp_ec_public_key_t;
 struct _mp_ec_private_key_t;
 struct _mp_ed25519_public_key_t;
 struct _mp_ed25519_private_key_t;
+struct _mp_rsa_public_numbers_t;
+struct _mp_rsa_private_numbers_t;
+struct _mp_rsa_public_key_t;
+struct _mp_rsa_private_key_t;
 struct _mp_hash_algorithm_t;
 struct _mp_hash_context_t;
 struct _mp_hmac_context_t;
@@ -250,6 +255,42 @@ typedef struct _mp_ed25519_private_key_t
     mp_ed25519_public_key_t *public_key;
     mp_obj_t private_bytes;
 } mp_ed25519_private_key_t;
+
+typedef struct _mp_rsa_public_numbers_t
+{
+    mp_obj_base_t base;
+    mp_obj_t e;
+    mp_obj_t n;
+    struct _mp_rsa_public_key_t *public_key;
+} mp_rsa_public_numbers_t;
+
+typedef struct _mp_rsa_private_numbers_t
+{
+    mp_obj_base_t base;
+    mp_obj_t p;
+    mp_obj_t q;
+    mp_obj_t d;
+    mp_obj_t dmp1;
+    mp_obj_t dmq1;
+    mp_obj_t iqmp;
+    struct _mp_rsa_public_numbers_t *public_numbers;
+    struct _mp_rsa_private_key_t *private_key;
+} mp_rsa_private_numbers_t;
+
+typedef struct _mp_rsa_public_key_t
+{
+    mp_obj_base_t base;
+    mp_rsa_public_numbers_t *public_numbers;
+    mp_obj_t public_bytes;
+} mp_rsa_public_key_t;
+
+typedef struct _mp_rsa_private_key_t
+{
+    mp_obj_base_t base;
+    mp_rsa_private_numbers_t *private_numbers;
+    mp_rsa_public_key_t *public_key;
+    mp_obj_t private_bytes;
+} mp_rsa_private_key_t;
 
 typedef struct _mp_hash_algorithm_t
 {
@@ -407,6 +448,10 @@ STATIC mp_obj_type_t ec_private_key_type;
 STATIC mp_obj_type_t ed25519_private_key_type;
 STATIC mp_obj_type_t ed25519_public_key_type;
 STATIC mp_obj_type_t ed25519_type;
+STATIC mp_obj_type_t rsa_public_numbers_type;
+STATIC mp_obj_type_t rsa_private_numbers_type;
+STATIC mp_obj_type_t rsa_public_key_type;
+STATIC mp_obj_type_t rsa_private_key_type;
 STATIC mp_obj_type_t hash_algorithm_sha256_type;
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
 STATIC mp_obj_type_t hash_algorithm_sha384_type;
@@ -3017,6 +3062,761 @@ STATIC mp_obj_type_t ec_type = {
     .locals_dict = (void *)&ec_locals_dict,
 };
 
+STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
+{
+    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
+    mp_obj_t signature = args[1];
+    mp_obj_t data = args[2];
+    mp_obj_t padding = args[3];
+    mp_obj_t algorithm = args[4];
+
+    (void)self;
+    (void)signature;
+    (void)data;
+    (void)padding;
+    (void)algorithm;
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_verify_obj, 5, 5, rsa_verify);
+
+STATIC mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
+{
+    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
+    mp_obj_t plaintext = args[1];
+    mp_obj_t padding = args[2];
+
+    (void)self;
+    (void)plaintext;
+    (void)padding;
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_encrypt_obj, 3, 3, rsa_encrypt);
+
+STATIC mp_obj_t rsa_public_numbers(mp_obj_t obj)
+{
+    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(obj);
+    return self->public_numbers;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_numbers_obj, rsa_public_numbers);
+
+STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_private_numbers_t *private_numbers, mp_obj_t encoding_o)
+{
+    if (!mp_obj_is_int(encoding_o))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED encoding int"));
+    }
+    mp_int_t encoding = mp_obj_get_int(encoding_o);
+    if (encoding != SERIALIZATION_ENCODING_DER && encoding != SERIALIZATION_ENCODING_PEM)
+    {
+        mp_raise_ValueError(MP_ERROR_TEXT("EXPECTED encoding value 1 (DER) or 2 (PEM)"));
+    }
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(public_numbers->e)) + 7) / 8;
+    cryptography_get_buffer(public_numbers->e, true, e_len, &bufinfo_e);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(public_numbers->n)) + 7) / 8;
+    cryptography_get_buffer(public_numbers->n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    if (public_numbers != MP_OBJ_NULL && private_numbers == MP_OBJ_NULL)
+    {
+        mbedtls_pk_context pk;
+        mbedtls_pk_init(&pk);
+        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+        int ret = 1;
+        if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) != 0)
+        {
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+        }
+
+        vstr_t vstr_out;
+        vstr_init_len(&vstr_out, mp_obj_get_int(int_bit_length(public_numbers->n)) * 2);
+        if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_pubkey_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
+        {
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes((const byte *)(vstr_out.buf + vstr_out.len - ret), ret);
+        }
+        else if (encoding == SERIALIZATION_ENCODING_PEM && (ret = mbedtls_pk_write_pubkey_pem(&pk, (byte *)vstr_out.buf, vstr_out.len)) == 0)
+        {
+            ret = strlen((char *)vstr_out.buf);
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes((const byte *)vstr_out.buf, ret);
+        }
+    }
+    else if (public_numbers != MP_OBJ_NULL && private_numbers != MP_OBJ_NULL)
+    {
+        mp_buffer_info_t bufinfo_p;
+        int p_len = (mp_obj_get_int(int_bit_length(private_numbers->p)) + 7) / 8;
+        cryptography_get_buffer(private_numbers->p, true, p_len, &bufinfo_p);
+
+        mbedtls_mpi P;
+        mbedtls_mpi_init(&P);
+        mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
+
+        mp_buffer_info_t bufinfo_q;
+        int q_len = (mp_obj_get_int(int_bit_length(private_numbers->q)) + 7) / 8;
+        cryptography_get_buffer(private_numbers->q, true, q_len, &bufinfo_q);
+
+        mbedtls_mpi Q;
+        mbedtls_mpi_init(&Q);
+        mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+
+        mp_buffer_info_t bufinfo_d;
+        int d_len = (mp_obj_get_int(int_bit_length(private_numbers->d)) + 7) / 8;
+        cryptography_get_buffer(private_numbers->d, true, d_len, &bufinfo_d);
+
+        mbedtls_mpi D;
+        mbedtls_mpi_init(&D);
+        mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+
+        mbedtls_pk_context pk;
+        mbedtls_pk_init(&pk);
+        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+        int ret = 1;
+        if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
+        {
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+        }
+
+        if ((ret = mbedtls_rsa_complete(rsa)) != 0)
+        {
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
+        }
+
+        vstr_t vstr_out;
+        vstr_init_len(&vstr_out, mp_obj_get_int(int_bit_length(public_numbers->n)) * 2);
+        if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_key_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
+        {
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes((const byte *)(vstr_out.buf + vstr_out.len - ret), ret);
+        }
+        else if (encoding == SERIALIZATION_ENCODING_PEM && (ret = mbedtls_pk_write_key_pem(&pk, (byte *)vstr_out.buf, vstr_out.len)) == 0)
+        {
+            ret = strlen((char *)vstr_out.buf);
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes((const byte *)vstr_out.buf, ret);
+        }
+    }
+
+    return mp_const_none;
+}
+
+STATIC mp_obj_t rsa_public_bytes(size_t n_args, const mp_obj_t *args)
+{
+    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
+    if (n_args == 1)
+    {
+        return rsa_key_dumps(self->public_numbers, MP_OBJ_NULL, mp_obj_new_int(SERIALIZATION_ENCODING_DER));
+    }
+    else if (n_args == 2)
+    {
+        return rsa_key_dumps(self->public_numbers, MP_OBJ_NULL, args[1]);
+    }
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_public_bytes_obj, 1, 2, rsa_public_bytes);
+
+STATIC void rsa_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(obj);
+    (void)self;
+
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_key_size)
+            {
+                dest[0] = int_bit_length(self->public_numbers->n);
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t rsa_public_key_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(&mod_rsa_public_numbers_obj)},
+    {MP_ROM_QSTR(MP_QSTR_public_bytes), MP_ROM_PTR(&mod_rsa_public_bytes_obj)},
+    {MP_ROM_QSTR(MP_QSTR_verify), MP_OBJ_FROM_PTR(&mod_rsa_verify_obj)},
+    {MP_ROM_QSTR(MP_QSTR_encrypt), MP_OBJ_FROM_PTR(&mod_rsa_encrypt_obj)},
+    {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(0)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(rsa_public_key_locals_dict, rsa_public_key_locals_dict_table);
+
+STATIC mp_obj_type_t rsa_public_key_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_RSAPublicKey,
+    .attr = rsa_public_key_attr,
+    .locals_dict = (void *)&rsa_public_key_locals_dict,
+};
+
+STATIC mp_obj_t rsa_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 2, 2, true);
+    mp_obj_t e = args[0];
+    mp_obj_t n = args[1];
+    if (!mp_obj_is_int(e))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED E int"));
+    }
+    if (!mp_obj_is_int(n))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED N int"));
+    }
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(e)) + 7) / 8;
+    cryptography_get_buffer(e, true, e_len, &bufinfo_e);
+
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(n)) + 7) / 8;
+    cryptography_get_buffer(n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+    int ret = 1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+    }
+
+    mp_rsa_public_numbers_t *RSAPublicNumbers = m_new_obj(mp_rsa_public_numbers_t);
+    RSAPublicNumbers->base.type = &rsa_public_numbers_type;
+    RSAPublicNumbers->e = e;
+    RSAPublicNumbers->n = n;
+
+    mp_rsa_public_key_t *RSAPublicKey = m_new_obj(mp_rsa_public_key_t);
+    RSAPublicKey->base.type = &rsa_public_key_type;
+    RSAPublicKey->public_bytes = mp_const_none;
+    RSAPublicKey->public_numbers = RSAPublicNumbers;
+
+    RSAPublicNumbers->public_key = RSAPublicKey;
+
+    return MP_OBJ_FROM_PTR(RSAPublicNumbers);
+}
+
+STATIC mp_obj_t rsa_public_numbers_public_key(mp_obj_t obj)
+{
+    mp_rsa_public_numbers_t *self = MP_OBJ_TO_PTR(obj);
+    return self->public_key;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_numbers_public_key_obj, rsa_public_numbers_public_key);
+
+STATIC void rsa_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_rsa_public_numbers_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_e)
+            {
+                dest[0] = self->e;
+                return;
+            }
+            if (attr == MP_QSTR_n)
+            {
+                dest[0] = self->n;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t rsa_public_numbers_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_n), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_e), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_rsa_public_numbers_public_key_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(rsa_public_numbers_locals_dict, rsa_public_numbers_locals_dict_table);
+
+STATIC mp_obj_type_t rsa_public_numbers_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_RSAPublicNumbers,
+    .make_new = rsa_public_numbers_make_new,
+    .attr = rsa_public_numbers_attr,
+    .locals_dict = (void *)&rsa_public_numbers_locals_dict,
+};
+
+STATIC mp_obj_t rsa_private_numbers(mp_obj_t obj)
+{
+    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(obj);
+    return self->private_numbers;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_private_numbers_obj, rsa_private_numbers);
+
+STATIC mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
+{
+    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
+    mp_obj_t ciphertext = args[1];
+    mp_obj_t padding = args[2];
+
+    (void)self;
+    (void)ciphertext;
+    (void)padding;
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_decrypt_obj, 3, 3, rsa_decrypt);
+
+STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
+{
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
+
+    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
+    mp_obj_t data = args[1];
+    mp_obj_t algorithm = args[2];
+    mp_obj_t padding = args[3];
+
+    (void)self;
+    (void)data;
+    (void)algorithm;
+    (void)padding;
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_sign_obj, 4, 4, rsa_sign);
+
+STATIC mp_obj_t rsa_private_bytes(size_t n_args, const mp_obj_t *args)
+{
+    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
+    if (n_args == 1)
+    {
+        return rsa_key_dumps(self->public_key->public_numbers, self->private_numbers, mp_obj_new_int(SERIALIZATION_ENCODING_DER));
+    }
+    else if (n_args == 2)
+    {
+        return rsa_key_dumps(self->public_key->public_numbers, self->private_numbers, args[1]);
+    }
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_private_bytes_obj, 1, 2, rsa_private_bytes);
+
+STATIC mp_obj_t rsa_public_key(mp_obj_t obj)
+{
+    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(obj);
+    return self->public_key;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_key_obj, rsa_public_key);
+
+STATIC void rsa_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(obj);
+    (void)self;
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_key_size)
+            {
+                dest[0] = mp_obj_new_int(0);
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t rsa_private_key_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_private_numbers), MP_ROM_PTR(&mod_rsa_private_numbers_obj)},
+    {MP_ROM_QSTR(MP_QSTR_decrypt), MP_ROM_PTR(&mod_rsa_decrypt_obj)},
+    {MP_ROM_QSTR(MP_QSTR_sign), MP_ROM_PTR(&mod_rsa_sign_obj)},
+    {MP_ROM_QSTR(MP_QSTR_private_bytes), MP_ROM_PTR(&mod_rsa_private_bytes_obj)},
+    {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_rsa_public_key_obj)},
+    {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(0)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(rsa_private_key_locals_dict, rsa_private_key_locals_dict_table);
+
+STATIC mp_obj_type_t rsa_private_key_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_RSAPrivateKey,
+    .attr = rsa_private_key_attr,
+    .locals_dict = (void *)&rsa_private_key_locals_dict,
+};
+
+STATIC mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+{
+    mp_arg_check_num(n_args, n_kw, 7, 7, true);
+    enum
+    {
+        ARG_p,
+        ARG_q,
+        ARG_d,
+        ARG_dmp1,
+        ARG_dmq1,
+        ARG_iqmp,
+        ARG_public_numbers
+    };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_p, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_q, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_d, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_dmp1, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_dmq1, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_iqmp, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_public_numbers, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_obj_t p = args[ARG_p].u_obj;
+    mp_obj_t q = args[ARG_q].u_obj;
+    mp_obj_t d = args[ARG_d].u_obj;
+    mp_obj_t dmp1 = args[ARG_dmp1].u_obj;
+    mp_obj_t dmq1 = args[ARG_dmq1].u_obj;
+    mp_obj_t iqmp = args[ARG_iqmp].u_obj;
+    mp_obj_t public_numbers = args[ARG_public_numbers].u_obj;
+
+    if (!mp_obj_is_int(p))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED P int"));
+    }
+    if (!mp_obj_is_int(q))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED Q int"));
+    }
+    if (!mp_obj_is_int(d))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED D int"));
+    }
+    if (!mp_obj_is_int(dmp1))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED DMP1 int"));
+    }
+    if (!mp_obj_is_int(dmq1))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED DMQ1 int"));
+    }
+    if (!mp_obj_is_int(iqmp))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED IQMP int"));
+    }
+    mp_rsa_public_numbers_t *RSAPublicNumbers = MP_OBJ_TO_PTR(public_numbers);
+    if (!mp_obj_is_type(RSAPublicNumbers, &rsa_public_numbers_type))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF rsa.RSAPublicNumbers"));
+    }
+
+    mp_buffer_info_t bufinfo_p;
+    int p_len = (mp_obj_get_int(int_bit_length(p)) + 7) / 8;
+    cryptography_get_buffer(p, true, p_len, &bufinfo_p);
+
+    mbedtls_mpi P;
+    mbedtls_mpi_init(&P);
+    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
+
+    mp_buffer_info_t bufinfo_q;
+    int q_len = (mp_obj_get_int(int_bit_length(q)) + 7) / 8;
+    cryptography_get_buffer(q, true, q_len, &bufinfo_q);
+
+    mbedtls_mpi Q;
+    mbedtls_mpi_init(&Q);
+    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+
+    mp_buffer_info_t bufinfo_d;
+    int d_len = (mp_obj_get_int(int_bit_length(d)) + 7) / 8;
+    cryptography_get_buffer(d, true, d_len, &bufinfo_d);
+
+    mbedtls_mpi D;
+    mbedtls_mpi_init(&D);
+    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+
+    mp_buffer_info_t bufinfo_dmp1;
+    int dmp1_len = (mp_obj_get_int(int_bit_length(dmp1)) + 7) / 8;
+    cryptography_get_buffer(dmp1, true, dmp1_len, &bufinfo_dmp1);
+
+    mbedtls_mpi DMP1;
+    mbedtls_mpi_init(&DMP1);
+    mbedtls_mpi_read_binary(&DMP1, (const byte *)bufinfo_dmp1.buf, bufinfo_dmp1.len);
+
+    mp_buffer_info_t bufinfo_dmq1;
+    int dmq1_len = (mp_obj_get_int(int_bit_length(dmq1)) + 7) / 8;
+    cryptography_get_buffer(dmq1, true, dmq1_len, &bufinfo_dmq1);
+
+    mbedtls_mpi DMQ1;
+    mbedtls_mpi_init(&DMQ1);
+    mbedtls_mpi_read_binary(&DMQ1, (const byte *)bufinfo_dmq1.buf, bufinfo_dmq1.len);
+
+    mp_buffer_info_t bufinfo_iqmp;
+    int iqmp_len = (mp_obj_get_int(int_bit_length(iqmp)) + 7) / 8;
+    cryptography_get_buffer(iqmp, true, iqmp_len, &bufinfo_iqmp);
+
+    mbedtls_mpi IQMP;
+    mbedtls_mpi_init(&IQMP);
+    mbedtls_mpi_read_binary(&IQMP, (const byte *)bufinfo_iqmp.buf, bufinfo_iqmp.len);
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+    int ret = 1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+    }
+
+    if ((ret = mbedtls_rsa_complete(rsa)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
+    }
+
+    if (mbedtls_mpi_cmp_mpi(&DMP1, &rsa->DP) != 0)
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("mbedtls_mpi_cmp_mpi DP"));
+    }
+
+    if (mbedtls_mpi_cmp_mpi(&DMQ1, &rsa->DQ) != 0)
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("mbedtls_mpi_cmp_mpi DQ"));
+    }
+
+    if (mbedtls_mpi_cmp_mpi(&IQMP, &rsa->QP) != 0)
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("mbedtls_mpi_cmp_mpi QP"));
+    }
+
+    mp_rsa_private_numbers_t *RSAPrivateNumbers = m_new_obj(mp_rsa_private_numbers_t);
+    RSAPrivateNumbers->base.type = &rsa_private_numbers_type;
+    RSAPrivateNumbers->public_numbers = RSAPublicNumbers;
+    RSAPrivateNumbers->p = p;
+    RSAPrivateNumbers->q = q;
+    RSAPrivateNumbers->d = d;
+    RSAPrivateNumbers->dmp1 = dmp1;
+    RSAPrivateNumbers->dmq1 = dmq1;
+    RSAPrivateNumbers->iqmp = iqmp;
+
+    mp_rsa_private_key_t *RSAPrivateKey = m_new_obj(mp_rsa_private_key_t);
+    RSAPrivateKey->base.type = &rsa_private_key_type;
+    RSAPrivateKey->private_bytes = mp_const_none;
+    RSAPrivateKey->private_numbers = RSAPrivateNumbers;
+    RSAPrivateKey->public_key = RSAPublicNumbers->public_key;
+
+    RSAPrivateNumbers->private_key = RSAPrivateKey;
+
+    return MP_OBJ_FROM_PTR(RSAPrivateNumbers);
+}
+
+STATIC mp_obj_t rsa_private_numbers_private_key(mp_obj_t obj)
+{
+    mp_rsa_private_numbers_t *self = MP_OBJ_TO_PTR(obj);
+    return self->private_key;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_private_numbers_private_key_obj, rsa_private_numbers_private_key);
+
+STATIC void rsa_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_rsa_private_numbers_t *self = MP_OBJ_TO_PTR(obj);
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_p)
+            {
+                dest[0] = self->p;
+                return;
+            }
+            if (attr == MP_QSTR_q)
+            {
+                dest[0] = self->q;
+                return;
+            }
+            if (attr == MP_QSTR_d)
+            {
+                dest[0] = self->d;
+                return;
+            }
+            if (attr == MP_QSTR_dmp1)
+            {
+                dest[0] = self->dmp1;
+                return;
+            }
+            if (attr == MP_QSTR_dmq1)
+            {
+                dest[0] = self->dmq1;
+                return;
+            }
+            if (attr == MP_QSTR_iqmp)
+            {
+                dest[0] = self->iqmp;
+                return;
+            }
+            if (attr == MP_QSTR_public_numbers)
+            {
+                dest[0] = self->public_numbers;
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t rsa_private_numbers_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_p), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_q), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_d), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_dmp1), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_dmq1), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_iqmp), MP_ROM_PTR(mp_const_none)},
+    {MP_ROM_QSTR(MP_QSTR_private_key), MP_ROM_PTR(&mod_rsa_private_numbers_private_key_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(rsa_private_numbers_locals_dict, rsa_private_numbers_locals_dict_table);
+
+STATIC mp_obj_type_t rsa_private_numbers_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_RSAPrivateNumbers,
+    .make_new = rsa_private_numbers_make_new,
+    .attr = rsa_private_numbers_attr,
+    .locals_dict = (void *)&rsa_private_numbers_locals_dict,
+};
+
+STATIC mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
+{
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(n)) + 7) / 8;
+    cryptography_get_buffer(n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(e)) + 7) / 8;
+    cryptography_get_buffer(e, true, e_len, &bufinfo_e);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mp_buffer_info_t bufinfo_d;
+    int d_len = (mp_obj_get_int(int_bit_length(d)) + 7) / 8;
+    cryptography_get_buffer(d, true, d_len, &bufinfo_d);
+
+    mbedtls_mpi D;
+    mbedtls_mpi_init(&D);
+    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+
+    mbedtls_mpi P;
+    mbedtls_mpi_init(&P);
+
+    mbedtls_mpi Q;
+    mbedtls_mpi_init(&Q);
+
+    if (mbedtls_rsa_deduce_primes(&N, &D, &E, &P, &Q) == 0)
+    {
+        vstr_t vstr_p;
+        vstr_init_len(&vstr_p, mbedtls_mpi_size(&P));
+        mbedtls_mpi_write_binary(&P, (byte *)vstr_p.buf, vstr_len(&vstr_p));
+
+        vstr_t vstr_q;
+        vstr_init_len(&vstr_q, mbedtls_mpi_size(&Q));
+        mbedtls_mpi_write_binary(&Q, (byte *)vstr_q.buf, vstr_len(&vstr_q));
+
+        mp_obj_t pq[2] = {
+            mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_p), (const byte *)vstr_p.buf),
+            mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_q), (const byte *)vstr_q.buf)};
+
+        mbedtls_mpi_free(&P);
+        mbedtls_mpi_free(&Q);
+
+        return mp_obj_new_tuple(2, pq);
+    }
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_rsa_recover_prime_factors_obj, rsa_recover_prime_factors);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_recover_prime_factors_obj, MP_ROM_PTR(&mod_rsa_recover_prime_factors_obj));
+
+STATIC const mp_rom_map_elem_t rsa_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_RSAPublicNumbers), MP_ROM_PTR(&rsa_public_numbers_type)},
+    {MP_ROM_QSTR(MP_QSTR_RSAPrivateNumbers), MP_ROM_PTR(&rsa_private_numbers_type)},
+    {MP_ROM_QSTR(MP_QSTR_rsa_recover_prime_factors), MP_ROM_PTR(&mod_static_rsa_recover_prime_factors_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(rsa_locals_dict, rsa_locals_dict_table);
+
+STATIC mp_obj_type_t rsa_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_rsa,
+    .locals_dict = (void *)&rsa_locals_dict,
+};
+
 STATIC mp_obj_t ed25519_private_key_generate(void)
 {
     mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
@@ -3899,6 +4699,7 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR(&exceptions_type)},
     {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
     {MP_ROM_QSTR(MP_QSTR_hmac), MP_ROM_PTR(&hmac_type)},
+    {MP_ROM_QSTR(MP_QSTR_rsa), MP_ROM_PTR(&rsa_type)},
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
     {MP_ROM_QSTR(MP_QSTR_utils), MP_ROM_PTR(&utils_type)},
 #if defined(MBEDTLS_VERSION_C)
