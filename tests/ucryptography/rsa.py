@@ -33,6 +33,9 @@ def main():
     print("dmp1", private_numbers.dmp1)
     print("dmq1", private_numbers.dmq1)
 
+    print("IQMP", rsa.rsa_crt_iqmp(private_numbers.p, private_numbers.q))
+    print("DMP1", rsa.rsa_crt_dmp1(private_numbers.d, private_numbers.p))
+    print("DMQ1", rsa.rsa_crt_dmq1(private_numbers.d, private_numbers.q))
     print(
         "P, Q",
         rsa.rsa_recover_prime_factors(

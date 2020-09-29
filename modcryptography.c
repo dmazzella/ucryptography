@@ -213,7 +213,7 @@ typedef struct _mp_ec_curve_t
 typedef struct _mp_ec_public_numbers_t
 {
     mp_obj_base_t base;
-    mp_ec_curve_t *curve;
+    struct _mp_ec_curve_t *curve;
     mp_obj_t x;
     mp_obj_t y;
     struct _mp_ec_public_key_t *public_key;
@@ -222,7 +222,7 @@ typedef struct _mp_ec_public_numbers_t
 typedef struct _mp_ec_private_numbers_t
 {
     mp_obj_base_t base;
-    mp_ec_public_numbers_t *public_numbers;
+    struct _mp_ec_public_numbers_t *public_numbers;
     mp_obj_t private_value;
     struct _mp_ec_private_key_t *private_key;
 } mp_ec_private_numbers_t;
@@ -230,16 +230,16 @@ typedef struct _mp_ec_private_numbers_t
 typedef struct _mp_ec_public_key_t
 {
     mp_obj_base_t base;
-    mp_ec_public_numbers_t *public_numbers;
+    struct _mp_ec_public_numbers_t *public_numbers;
     mp_obj_t public_bytes;
 } mp_ec_public_key_t;
 
 typedef struct _mp_ec_private_key_t
 {
     mp_obj_base_t base;
-    mp_ec_curve_t *curve;
-    mp_ec_private_numbers_t *private_numbers;
-    mp_ec_public_key_t *public_key;
+    struct _mp_ec_curve_t *curve;
+    struct _mp_ec_private_numbers_t *private_numbers;
+    struct _mp_ec_public_key_t *public_key;
     mp_obj_t private_bytes;
 } mp_ec_private_key_t;
 
@@ -252,7 +252,7 @@ typedef struct _mp_ed25519_public_key_t
 typedef struct _mp_ed25519_private_key_t
 {
     mp_obj_base_t base;
-    mp_ed25519_public_key_t *public_key;
+    struct _mp_ed25519_public_key_t *public_key;
     mp_obj_t private_bytes;
 } mp_ed25519_private_key_t;
 
@@ -280,15 +280,15 @@ typedef struct _mp_rsa_private_numbers_t
 typedef struct _mp_rsa_public_key_t
 {
     mp_obj_base_t base;
-    mp_rsa_public_numbers_t *public_numbers;
+    struct _mp_rsa_public_numbers_t *public_numbers;
     mp_obj_t public_bytes;
 } mp_rsa_public_key_t;
 
 typedef struct _mp_rsa_private_key_t
 {
     mp_obj_base_t base;
-    mp_rsa_private_numbers_t *private_numbers;
-    mp_rsa_public_key_t *public_key;
+    struct _mp_rsa_private_numbers_t *private_numbers;
+    struct _mp_rsa_public_key_t *public_key;
     mp_obj_t private_bytes;
 } mp_rsa_private_key_t;
 
@@ -301,7 +301,7 @@ typedef struct _mp_hash_algorithm_t
 typedef struct _mp_hash_context_t
 {
     mp_obj_base_t base;
-    mp_hash_algorithm_t *algorithm;
+    struct _mp_hash_algorithm_t *algorithm;
     mp_obj_t data;
     bool finalized;
 } mp_hash_context_t;
@@ -311,7 +311,7 @@ typedef struct _mp_hmac_context_t
     mp_obj_base_t base;
     mp_obj_t key;
     mp_obj_t data;
-    mp_hash_context_t *hash_context;
+    struct _mp_hash_context_t *hash_context;
     bool finalized;
 } mp_hmac_context_t;
 
@@ -326,10 +326,11 @@ typedef struct _mp_x509_certificate_t
     mp_obj_t issuer;
     mp_obj_t signature;
     mp_obj_t signature_algorithm_oid;
-    mp_hash_algorithm_t *signature_hash_algorithm;
+    struct _mp_hash_algorithm_t *signature_hash_algorithm;
     mp_obj_t extensions;
     mp_obj_t public_bytes;
-    mp_ec_public_key_t *public_key;
+    struct _mp_ec_public_key_t *ec_public_key;
+    struct _mp_rsa_public_key_t *rsa_public_key;
     mp_obj_t tbs_certificate_bytes;
 } mp_x509_certificate_t;
 
@@ -362,7 +363,7 @@ typedef struct _mp_ciphers_modes_gcm_t
 typedef struct _mp_ciphers_cipher_t
 {
     mp_obj_base_t base;
-    mp_ciphers_algorithms_aes_t *algorithm;
+    struct _mp_ciphers_algorithms_aes_t *algorithm;
     mp_obj_t mode;
     int mode_type;
     struct _mp_ciphers_cipher_encryptor_t *encryptor;
@@ -372,7 +373,7 @@ typedef struct _mp_ciphers_cipher_t
 typedef struct _mp_ciphers_cipher_encryptor_t
 {
     mp_obj_base_t base;
-    mp_ciphers_cipher_t *cipher;
+    struct _mp_ciphers_cipher_t *cipher;
     mp_obj_t data;
     mp_obj_t aadata;
     bool finalized;
@@ -381,7 +382,7 @@ typedef struct _mp_ciphers_cipher_encryptor_t
 typedef struct _mp_ciphers_cipher_decryptor_t
 {
     mp_obj_base_t base;
-    mp_ciphers_cipher_t *cipher;
+    struct _mp_ciphers_cipher_t *cipher;
     mp_obj_t data;
     mp_obj_t aadata;
     bool finalized;
@@ -395,13 +396,13 @@ typedef struct _mp_ec_ecdh_t
 typedef struct _mp_ec_ecdsa_t
 {
     mp_obj_base_t base;
-    mp_hash_algorithm_t *algorithm;
+    struct _mp_hash_algorithm_t *algorithm;
 } mp_ec_ecdsa_t;
 
 typedef struct _mp_util_prehashed_t
 {
     mp_obj_base_t base;
-    mp_hash_algorithm_t *algorithm;
+    struct _mp_hash_algorithm_t *algorithm;
 } mp_util_prehashed_t;
 
 typedef struct _mp_util_block_device_t
@@ -1928,6 +1929,11 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
 }
 
+STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
+{
+    return mp_const_none;
+}
+
 STATIC void hash_algorithm_prehashed_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_util_prehashed_t *self = MP_OBJ_TO_PTR(obj);
@@ -2518,7 +2524,7 @@ STATIC mp_obj_type_t hmac_type = {
 STATIC mp_obj_t x509_public_key(mp_obj_t obj)
 {
     mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
-    return self->public_key;
+    return self->ec_public_key;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_public_key_obj, x509_public_key);
@@ -2532,7 +2538,7 @@ STATIC mp_obj_t x509_public_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        return ec_key_dumps(self->public_bytes, mp_const_none, args[1], self->public_key->public_numbers->curve->ecp_group_id);
+        return ec_key_dumps(self->public_bytes, mp_const_none, args[1], self->ec_public_key->public_numbers->curve->ecp_group_id);
     }
     return mp_const_none;
 }
@@ -2774,11 +2780,11 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ONLY SHA256, SHA384 or SHA512 are SUPPORTED"));
     }
 
-    if (crt.sig_pk != MBEDTLS_PK_ECDSA)
+    if (crt.sig_pk != MBEDTLS_PK_ECDSA && crt.sig_pk != MBEDTLS_PK_RSA)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError(MP_ERROR_TEXT("ONLY ECDSA IS SUPPORTED"));
+        mp_raise_ValueError(MP_ERROR_TEXT("ONLY ECDSA AND RSA ARE SUPPORTED"));
     }
 
     mp_obj_t extensions = mp_obj_new_dict(0);
@@ -2840,15 +2846,22 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("PUBLIC KEY"));
     }
 
-    if (mbedtls_pk_get_type(&pk) != MBEDTLS_PK_ECKEY)
+    if (mbedtls_pk_get_type(&pk) == MBEDTLS_PK_ECKEY)
+    {
+        Certificate->ec_public_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
+        Certificate->public_bytes = Certificate->ec_public_key->public_bytes;
+    }
+    else if (mbedtls_pk_get_type(&pk) == MBEDTLS_PK_RSA)
+    {
+        Certificate->rsa_public_key = rsa_parse_keypair(mbedtls_pk_rsa(pk), false);
+        Certificate->public_bytes = Certificate->rsa_public_key->public_bytes;
+    }
+    else
     {
         mbedtls_pk_free(&pk);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("ONLY EC KEY IS SUPPORTED"));
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("ONLY EC OR RSA KEY ARE SUPPORTED"));
     }
-
-    Certificate->public_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
-    Certificate->public_bytes = Certificate->public_key->public_bytes;
 
     mbedtls_pk_free(&pk);
     mbedtls_x509_crt_free(&crt);
@@ -3745,6 +3758,146 @@ STATIC mp_obj_type_t rsa_private_numbers_type = {
     .locals_dict = (void *)&rsa_private_numbers_locals_dict,
 };
 
+STATIC mp_obj_t rsa_crt_iqmp(mp_obj_t p, mp_obj_t q)
+{
+    mp_buffer_info_t bufinfo_p;
+    int p_len = (mp_obj_get_int(int_bit_length(p)) + 7) / 8;
+    cryptography_get_buffer(p, true, p_len, &bufinfo_p);
+
+    mbedtls_mpi P;
+    mbedtls_mpi_init(&P);
+    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
+
+    mp_buffer_info_t bufinfo_q;
+    int q_len = (mp_obj_get_int(int_bit_length(q)) + 7) / 8;
+    cryptography_get_buffer(q, true, q_len, &bufinfo_q);
+
+    mbedtls_mpi Q;
+    mbedtls_mpi_init(&Q);
+    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_lset(&E, 65537);
+
+    mbedtls_mpi D;
+    mbedtls_mpi_init(&D);
+
+    int ret = 1;
+    if ((ret = mbedtls_rsa_deduce_private_exponent(&P, &Q, &E, &D)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_deduce_private_exponent"));
+    }
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+    if ((ret = mbedtls_rsa_import(rsa, NULL, &P, &Q, &D, &E)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+    }
+
+    if ((ret = mbedtls_rsa_complete(rsa)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
+    }
+
+    if (mbedtls_mpi_cmp_int(&rsa->QP, 0) != 0)
+    {
+        vstr_t vstr_pq;
+        vstr_init_len(&vstr_pq, mbedtls_mpi_size(&rsa->QP));
+        mbedtls_mpi_write_binary(&rsa->QP, (byte *)vstr_pq.buf, vstr_len(&vstr_pq));
+        return mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_pq), (const byte *)vstr_pq.buf);
+    }
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_iqmp_obj, rsa_crt_iqmp);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_iqmp_obj, MP_ROM_PTR(&mod_rsa_crt_iqmp_obj));
+
+STATIC mp_obj_t rsa_crt_dmp1(mp_obj_t d, mp_obj_t p)
+{
+    mp_buffer_info_t bufinfo_d;
+    int d_len = (mp_obj_get_int(int_bit_length(d)) + 7) / 8;
+    cryptography_get_buffer(d, true, d_len, &bufinfo_d);
+
+    mbedtls_mpi D;
+    mbedtls_mpi_init(&D);
+    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+
+    mp_buffer_info_t bufinfo_p;
+    int p_len = (mp_obj_get_int(int_bit_length(p)) + 7) / 8;
+    cryptography_get_buffer(p, true, p_len, &bufinfo_p);
+
+    mbedtls_mpi P;
+    mbedtls_mpi_init(&P);
+    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
+
+    mbedtls_mpi Psub1;
+    mbedtls_mpi_init(&Psub1);
+    mbedtls_mpi_sub_int(&Psub1, &P, 1);
+
+    mbedtls_mpi DP;
+    mbedtls_mpi_init(&DP);
+    mbedtls_mpi_mod_mpi(&DP, &D, &Psub1);
+
+    if (mbedtls_mpi_cmp_int(&DP, 0) != 0)
+    {
+        vstr_t vstr_dmp1;
+        vstr_init_len(&vstr_dmp1, mbedtls_mpi_size(&DP));
+        mbedtls_mpi_write_binary(&DP, (byte *)vstr_dmp1.buf, vstr_len(&vstr_dmp1));
+        return mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_dmp1), (const byte *)vstr_dmp1.buf);
+    }
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_dmp1_obj, rsa_crt_dmp1);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_dmp1_obj, MP_ROM_PTR(&mod_rsa_crt_dmp1_obj));
+
+STATIC mp_obj_t rsa_crt_dmq1(mp_obj_t d, mp_obj_t q)
+{
+    mp_buffer_info_t bufinfo_d;
+    int d_len = (mp_obj_get_int(int_bit_length(d)) + 7) / 8;
+    cryptography_get_buffer(d, true, d_len, &bufinfo_d);
+
+    mbedtls_mpi D;
+    mbedtls_mpi_init(&D);
+    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+
+    mp_buffer_info_t bufinfo_q;
+    int q_len = (mp_obj_get_int(int_bit_length(q)) + 7) / 8;
+    cryptography_get_buffer(q, true, q_len, &bufinfo_q);
+
+    mbedtls_mpi Q;
+    mbedtls_mpi_init(&Q);
+    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+
+    mbedtls_mpi Qsub1;
+    mbedtls_mpi_init(&Qsub1);
+    mbedtls_mpi_sub_int(&Qsub1, &Q, 1);
+
+    mbedtls_mpi DQ;
+    mbedtls_mpi_init(&DQ);
+    mbedtls_mpi_mod_mpi(&DQ, &D, &Qsub1);
+
+    if (mbedtls_mpi_cmp_int(&DQ, 0) != 0)
+    {
+        vstr_t vstr_dmq1;
+        vstr_init_len(&vstr_dmq1, mbedtls_mpi_size(&DQ));
+        mbedtls_mpi_write_binary(&DQ, (byte *)vstr_dmq1.buf, vstr_len(&vstr_dmq1));
+        return mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_dmq1), (const byte *)vstr_dmq1.buf);
+    }
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_dmq1_obj, rsa_crt_dmq1);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_dmq1_obj, MP_ROM_PTR(&mod_rsa_crt_dmq1_obj));
+
 STATIC mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
 {
     mp_buffer_info_t bufinfo_n;
@@ -3806,6 +3959,9 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_recover_prime_factors_obj
 STATIC const mp_rom_map_elem_t rsa_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_RSAPublicNumbers), MP_ROM_PTR(&rsa_public_numbers_type)},
     {MP_ROM_QSTR(MP_QSTR_RSAPrivateNumbers), MP_ROM_PTR(&rsa_private_numbers_type)},
+    {MP_ROM_QSTR(MP_QSTR_rsa_crt_iqmp), MP_ROM_PTR(&mod_static_rsa_crt_iqmp_obj)},
+    {MP_ROM_QSTR(MP_QSTR_rsa_crt_dmp1), MP_ROM_PTR(&mod_static_rsa_crt_dmp1_obj)},
+    {MP_ROM_QSTR(MP_QSTR_rsa_crt_dmq1), MP_ROM_PTR(&mod_static_rsa_crt_dmq1_obj)},
     {MP_ROM_QSTR(MP_QSTR_rsa_recover_prime_factors), MP_ROM_PTR(&mod_static_rsa_recover_prime_factors_obj)},
 };
 
