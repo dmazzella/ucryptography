@@ -2,7 +2,7 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from cryptography import x509, hashes, serialization
+from cryptography import x509, hashes, serialization, utils, ec
 
 try:
     from util import loads_sequence
@@ -100,13 +100,18 @@ def main():
     )
     print(
         "public_key.public_bytes PEM",
-        certificate.public_bytes(serialization.Encoding.PEM),
+        certificate.public_bytes(serialization.Encoding.PEM).decode(),
     )
 
-    digest = hashes.Hash(certificate.signature_hash_algorithm)
+    chosen_hash = certificate.signature_hash_algorithm
+    digest = hashes.Hash(chosen_hash)
     digest.update(certificate.tbs_certificate_bytes)
     tbs_certificate_hash = digest.finalize()
-    public_key.verify(certificate.signature, tbs_certificate_hash)
+    public_key.verify(
+        certificate.signature,
+        tbs_certificate_hash,
+        ec.ECDSA(utils.Prehashed(chosen_hash)),
+    )
 
 
 if __name__ == "__main__":

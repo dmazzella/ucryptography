@@ -72,16 +72,17 @@ def main():
         public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        ),
+        ).decode(),
     )
 
-    digest = hashes.Hash(hashes.SHA256(), default_backend())
+    chosen_hash = certificate.signature_hash_algorithm
+    digest = hashes.Hash(chosen_hash, default_backend())
     digest.update(certificate.tbs_certificate_bytes)
     tbs_certificate_hash = digest.finalize()
     public_key.verify(
         certificate.signature,
         tbs_certificate_hash,
-        ec.ECDSA(utils.Prehashed(hashes.SHA256())),
+        ec.ECDSA(utils.Prehashed(chosen_hash)),
     )
 
 
