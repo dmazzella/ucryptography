@@ -2,7 +2,7 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from cryptography import rsa, serialization
+from cryptography import rsa, serialization, hashes, padding, utils
 
 
 def main():
@@ -53,6 +53,122 @@ def main():
         private_key = private_numbers.private_key()
         print("DER", private_key.private_bytes(serialization.Encoding.DER))
         print("PEM", private_key.private_bytes(serialization.Encoding.PEM).decode())
+
+        chosen_hash = hashes.SHA256()
+
+        message = b"A message I want to sign"
+        signature = private_key.sign(
+            message,
+            padding.PSS(
+                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
+            ),
+            chosen_hash,
+        )
+        print("PSS signature", signature)
+
+        public_key = private_key.public_key()
+        public_key.verify(
+            signature,
+            message,
+            padding.PSS(
+                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
+            ),
+            chosen_hash,
+        )
+
+        hasher = hashes.Hash(chosen_hash)
+        hasher.update(b"data & ")
+        hasher.update(b"more data")
+        digest = hasher.finalize()
+        prehashed_signature = private_key.sign(
+            digest,
+            padding.PSS(
+                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
+            ),
+            utils.Prehashed(chosen_hash),
+        )
+        print("PSS prehashed_signature", prehashed_signature)
+
+        hasher = hashes.Hash(chosen_hash)
+        hasher.update(b"data & ")
+        hasher.update(b"more data")
+        digest = hasher.finalize()
+
+        public_key.verify(
+            prehashed_signature,
+            digest,
+            padding.PSS(
+                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
+            ),
+            utils.Prehashed(chosen_hash),
+        )
+
+        message = b"A message I want to sign"
+        signature = private_key.sign(
+            message,
+            padding.PKCS1v15(),
+            chosen_hash,
+        )
+        print("PKCS1v15 signature", signature)
+
+        public_key.verify(
+            signature,
+            message,
+            padding.PKCS1v15(),
+            chosen_hash,
+        )
+
+        hasher = hashes.Hash(chosen_hash)
+        hasher.update(b"data & ")
+        hasher.update(b"more data")
+        digest = hasher.finalize()
+        prehashed_signature = private_key.sign(
+            digest,
+            padding.PKCS1v15(),
+            utils.Prehashed(chosen_hash),
+        )
+        print("PKCS1v15 prehashed_signature", prehashed_signature)
+
+        public_key.verify(
+            prehashed_signature,
+            digest,
+            padding.PKCS1v15(),
+            utils.Prehashed(chosen_hash),
+        )
+
+        message = b"encrypted data"
+        ciphertext = public_key.encrypt(
+            message,
+            padding.OAEP(
+                mgf=padding.MGF1(chosen_hash),
+                algorithm=chosen_hash,
+                label=None
+            )
+        )
+        print("OAEP ciphertext", ciphertext)
+
+        plaintext = private_key.decrypt(
+            ciphertext,
+            padding.OAEP(
+                mgf=padding.MGF1(chosen_hash),
+                algorithm=chosen_hash,
+                label=None
+            )
+        )
+        print("OAEP plaintext == message", plaintext == message)
+
+        message = b"encrypted data"
+        ciphertext = public_key.encrypt(
+            message,
+            padding.PKCS1v15()
+        )
+        print("PKCS1v15 ciphertext", ciphertext)
+
+        plaintext = private_key.decrypt(
+            ciphertext,
+            padding.PKCS1v15()
+        )
+        print("PKCS1v15 plaintext == message", plaintext == message)
 
     def generate():
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)

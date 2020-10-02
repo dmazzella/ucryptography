@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Damiano Mazzella
+ * Copyright (c) 2019-2020 Damiano Mazzella
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -15,12 +15,12 @@
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY of ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES of MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * LIABILITY, WHETHER IN AN ACTION of CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT of OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
 
@@ -197,6 +197,10 @@ struct _mp_ciphers_modes_cbc_t;
 struct _mp_ciphers_modes_gcm_t;
 struct _mp_util_prehashed_t;
 struct _mp_util_block_device_t;
+struct _mp_padding_pkcs1v15_t;
+struct _mp_padding_pss_t;
+struct _mp_padding_oaep_t;
+struct _mp_padding_mgf1_t;
 
 typedef struct _mp_ec_curve_t
 {
@@ -413,6 +417,36 @@ typedef struct _mp_util_block_device_t
     vstr_t *data;
 } mp_util_block_device_t;
 
+typedef struct _mp_padding_pkcs1v15_t
+{
+    mp_obj_base_t base;
+    mp_obj_t name;
+} mp_padding_pkcs1v15_t;
+
+typedef struct _mp_padding_pss_t
+{
+    mp_obj_base_t base;
+    mp_obj_t name;
+    struct _mp_padding_mgf1_t *mgf;
+    mp_int_t salt_length;
+    mp_int_t max_length;
+} mp_padding_pss_t;
+
+typedef struct _mp_padding_oaep_t
+{
+    mp_obj_base_t base;
+    mp_obj_t name;
+    struct _mp_padding_mgf1_t *mgf;
+    struct _mp_hash_algorithm_t *algorithm;
+    mp_obj_t label;
+} mp_padding_oaep_t;
+
+typedef struct _mp_padding_mgf1_t
+{
+    mp_obj_base_t base;
+    struct _mp_hash_algorithm_t *algorithm;
+} mp_padding_mgf1_t;
+
 enum
 {
     CIPHER_MODE_CBC = 1,
@@ -470,6 +504,10 @@ STATIC mp_obj_type_t ciphers_algorithms_aes_type;
 STATIC mp_obj_type_t ciphers_modes_cbc_type;
 STATIC mp_obj_type_t ciphers_modes_gcm_type;
 STATIC mp_obj_type_t utils_block_device_type;
+STATIC mp_obj_type_t padding_pkcs1v15_type;
+STATIC mp_obj_type_t padding_pss_type;
+STATIC mp_obj_type_t padding_oaep_type;
+STATIC mp_obj_type_t padding_mgf1_type;
 
 #if defined(MBEDTLS_GCM_ALT) || defined(MBEDTLS_AES_ALT)
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef *hcryp)
@@ -838,7 +876,7 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
 #endif
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
 
     mp_ec_ecdsa_t *ECDSA = m_new_obj(mp_ec_ecdsa_t);
@@ -899,12 +937,12 @@ STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t enc
 {
     if (!mp_obj_is_int(encoding_o))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED encoding int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected encoding int"));
     }
     mp_int_t encoding = mp_obj_get_int(encoding_o);
     if (encoding != SERIALIZATION_ENCODING_DER && encoding != SERIALIZATION_ENCODING_PEM)
     {
-        mp_raise_ValueError(MP_ERROR_TEXT("EXPECTED encoding value 1 (DER) or 2 (PEM)"));
+        mp_raise_ValueError(MP_ERROR_TEXT("Expected encoding value 1 (DER) or 2 (PEM)"));
     }
 
     vstr_t vstr_out;
@@ -1290,11 +1328,11 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(args[2]);
     if (!mp_obj_is_int(x))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED X int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected X int"));
     }
     if (!mp_obj_is_int(y))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED Y int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Y int"));
     }
     if (
         !mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)
@@ -1306,7 +1344,7 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
 #endif
     )
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of ec curve"));
     }
 
     mp_obj_t s2b_x = cryptography_small_to_big_int(x);
@@ -1404,11 +1442,11 @@ STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_
     mp_ec_public_numbers_t *EllipticCurvePublicNumbers = MP_OBJ_TO_PTR(args[1]);
     if (!mp_obj_is_int(private_value))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED private_value int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected private_value int"));
     }
     if (!mp_obj_is_type(EllipticCurvePublicNumbers, &ec_public_numbers_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.EllipticCurvePublicNumbers"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of ec.EllipticCurvePublicNumbers"));
     }
 
     mbedtls_ecp_group grp;
@@ -1501,7 +1539,7 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 
     if (!mp_obj_is_type(ecdsa_obj, &ec_ecdsa_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.ECDSA"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of ec.ECDSA"));
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
@@ -1511,7 +1549,7 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 #endif
         && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
 
     vstr_t vstr_digest;
@@ -1648,7 +1686,7 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
 
     if (!mp_obj_is_type(ecdsa_obj, &ec_ecdsa_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.ECDSA"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of ec.ECDSA"));
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
@@ -1658,7 +1696,7 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
 #endif
         && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512 or util.Prehashed"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
 
     vstr_t vstr_digest;
@@ -1746,12 +1784,12 @@ STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
 
     if (n_args == 3 && !mp_obj_is_type(args[1], &ec_ecdh_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.ECDH"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of ec.ECDH"));
     }
 
     if (!mp_obj_is_type(peer_public_key_o, &ec_public_key_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.EllipticCurvePublicKey"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of ec.EllipticCurvePublicKey"));
     }
 
     mp_buffer_info_t bufinfo_private_bytes;
@@ -1929,6 +1967,121 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
 }
 
+STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_private_numbers_t *private_numbers, mp_obj_t encoding_o)
+{
+    if (!mp_obj_is_int(encoding_o))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected encoding int"));
+    }
+    mp_int_t encoding = mp_obj_get_int(encoding_o);
+    if (encoding != SERIALIZATION_ENCODING_DER && encoding != SERIALIZATION_ENCODING_PEM)
+    {
+        mp_raise_ValueError(MP_ERROR_TEXT("Expected encoding value 1 (DER) or 2 (PEM)"));
+    }
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(public_numbers->e)) + 7) / 8;
+    cryptography_get_buffer(public_numbers->e, true, e_len, &bufinfo_e);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(public_numbers->n)) + 7) / 8;
+    cryptography_get_buffer(public_numbers->n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    if (public_numbers != MP_OBJ_NULL && private_numbers == MP_OBJ_NULL)
+    {
+        mbedtls_pk_context pk;
+        mbedtls_pk_init(&pk);
+        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+        int ret = 1;
+        if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) != 0)
+        {
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+        }
+
+        vstr_t vstr_out;
+        vstr_init_len(&vstr_out, mp_obj_get_int(int_bit_length(public_numbers->n)) * 2);
+        if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_pubkey_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
+        {
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes((const byte *)(vstr_out.buf + vstr_out.len - ret), ret);
+        }
+        else if (encoding == SERIALIZATION_ENCODING_PEM && (ret = mbedtls_pk_write_pubkey_pem(&pk, (byte *)vstr_out.buf, vstr_out.len)) == 0)
+        {
+            ret = strlen((char *)vstr_out.buf);
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes((const byte *)vstr_out.buf, ret);
+        }
+    }
+    else if (public_numbers != MP_OBJ_NULL && private_numbers != MP_OBJ_NULL)
+    {
+        mp_buffer_info_t bufinfo_p;
+        int p_len = (mp_obj_get_int(int_bit_length(private_numbers->p)) + 7) / 8;
+        cryptography_get_buffer(private_numbers->p, true, p_len, &bufinfo_p);
+
+        mbedtls_mpi P;
+        mbedtls_mpi_init(&P);
+        mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
+
+        mp_buffer_info_t bufinfo_q;
+        int q_len = (mp_obj_get_int(int_bit_length(private_numbers->q)) + 7) / 8;
+        cryptography_get_buffer(private_numbers->q, true, q_len, &bufinfo_q);
+
+        mbedtls_mpi Q;
+        mbedtls_mpi_init(&Q);
+        mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+
+        mp_buffer_info_t bufinfo_d;
+        int d_len = (mp_obj_get_int(int_bit_length(private_numbers->d)) + 7) / 8;
+        cryptography_get_buffer(private_numbers->d, true, d_len, &bufinfo_d);
+
+        mbedtls_mpi D;
+        mbedtls_mpi_init(&D);
+        mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+
+        mbedtls_pk_context pk;
+        mbedtls_pk_init(&pk);
+        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+        int ret = 1;
+        if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
+        {
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+        }
+
+        if ((ret = mbedtls_rsa_complete(rsa)) != 0)
+        {
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
+        }
+
+        vstr_t vstr_out;
+        vstr_init_len(&vstr_out, mp_obj_get_int(int_bit_length(public_numbers->n)) * 2);
+        if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_key_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
+        {
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes((const byte *)(vstr_out.buf + vstr_out.len - ret), ret);
+        }
+        else if (encoding == SERIALIZATION_ENCODING_PEM && (ret = mbedtls_pk_write_key_pem(&pk, (byte *)vstr_out.buf, vstr_out.len)) == 0)
+        {
+            ret = strlen((char *)vstr_out.buf);
+            mbedtls_pk_free(&pk);
+            return mp_obj_new_bytes((const byte *)vstr_out.buf, ret);
+        }
+    }
+
+    return mp_const_none;
+}
+
 STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
 {
     vstr_t vstr_n;
@@ -1948,7 +2101,7 @@ STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
 
     mp_rsa_public_key_t *RSAPublicKey = m_new_obj(mp_rsa_public_key_t);
     RSAPublicKey->base.type = &rsa_public_key_type;
-    RSAPublicKey->public_bytes = mp_const_none;
+    RSAPublicKey->public_bytes = rsa_key_dumps(RSAPublicNumbers, MP_OBJ_NULL, mp_obj_new_int(SERIALIZATION_ENCODING_DER));
     RSAPublicKey->public_numbers = RSAPublicNumbers;
 
     RSAPublicNumbers->public_key = RSAPublicKey;
@@ -1997,7 +2150,7 @@ STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
 
         mp_rsa_private_key_t *RSAPrivateKey = m_new_obj(mp_rsa_private_key_t);
         RSAPrivateKey->base.type = &rsa_private_key_type;
-        RSAPrivateKey->private_bytes = mp_const_none;
+        RSAPrivateKey->private_bytes = rsa_key_dumps(RSAPublicNumbers->public_key->public_numbers, RSAPrivateNumbers, mp_obj_new_int(SERIALIZATION_ENCODING_DER));
         RSAPrivateKey->private_numbers = RSAPrivateNumbers;
         RSAPrivateKey->public_key = RSAPublicNumbers->public_key;
 
@@ -2061,7 +2214,7 @@ STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 #endif
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384, hashes.SHA512"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
 
     mp_util_prehashed_t *Prehashed = m_new_obj(mp_util_prehashed_t);
@@ -2308,7 +2461,7 @@ STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, 
 #endif
         && !mp_obj_is_type(args[0], &hash_algorithm_sha512_type))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384 or hashes.SHA512"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
     mp_hash_context_t *HashContext = m_new_obj(mp_hash_context_t);
     HashContext->base.type = &hash_context_type;
@@ -2448,7 +2601,7 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     mp_arg_check_num(n_args, n_kw, 2, 2, false);
     if (!mp_obj_is_type(args[0], &mp_type_bytes))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED key bytes"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected key bytes"));
     }
     if (!mp_obj_is_type(args[1], &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
@@ -2456,7 +2609,7 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
 #endif
         && !mp_obj_is_type(args[1], &hash_algorithm_sha512_type))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("EXPECTED INSTANCE OF hashes.SHA256, hashes.SHA384 or hashes.SHA512"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
 
     mp_hash_context_t *HashContext = m_new_obj(mp_hash_context_t);
@@ -2734,7 +2887,7 @@ STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_
 
         if (((value << 7) >> 7) != value)
         {
-            mp_raise_ValueError(MP_ERROR_TEXT("OID BUF TOO SMALL"));
+            mp_raise_ValueError(MP_ERROR_TEXT("oid buf too small"));
         }
 
         value <<= 7;
@@ -2845,7 +2998,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError(MP_ERROR_TEXT("CERTIFICATE FORMAT"));
+        mp_raise_ValueError(MP_ERROR_TEXT("Certificate format"));
     }
 
     if ((crt.sig_md != MBEDTLS_MD_SHA256)
@@ -2856,14 +3009,14 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ONLY SHA256, SHA384 or SHA512 are SUPPORTED"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("only SHA256, SHA384 or SHA512 are supported"));
     }
 
     if (crt.sig_pk != MBEDTLS_PK_ECDSA && crt.sig_pk != MBEDTLS_PK_RSA)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_ValueError(MP_ERROR_TEXT("ONLY ECDSA AND RSA ARE SUPPORTED"));
+        mp_raise_ValueError(MP_ERROR_TEXT("only ECDSA and RSA are supported"));
     }
 
     mp_obj_t extensions = mp_obj_new_dict(0);
@@ -2922,7 +3075,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         mbedtls_pk_free(&pk);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("PUBLIC KEY"));
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("public key"));
     }
 
     if (mbedtls_pk_get_type(&pk) == MBEDTLS_PK_ECKEY)
@@ -2939,7 +3092,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         mbedtls_pk_free(&pk);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("ONLY EC OR RSA KEY ARE SUPPORTED"));
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("only EC or RSA kes are supported"));
     }
 
     mbedtls_pk_free(&pk);
@@ -2973,7 +3126,7 @@ STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
     if (mbedtls_pk_parse_public_key(&pk, (const byte *)bufinfo.buf, bufinfo.len) != 0)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("PUBLIC KEY"));
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("public key"));
     }
 
     if (mbedtls_pk_get_type(&pk) == MBEDTLS_PK_ECKEY)
@@ -2991,7 +3144,7 @@ STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
     else
     {
         mbedtls_pk_free(&pk);
-        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("ONLY EC OR RSA KEY ARE SUPPORTED"));
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("only EC or RSA key are supported"));
     }
 
     return mp_const_none;
@@ -3013,7 +3166,7 @@ STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
     if (mbedtls_pk_parse_key(&pk, (const byte *)bufinfo.buf, bufinfo.len, (use_password ? (const byte *)bufinfo1.buf : NULL), bufinfo1.len) != 0)
     {
         mbedtls_pk_free(&pk);
-        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("PRIVATE KEY"));
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("private key"));
     }
 
     if (mbedtls_pk_get_type(&pk) == MBEDTLS_PK_ECKEY)
@@ -3031,7 +3184,7 @@ STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
     else
     {
         mbedtls_pk_free(&pk);
-        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("ONLY EC OR RSA KEY ARE SUPPORTED"));
+        mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("only EC or RSA kes are supported"));
     }
 
     return mp_const_none;
@@ -3083,7 +3236,7 @@ STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
 #endif
     )
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of ec curve"));
     }
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
@@ -3110,7 +3263,7 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
 #endif
     if (!mp_obj_is_int(private_value))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED private_value int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected private_value int"));
     }
 
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
@@ -3123,7 +3276,7 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
 #endif
     )
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF ec.SECP256R1, ec.SECP384R1 or ec.SECP521R1"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of ec curve"));
     }
 
     mbedtls_ecp_keypair ecp;
@@ -3178,19 +3331,385 @@ STATIC mp_obj_type_t ec_type = {
     .locals_dict = (void *)&ec_locals_dict,
 };
 
+STATIC const mp_rom_map_elem_t padding_pkcs1v15_locals_dict_table[] = {
+
+};
+
+STATIC MP_DEFINE_CONST_DICT(padding_pkcs1v15_locals_dict, padding_pkcs1v15_locals_dict_table);
+
+STATIC mp_obj_type_t padding_pkcs1v15_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_PKCS1V15,
+    .locals_dict = (void *)&padding_pkcs1v15_locals_dict,
+};
+
+STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t hash_algorithm)
+{
+    if (!mp_obj_is_type(key, &rsa_public_key_type) && !mp_obj_is_type(key, &rsa_private_key_type))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of rsa.RSAPublicKey or rsa.RSAPrivateKey"));
+    }
+
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+    }
+
+    if (mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm, prehashed not supported"));
+    }
+
+    mp_int_t emlen = 0;
+    if (mp_obj_is_type(key, &rsa_public_key_type))
+    {
+        mp_rsa_public_key_t *RSAPublicKey = (mp_rsa_public_key_t *)MP_OBJ_TO_PTR(key);
+        emlen = (mp_int_t)(mp_obj_get_int(int_bit_length(RSAPublicKey->public_numbers->n)) + 6) / 8;
+    }
+    else if (mp_obj_is_type(key, &rsa_private_key_type))
+    {
+        mp_rsa_private_key_t *RSAPrivateKey = (mp_rsa_private_key_t *)MP_OBJ_TO_PTR(key);
+        emlen = (mp_int_t)(mp_obj_get_int(int_bit_length(RSAPrivateKey->public_key->public_numbers->n)) + 6) / 8;
+    }
+
+    mp_int_t digest_size = 0;
+    if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type))
+    {
+        digest_size = 32;
+    }
+    else if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type))
+    {
+        digest_size = 48;
+    }
+    else if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type))
+    {
+        digest_size = 64;
+    }
+
+    mp_int_t salt_length = emlen - digest_size - 2;
+    return mp_obj_new_int(salt_length);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_padding_calculate_max_pss_salt_length_obj, padding_calculate_max_pss_salt_length);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_calculate_max_pss_salt_length_obj, MP_ROM_PTR(&mod_padding_calculate_max_pss_salt_length_obj));
+
+STATIC mp_obj_t padding_pss_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+{
+    mp_arg_check_num(n_args, n_kw, 0, 2, true);
+    enum
+    {
+        ARG_mgf,
+        ARG_salt_length
+    };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_mgf, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_salt_length, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_obj_t mgf = args[ARG_mgf].u_obj;
+    mp_obj_t salt_length = args[ARG_salt_length].u_obj;
+
+    if (!mp_obj_is_int(salt_length))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected salt_length int"));
+    }
+
+    if (!mp_obj_is_type(mgf, &padding_mgf1_type))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.MGF1"));
+    }
+
+    mp_padding_pss_t *PADDING_PSS = m_new_obj(mp_padding_pss_t);
+    PADDING_PSS->base.type = &padding_pss_type;
+    PADDING_PSS->name = mp_obj_new_str("EMSA-PSS", strlen("EMSA-PSS"));
+    PADDING_PSS->mgf = mgf;
+    PADDING_PSS->salt_length = mp_obj_get_int(salt_length);
+
+    return MP_OBJ_FROM_PTR(PADDING_PSS);
+}
+
+STATIC void padding_pss_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_padding_pss_t *self = MP_OBJ_TO_PTR(obj);
+    (void)self;
+
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_MAX_LENGTH)
+            {
+                dest[0] = mp_obj_new_int(0);
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t padding_pss_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_MAX_LENGTH), MP_ROM_INT(0)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(padding_pss_locals_dict, padding_pss_locals_dict_table);
+
+STATIC mp_obj_type_t padding_pss_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_PSS,
+    .make_new = padding_pss_make_new,
+    .attr = padding_pss_attr,
+    .locals_dict = (void *)&padding_pss_locals_dict,
+};
+
+STATIC mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+{
+    mp_arg_check_num(n_args, n_kw, 0, 3, true);
+    enum
+    {
+        ARG_mgf,
+        ARG_algorithm,
+        ARG_label
+    };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_mgf, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_algorithm, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_label, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_obj_t mgf = args[ARG_mgf].u_obj;
+    mp_obj_t algorithm = args[ARG_algorithm].u_obj;
+    mp_obj_t label = args[ARG_label].u_obj;
+
+    if (!mp_obj_is_type(mgf, &padding_mgf1_type))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.MGF1"));
+    }
+
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+    }
+
+#if 0
+    if (!mp_obj_is_type(label, &mp_type_bytes) && !mp_obj_is_type(label, &mp_type_NoneType))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of bytes or None"));
+    }
+#endif
+
+    mp_padding_oaep_t *PADDING_OAEP = m_new_obj(mp_padding_oaep_t);
+    PADDING_OAEP->base.type = &padding_oaep_type;
+    PADDING_OAEP->name = mp_obj_new_str("EME-OAEP", strlen("EME-OAEP"));
+    PADDING_OAEP->mgf = mgf;
+    PADDING_OAEP->label = label;
+
+    if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm, prehashed not supported"));
+    }
+    else
+    {
+        mp_hash_algorithm_t *HashAlgorithm = MP_OBJ_TO_PTR(algorithm);
+        PADDING_OAEP->algorithm = HashAlgorithm;
+    }
+
+    return MP_OBJ_FROM_PTR(PADDING_OAEP);
+}
+
+STATIC const mp_rom_map_elem_t padding_oaep_locals_dict_table[] = {
+
+};
+
+STATIC MP_DEFINE_CONST_DICT(padding_oaep_locals_dict, padding_oaep_locals_dict_table);
+
+STATIC mp_obj_type_t padding_oaep_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_OAEP,
+    .make_new = padding_oaep_make_new,
+    .locals_dict = (void *)&padding_oaep_locals_dict,
+};
+
+STATIC const mp_rom_map_elem_t padding_mgf1_locals_dict_table[] = {
+
+};
+
+STATIC MP_DEFINE_CONST_DICT(padding_mgf1_locals_dict, padding_mgf1_locals_dict_table);
+
+STATIC mp_obj_type_t padding_mgf1_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_MGF1,
+    .locals_dict = (void *)&padding_mgf1_locals_dict,
+};
+
+STATIC mp_obj_t padding_pkcs1v15(void)
+{
+    mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = m_new_obj(mp_padding_pkcs1v15_t);
+    PADDING_PKCS1V15->base.type = &padding_pkcs1v15_type;
+    PADDING_PKCS1V15->name = mp_obj_new_str("EMSA-PKCS1-v1_5", strlen("EMSA-PKCS1-v1_5"));
+
+    return MP_OBJ_FROM_PTR(PADDING_PKCS1V15);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_padding_pkcs1v15_obj, padding_pkcs1v15);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_pkcs1v15_obj, MP_ROM_PTR(&mod_padding_pkcs1v15_obj));
+
+STATIC mp_obj_t padding_mgf1(mp_obj_t algorithm)
+{
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+    }
+
+    mp_padding_mgf1_t *PADDING_MGF1 = m_new_obj(mp_padding_mgf1_t);
+    PADDING_MGF1->base.type = &padding_mgf1_type;
+
+    if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm, prehashed not supported"));
+    }
+    else
+    {
+        mp_hash_algorithm_t *HashAlgorithm = MP_OBJ_TO_PTR(algorithm);
+        PADDING_MGF1->algorithm = HashAlgorithm;
+    }
+
+    return MP_OBJ_FROM_PTR(PADDING_MGF1);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_padding_mgf1_obj, padding_mgf1);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_mgf1_obj, MP_ROM_PTR(&mod_padding_mgf1_obj));
+
+STATIC const mp_rom_map_elem_t padding_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_PKCS1v15), MP_ROM_PTR(&mod_static_padding_pkcs1v15_obj)},
+    {MP_ROM_QSTR(MP_QSTR_PSS), MP_ROM_PTR(&padding_pss_type)},
+    {MP_ROM_QSTR(MP_QSTR_OAEP), MP_ROM_PTR(&padding_oaep_type)},
+    {MP_ROM_QSTR(MP_QSTR_MGF1), MP_ROM_PTR(&mod_static_padding_mgf1_obj)},
+    {MP_ROM_QSTR(MP_QSTR_calculate_max_pss_salt_length), MP_ROM_PTR(&mod_static_padding_calculate_max_pss_salt_length_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(padding_locals_dict, padding_locals_dict_table);
+
+STATIC mp_obj_type_t padding_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_padding,
+    .locals_dict = (void *)&padding_locals_dict,
+};
+
 STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
 {
-    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
     mp_obj_t signature = args[1];
-    mp_obj_t data = args[2];
-    mp_obj_t padding = args[3];
-    mp_obj_t algorithm = args[4];
+    mp_buffer_info_t bufinfo_signature;
+    mp_get_buffer_raise(signature, &bufinfo_signature, MP_BUFFER_READ);
 
-    (void)self;
-    (void)signature;
-    (void)data;
-    (void)padding;
-    (void)algorithm;
+    mp_obj_t data = args[2];
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
+
+    mp_obj_t padding = args[3];
+    if (!mp_obj_is_type(padding, &padding_pss_type) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PSS or padding.PKCS1v15"));
+    }
+
+    mp_obj_t algorithm = args[4];
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+    }
+
+    vstr_t vstr_digest;
+    mp_hash_algorithm_t *HashAlgorithm = NULL;
+    if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(algorithm))->algorithm;
+        vstr_init_len(&vstr_digest, 0);
+        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
+    }
+    else
+    {
+        HashAlgorithm = MP_OBJ_TO_PTR(algorithm);
+        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type)));
+        mbedtls_md(mbedtls_md_info_from_type(HashAlgorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+    }
+
+    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
+
+    mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_numbers;
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
+
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+    int ret = 1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+    }
+
+    mp_int_t salt_length = vstr_digest.len;
+    if (mp_obj_is_type(padding, &padding_pss_type))
+    {
+        mp_padding_pss_t *PADDING_PSS = MP_OBJ_TO_PTR(padding);
+#if 0
+        if (PADDING_PSS->salt_length == 0)
+        {
+            salt_length = mp_obj_get_int(padding_calculate_max_pss_salt_length(args[0], PADDING_PSS->mgf->algorithm));
+        }
+#endif
+        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_PSS->mgf->algorithm->md_type);
+    }
+    else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+#if 0
+        mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
+#endif
+        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+    }
+
+    if ((ret = mbedtls_pk_verify(&pk, HashAlgorithm->md_type, (const byte *)vstr_digest.buf, salt_length, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
+    {
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+    }
 
     return mp_const_none;
 }
@@ -3199,15 +3718,69 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_verify_obj, 5, 5, rsa_verify)
 
 STATIC mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
 {
-    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
     mp_obj_t plaintext = args[1];
+    mp_buffer_info_t bufinfo_plaintext;
+    mp_get_buffer_raise(plaintext, &bufinfo_plaintext, MP_BUFFER_READ);
+
     mp_obj_t padding = args[2];
+    if (!mp_obj_is_type(padding, &padding_oaep_type) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.OAEP or padding.PKCS1v15"));
+    }
 
-    (void)self;
-    (void)plaintext;
-    (void)padding;
+    mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
 
-    return mp_const_none;
+    mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_numbers;
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
+
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+    int ret = 1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+    }
+
+    if (mp_obj_is_type(padding, &padding_oaep_type))
+    {
+        mp_padding_oaep_t *PADDING_OAEP = MP_OBJ_TO_PTR(padding);
+        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_OAEP->mgf->algorithm->md_type);
+    }
+    else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+#if 0
+        mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
+#endif
+        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+    }
+
+    byte buf[MBEDTLS_MPI_MAX_SIZE];
+    memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
+    size_t olen = 0;
+    if ((ret = mbedtls_pk_encrypt(&pk, (const byte *)bufinfo_plaintext.buf, bufinfo_plaintext.len, buf, &olen, sizeof(buf), mp_random, NULL)) != 0)
+    {
+        return mp_const_none;
+    }
+
+    return mp_obj_new_bytes((const byte *)buf, olen);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_encrypt_obj, 3, 3, rsa_encrypt);
@@ -3220,133 +3793,14 @@ STATIC mp_obj_t rsa_public_numbers(mp_obj_t obj)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_numbers_obj, rsa_public_numbers);
 
-STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_private_numbers_t *private_numbers, mp_obj_t encoding_o)
-{
-    if (!mp_obj_is_int(encoding_o))
-    {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED encoding int"));
-    }
-    mp_int_t encoding = mp_obj_get_int(encoding_o);
-    if (encoding != SERIALIZATION_ENCODING_DER && encoding != SERIALIZATION_ENCODING_PEM)
-    {
-        mp_raise_ValueError(MP_ERROR_TEXT("EXPECTED encoding value 1 (DER) or 2 (PEM)"));
-    }
-
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(public_numbers->e)) + 7) / 8;
-    cryptography_get_buffer(public_numbers->e, true, e_len, &bufinfo_e);
-
-    mbedtls_mpi E;
-    mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
-
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(public_numbers->n)) + 7) / 8;
-    cryptography_get_buffer(public_numbers->n, true, n_len, &bufinfo_n);
-
-    mbedtls_mpi N;
-    mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
-
-    if (public_numbers != MP_OBJ_NULL && private_numbers == MP_OBJ_NULL)
-    {
-        mbedtls_pk_context pk;
-        mbedtls_pk_init(&pk);
-        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
-        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
-
-        int ret = 1;
-        if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) != 0)
-        {
-            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
-        }
-
-        vstr_t vstr_out;
-        vstr_init_len(&vstr_out, mp_obj_get_int(int_bit_length(public_numbers->n)) * 2);
-        if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_pubkey_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
-        {
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes((const byte *)(vstr_out.buf + vstr_out.len - ret), ret);
-        }
-        else if (encoding == SERIALIZATION_ENCODING_PEM && (ret = mbedtls_pk_write_pubkey_pem(&pk, (byte *)vstr_out.buf, vstr_out.len)) == 0)
-        {
-            ret = strlen((char *)vstr_out.buf);
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes((const byte *)vstr_out.buf, ret);
-        }
-    }
-    else if (public_numbers != MP_OBJ_NULL && private_numbers != MP_OBJ_NULL)
-    {
-        mp_buffer_info_t bufinfo_p;
-        int p_len = (mp_obj_get_int(int_bit_length(private_numbers->p)) + 7) / 8;
-        cryptography_get_buffer(private_numbers->p, true, p_len, &bufinfo_p);
-
-        mbedtls_mpi P;
-        mbedtls_mpi_init(&P);
-        mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
-
-        mp_buffer_info_t bufinfo_q;
-        int q_len = (mp_obj_get_int(int_bit_length(private_numbers->q)) + 7) / 8;
-        cryptography_get_buffer(private_numbers->q, true, q_len, &bufinfo_q);
-
-        mbedtls_mpi Q;
-        mbedtls_mpi_init(&Q);
-        mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
-
-        mp_buffer_info_t bufinfo_d;
-        int d_len = (mp_obj_get_int(int_bit_length(private_numbers->d)) + 7) / 8;
-        cryptography_get_buffer(private_numbers->d, true, d_len, &bufinfo_d);
-
-        mbedtls_mpi D;
-        mbedtls_mpi_init(&D);
-        mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
-
-        mbedtls_pk_context pk;
-        mbedtls_pk_init(&pk);
-        mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
-        mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
-
-        int ret = 1;
-        if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
-        {
-            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
-        }
-
-        if ((ret = mbedtls_rsa_complete(rsa)) != 0)
-        {
-            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
-        }
-
-        vstr_t vstr_out;
-        vstr_init_len(&vstr_out, mp_obj_get_int(int_bit_length(public_numbers->n)) * 2);
-        if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_key_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
-        {
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes((const byte *)(vstr_out.buf + vstr_out.len - ret), ret);
-        }
-        else if (encoding == SERIALIZATION_ENCODING_PEM && (ret = mbedtls_pk_write_key_pem(&pk, (byte *)vstr_out.buf, vstr_out.len)) == 0)
-        {
-            ret = strlen((char *)vstr_out.buf);
-            mbedtls_pk_free(&pk);
-            return mp_obj_new_bytes((const byte *)vstr_out.buf, ret);
-        }
-    }
-
-    return mp_const_none;
-}
-
 STATIC mp_obj_t rsa_public_bytes(size_t n_args, const mp_obj_t *args)
 {
     mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
-    if (n_args == 1)
-    {
-        return rsa_key_dumps(self->public_numbers, MP_OBJ_NULL, mp_obj_new_int(SERIALIZATION_ENCODING_DER));
-    }
-    else if (n_args == 2)
+    if (n_args == 2 && mp_obj_get_int(args[1]) == SERIALIZATION_ENCODING_PEM)
     {
         return rsa_key_dumps(self->public_numbers, MP_OBJ_NULL, args[1]);
     }
-    return mp_const_none;
+    return self->public_bytes;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_public_bytes_obj, 1, 2, rsa_public_bytes);
@@ -3397,11 +3851,11 @@ STATIC mp_obj_t rsa_public_numbers_make_new(const mp_obj_type_t *type, size_t n_
     mp_obj_t n = args[1];
     if (!mp_obj_is_int(e))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED E int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected E int"));
     }
     if (!mp_obj_is_int(n))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED N int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected N int"));
     }
 
     mp_buffer_info_t bufinfo_e;
@@ -3496,13 +3950,124 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_private_numbers_obj, rsa_private_number
 
 STATIC mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
 {
-    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
     mp_obj_t ciphertext = args[1];
-    mp_obj_t padding = args[2];
+    mp_buffer_info_t bufinfo_ciphertext;
+    mp_get_buffer_raise(ciphertext, &bufinfo_ciphertext, MP_BUFFER_READ);
 
-    (void)self;
-    (void)ciphertext;
-    (void)padding;
+    mp_obj_t padding = args[2];
+    if (!mp_obj_is_type(padding, &padding_oaep_type) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.OAEP or padding.PKCS1v15"));
+    }
+
+    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
+
+    mp_rsa_private_numbers_t *RSAPrivateNumbers = self->private_numbers;
+
+    mp_buffer_info_t bufinfo_p;
+    int p_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->p)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->p, true, p_len, &bufinfo_p);
+
+    mbedtls_mpi P;
+    mbedtls_mpi_init(&P);
+    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
+
+    mp_buffer_info_t bufinfo_q;
+    int q_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->q)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->q, true, q_len, &bufinfo_q);
+
+    mbedtls_mpi Q;
+    mbedtls_mpi_init(&Q);
+    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+
+    mp_buffer_info_t bufinfo_d;
+    int d_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->d)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->d, true, d_len, &bufinfo_d);
+
+    mbedtls_mpi D;
+    mbedtls_mpi_init(&D);
+    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+
+    mp_buffer_info_t bufinfo_dmp1;
+    int dmp1_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->dmp1)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->dmp1, true, dmp1_len, &bufinfo_dmp1);
+
+    mbedtls_mpi DMP1;
+    mbedtls_mpi_init(&DMP1);
+    mbedtls_mpi_read_binary(&DMP1, (const byte *)bufinfo_dmp1.buf, bufinfo_dmp1.len);
+
+    mp_buffer_info_t bufinfo_dmq1;
+    int dmq1_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->dmq1)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->dmq1, true, dmq1_len, &bufinfo_dmq1);
+
+    mbedtls_mpi DMQ1;
+    mbedtls_mpi_init(&DMQ1);
+    mbedtls_mpi_read_binary(&DMQ1, (const byte *)bufinfo_dmq1.buf, bufinfo_dmq1.len);
+
+    mp_buffer_info_t bufinfo_iqmp;
+    int iqmp_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->iqmp)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->iqmp, true, iqmp_len, &bufinfo_iqmp);
+
+    mbedtls_mpi IQMP;
+    mbedtls_mpi_init(&IQMP);
+    mbedtls_mpi_read_binary(&IQMP, (const byte *)bufinfo_iqmp.buf, bufinfo_iqmp.len);
+
+    mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_key->public_numbers;
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+    int ret = 1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+    }
+
+    if ((ret = mbedtls_rsa_complete(rsa)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
+    }
+
+    if (mp_obj_is_type(padding, &padding_oaep_type))
+    {
+        mp_padding_oaep_t *PADDING_OAEP = MP_OBJ_TO_PTR(padding);
+        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_OAEP->mgf->algorithm->md_type);
+    }
+    else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+#if 0
+        mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
+#endif
+        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+    }
+
+    byte buf[MBEDTLS_MPI_MAX_SIZE];
+    memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
+    size_t olen = 0;
+    if ((ret = mbedtls_pk_decrypt(&pk, (const byte *)bufinfo_ciphertext.buf, bufinfo_ciphertext.len, buf, &olen, sizeof(buf), mp_random, NULL)) != 0)
+    {
+        return mp_const_none;
+    }
+
+    return mp_obj_new_bytes((const byte *)buf, olen);
 
     return mp_const_none;
 }
@@ -3516,17 +4081,156 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     srand((unsigned)time(&t));
 #endif
 
-    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
     mp_obj_t data = args[1];
-    mp_obj_t algorithm = args[2];
-    mp_obj_t padding = args[3];
+    mp_buffer_info_t bufinfo_data;
+    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    (void)self;
-    (void)data;
-    (void)algorithm;
-    (void)padding;
+    mp_obj_t padding = args[2];
+    if (!mp_obj_is_type(padding, &padding_pss_type) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PSS or padding.PKCS1v15"));
+    }
 
-    return mp_const_none;
+    mp_obj_t algorithm = args[3];
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+    }
+
+    vstr_t vstr_digest;
+    mp_hash_algorithm_t *HashAlgorithm = NULL;
+    if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(algorithm))->algorithm;
+        vstr_init_len(&vstr_digest, 0);
+        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
+    }
+    else
+    {
+        HashAlgorithm = MP_OBJ_TO_PTR(algorithm);
+        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type)));
+        mbedtls_md(mbedtls_md_info_from_type(HashAlgorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+    }
+
+    mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
+
+    mp_rsa_private_numbers_t *RSAPrivateNumbers = self->private_numbers;
+
+    mp_buffer_info_t bufinfo_p;
+    int p_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->p)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->p, true, p_len, &bufinfo_p);
+
+    mbedtls_mpi P;
+    mbedtls_mpi_init(&P);
+    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
+
+    mp_buffer_info_t bufinfo_q;
+    int q_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->q)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->q, true, q_len, &bufinfo_q);
+
+    mbedtls_mpi Q;
+    mbedtls_mpi_init(&Q);
+    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+
+    mp_buffer_info_t bufinfo_d;
+    int d_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->d)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->d, true, d_len, &bufinfo_d);
+
+    mbedtls_mpi D;
+    mbedtls_mpi_init(&D);
+    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+
+    mp_buffer_info_t bufinfo_dmp1;
+    int dmp1_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->dmp1)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->dmp1, true, dmp1_len, &bufinfo_dmp1);
+
+    mbedtls_mpi DMP1;
+    mbedtls_mpi_init(&DMP1);
+    mbedtls_mpi_read_binary(&DMP1, (const byte *)bufinfo_dmp1.buf, bufinfo_dmp1.len);
+
+    mp_buffer_info_t bufinfo_dmq1;
+    int dmq1_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->dmq1)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->dmq1, true, dmq1_len, &bufinfo_dmq1);
+
+    mbedtls_mpi DMQ1;
+    mbedtls_mpi_init(&DMQ1);
+    mbedtls_mpi_read_binary(&DMQ1, (const byte *)bufinfo_dmq1.buf, bufinfo_dmq1.len);
+
+    mp_buffer_info_t bufinfo_iqmp;
+    int iqmp_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->iqmp)) + 7) / 8;
+    cryptography_get_buffer(RSAPrivateNumbers->iqmp, true, iqmp_len, &bufinfo_iqmp);
+
+    mbedtls_mpi IQMP;
+    mbedtls_mpi_init(&IQMP);
+    mbedtls_mpi_read_binary(&IQMP, (const byte *)bufinfo_iqmp.buf, bufinfo_iqmp.len);
+
+    mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_key->public_numbers;
+
+    mp_buffer_info_t bufinfo_e;
+    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+
+    mp_buffer_info_t bufinfo_n;
+    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
+    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
+
+    mbedtls_mpi N;
+    mbedtls_mpi_init(&N);
+    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
+
+    int ret = 1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+    }
+
+    if ((ret = mbedtls_rsa_complete(rsa)) != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
+    }
+
+    mp_int_t salt_length = vstr_digest.len;
+    if (mp_obj_is_type(padding, &padding_pss_type))
+    {
+        mp_padding_pss_t *PADDING_PSS = MP_OBJ_TO_PTR(padding);
+#if 0
+        if (PADDING_PSS->salt_length == 0)
+        {
+            salt_length = mp_obj_get_int(padding_calculate_max_pss_salt_length(args[0], PADDING_PSS->mgf->algorithm));
+        }
+#endif
+        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_PSS->mgf->algorithm->md_type);
+    }
+    else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+#if 0
+        mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
+#endif
+        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+    }
+
+    byte buf[MBEDTLS_MPI_MAX_SIZE];
+    memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
+    size_t olen = 0;
+    if ((ret = mbedtls_pk_sign(&pk, HashAlgorithm->md_type, (const byte *)vstr_digest.buf, salt_length, buf, &olen, mp_random, NULL)) != 0)
+    {
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+    }
+
+    return mp_obj_new_bytes((const byte *)buf, olen);
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_sign_obj, 4, 4, rsa_sign);
@@ -3534,15 +4238,11 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_sign_obj, 4, 4, rsa_sign);
 STATIC mp_obj_t rsa_private_bytes(size_t n_args, const mp_obj_t *args)
 {
     mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
-    if (n_args == 1)
-    {
-        return rsa_key_dumps(self->public_key->public_numbers, self->private_numbers, mp_obj_new_int(SERIALIZATION_ENCODING_DER));
-    }
-    else if (n_args == 2)
+    if (n_args == 2 && mp_obj_get_int(args[1]) == SERIALIZATION_ENCODING_PEM)
     {
         return rsa_key_dumps(self->public_key->public_numbers, self->private_numbers, args[1]);
     }
-    return mp_const_none;
+    return self->private_bytes;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_private_bytes_obj, 1, 2, rsa_private_bytes);
@@ -3629,32 +4329,32 @@ STATIC mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n
 
     if (!mp_obj_is_int(p))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED P int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected P int"));
     }
     if (!mp_obj_is_int(q))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED Q int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Q int"));
     }
     if (!mp_obj_is_int(d))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED D int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected D int"));
     }
     if (!mp_obj_is_int(dmp1))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED DMP1 int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected DMP1 int"));
     }
     if (!mp_obj_is_int(dmq1))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED DMQ1 int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected DMQ1 int"));
     }
     if (!mp_obj_is_int(iqmp))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED IQMP int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected IQMP int"));
     }
     mp_rsa_public_numbers_t *RSAPublicNumbers = MP_OBJ_TO_PTR(public_numbers);
     if (!mp_obj_is_type(RSAPublicNumbers, &rsa_public_numbers_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF rsa.RSAPublicNumbers"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of rsa.RSAPublicNumbers"));
     }
 
     mp_buffer_info_t bufinfo_p;
@@ -4243,13 +4943,13 @@ STATIC mp_obj_t aesgcm_generate_key(mp_obj_t bit_length)
 #endif
     if (!mp_obj_is_int(bit_length))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED bit_length int"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected bit_length int"));
     }
 
     mp_int_t nbit = mp_obj_get_int(bit_length);
     if (nbit != 128 && nbit != 192 && nbit != 256)
     {
-        mp_raise_ValueError(MP_ERROR_TEXT("bit_length MUST BE 128, 192 OR 256"));
+        mp_raise_ValueError(MP_ERROR_TEXT("bit_length must be 128, 192 OR 256"));
     }
 
     vstr_t vstr_key;
@@ -4359,7 +5059,7 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
     mp_arg_check_num(n_args, n_kw, 2, 2, false);
     if (!mp_obj_is_type(args[0], &ciphers_algorithms_aes_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF algorithms.AES"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of algorithms.AES"));
     }
     mp_ciphers_algorithms_aes_t *algorithm = MP_OBJ_TO_PTR(args[0]);
 
@@ -4375,7 +5075,7 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
     }
     else
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.CBC or modes.GCM"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM"));
     }
 
     mp_obj_t mode = args[1];
@@ -4503,7 +5203,7 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
     }
     else
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.CBC or modes.GCM"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM"));
     }
 }
 
@@ -4527,7 +5227,7 @@ STATIC mp_obj_t encryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t
     mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->cipher->mode_type == CIPHER_MODE_CBC)
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.GCM"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.GCM"));
     }
 
     if (self->finalized)
@@ -4563,7 +5263,7 @@ STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
             {
                 if (self->cipher->mode_type == CIPHER_MODE_CBC)
                 {
-                    mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.GCM"));
+                    mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.GCM"));
                 }
 
                 if (!self->finalized)
@@ -4693,7 +5393,7 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
     }
     else
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.CBC or modes.GCM"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM"));
     }
 }
 
@@ -4718,7 +5418,7 @@ STATIC mp_obj_t decryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t
 
     if (self->cipher->mode_type == CIPHER_MODE_CBC)
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("EXPECTED INSTANCE OF modes.GCM"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.GCM"));
     }
 
     if (self->finalized)
@@ -4933,6 +5633,7 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR(&exceptions_type)},
     {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
     {MP_ROM_QSTR(MP_QSTR_hmac), MP_ROM_PTR(&hmac_type)},
+    {MP_ROM_QSTR(MP_QSTR_padding), MP_ROM_PTR(&padding_type)},
     {MP_ROM_QSTR(MP_QSTR_rsa), MP_ROM_PTR(&rsa_type)},
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
     {MP_ROM_QSTR(MP_QSTR_utils), MP_ROM_PTR(&utils_type)},
