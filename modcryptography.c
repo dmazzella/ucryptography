@@ -3735,6 +3735,10 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_verify_obj, 5, 5, rsa_verify)
 
 STATIC mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
 {
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
     mp_obj_t plaintext = args[1];
     mp_buffer_info_t bufinfo_plaintext;
     mp_get_buffer_raise(plaintext, &bufinfo_plaintext, MP_BUFFER_READ);
@@ -3967,6 +3971,10 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_private_numbers_obj, rsa_private_number
 
 STATIC mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
 {
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
     mp_obj_t ciphertext = args[1];
     mp_buffer_info_t bufinfo_ciphertext;
     mp_get_buffer_raise(ciphertext, &bufinfo_ciphertext, MP_BUFFER_READ);
@@ -4716,6 +4724,10 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_recover_prime_factors_obj
 
 STATIC mp_obj_t rsa_generate_private_key(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
 {
+#if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
+    time_t t;
+    srand((unsigned)time(&t));
+#endif
     enum
     {
         ARG_public_exponent,
