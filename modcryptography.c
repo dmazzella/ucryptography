@@ -2756,7 +2756,15 @@ STATIC mp_obj_type_t hmac_type = {
 STATIC mp_obj_t x509_public_key(mp_obj_t obj)
 {
     mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
-    return self->ec_public_key;
+    if (self->ec_public_key != NULL)
+    {
+        return self->ec_public_key;
+    }
+    else if (self->rsa_public_key != NULL)
+    {
+        return self->rsa_public_key;
+    }
+    return mp_const_none;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_public_key_obj, x509_public_key);
@@ -2770,7 +2778,14 @@ STATIC mp_obj_t x509_public_bytes(size_t n_args, const mp_obj_t *args)
     }
     else if (n_args == 2)
     {
-        return ec_key_dumps(self->public_bytes, mp_const_none, args[1], self->ec_public_key->public_numbers->curve->ecp_group_id);
+        if (self->ec_public_key != NULL)
+        {
+            return ec_key_dumps(self->public_bytes, mp_const_none, args[1], self->ec_public_key->public_numbers->curve->ecp_group_id);
+        }
+        else if (self->rsa_public_key != NULL)
+        {
+            return rsa_key_dumps(self->rsa_public_key->public_numbers, MP_OBJ_NULL, args[1]);
+        }
     }
     return mp_const_none;
 }
@@ -3080,11 +3095,13 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
 
     if (mbedtls_pk_get_type(&pk) == MBEDTLS_PK_ECKEY)
     {
+        Certificate->rsa_public_key = NULL;
         Certificate->ec_public_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
         Certificate->public_bytes = Certificate->ec_public_key->public_bytes;
     }
     else if (mbedtls_pk_get_type(&pk) == MBEDTLS_PK_RSA)
     {
+        Certificate->ec_public_key = NULL;
         Certificate->rsa_public_key = rsa_parse_keypair(mbedtls_pk_rsa(pk), false);
         Certificate->public_bytes = Certificate->rsa_public_key->public_bytes;
     }
