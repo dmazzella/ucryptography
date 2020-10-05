@@ -162,11 +162,11 @@ def main():
         print("key_size", public_key.key_size)
         print(
             "public_key.public_bytes DER",
-            certificate.public_bytes(serialization.Encoding.DER),
+            public_key.public_bytes(serialization.Encoding.DER),
         )
         print(
             "public_key.public_bytes PEM",
-            certificate.public_bytes(serialization.Encoding.PEM).decode(),
+            public_key.public_bytes(serialization.Encoding.PEM).decode(),
         )
 
         public_key.verify(
