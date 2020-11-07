@@ -162,6 +162,7 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/x509.h"
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/oid.h"
+#include "mbedtls/sha1.h"
 #include "mbedtls/sha256.h"
 #include "mbedtls/sha512.h"
 #include "mbedtls/cipher.h"
@@ -487,6 +488,7 @@ STATIC mp_obj_type_t rsa_public_numbers_type;
 STATIC mp_obj_type_t rsa_private_numbers_type;
 STATIC mp_obj_type_t rsa_public_key_type;
 STATIC mp_obj_type_t rsa_private_key_type;
+STATIC mp_obj_type_t hash_algorithm_sha1_type;
 STATIC mp_obj_type_t hash_algorithm_sha256_type;
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
 STATIC mp_obj_type_t hash_algorithm_sha384_type;
@@ -870,7 +872,8 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
     mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     mp_obj_t hash_algorithm = args[ARG_hash_algorithm].u_obj;
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -1543,7 +1546,8 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -1690,7 +1694,8 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -2208,7 +2213,8 @@ STATIC mp_obj_type_t hash_algorithm_prehashed_type = {
 
 STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 {
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -2381,6 +2387,29 @@ STATIC mp_obj_type_t utils_type = {
     .locals_dict = (void *)&utils_locals_dict,
 };
 
+STATIC mp_obj_t hash_algorithm_sha1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 0, 0, false);
+    mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
+    HashAlgorithm->base.type = &hash_algorithm_sha1_type;
+    HashAlgorithm->md_type = MBEDTLS_MD_SHA1;
+    return MP_OBJ_FROM_PTR(HashAlgorithm);
+}
+
+STATIC const mp_rom_map_elem_t hash_algorithm_sha1_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_sha1)},
+    {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(32)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha1_locals_dict, hash_algorithm_sha1_locals_dict_table);
+
+STATIC mp_obj_type_t hash_algorithm_sha1_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_SHA1,
+    .make_new = hash_algorithm_sha1_make_new,
+    .locals_dict = (void *)&hash_algorithm_sha1_locals_dict,
+};
+
 STATIC mp_obj_t hash_algorithm_sha256_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
@@ -2455,7 +2484,8 @@ STATIC mp_obj_type_t hash_algorithm_sha512_type = {
 STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
-    if (!mp_obj_is_type(args[0], &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(args[0], &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(args[0], &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(args[0], &hash_algorithm_sha384_type)
 #endif
@@ -2580,6 +2610,7 @@ STATIC mp_obj_type_t hash_context_type = {
 };
 
 STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_SHA1), MP_ROM_PTR(&hash_algorithm_sha1_type)},
     {MP_ROM_QSTR(MP_QSTR_SHA256), MP_ROM_PTR(&hash_algorithm_sha256_type)},
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
     {MP_ROM_QSTR(MP_QSTR_SHA384), MP_ROM_PTR(&hash_algorithm_sha384_type)},
@@ -2603,7 +2634,8 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     {
         mp_raise_TypeError(MP_ERROR_TEXT("Expected key bytes"));
     }
-    if (!mp_obj_is_type(args[1], &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(args[1], &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(args[1], &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(args[1], &hash_algorithm_sha384_type)
 #endif
@@ -3016,7 +3048,8 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         mp_raise_ValueError(MP_ERROR_TEXT("Certificate format"));
     }
 
-    if ((crt.sig_md != MBEDTLS_MD_SHA256)
+    if ((crt.sig_md != MBEDTLS_MD_SHA1)
+        && (crt.sig_md != MBEDTLS_MD_SHA256)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && (crt.sig_md != MBEDTLS_MD_SHA384)
 #endif
@@ -3024,7 +3057,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("only SHA256, SHA384 or SHA512 are supported"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("only SHA1, SHA256, SHA384 or SHA512 are supported"));
     }
 
     if (crt.sig_pk != MBEDTLS_PK_ECDSA && crt.sig_pk != MBEDTLS_PK_RSA)
@@ -3047,6 +3080,11 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     HashAlgorithm->md_type = crt.sig_md;
     switch (HashAlgorithm->md_type)
     {
+    case MBEDTLS_MD_SHA1:
+    {
+        HashAlgorithm->base.type = &hash_algorithm_sha1_type;
+        break;
+    }
     case MBEDTLS_MD_SHA256:
     {
         HashAlgorithm->base.type = &hash_algorithm_sha256_type;
@@ -3367,7 +3405,8 @@ STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t has
         mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of rsa.RSAPublicKey or rsa.RSAPrivateKey"));
     }
 
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -3394,7 +3433,11 @@ STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t has
     }
 
     mp_int_t digest_size = 0;
-    if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type))
+    if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type))
+    {
+        digest_size = 20;
+    }
+    else if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type))
     {
         digest_size = 32;
     }
@@ -3513,7 +3556,8 @@ STATIC mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, 
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.MGF1"));
     }
 
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -3587,7 +3631,8 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_pkcs1v15_obj, MP_ROM_
 
 STATIC mp_obj_t padding_mgf1(mp_obj_t algorithm)
 {
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -3648,7 +3693,8 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_obj_t algorithm = args[4];
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -4117,7 +4163,8 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     }
 
     mp_obj_t algorithm = args[3];
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type)
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
