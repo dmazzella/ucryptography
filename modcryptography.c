@@ -59,6 +59,7 @@ MP_DEFINE_EXCEPTION(AlreadyFinalized, Exception);
 MP_DEFINE_EXCEPTION(NotYetFinalized, Exception);
 MP_DEFINE_EXCEPTION(UnsupportedAlgorithm, Exception);
 MP_DEFINE_EXCEPTION(InvalidKey, Exception);
+MP_DEFINE_EXCEPTION(InvalidToken, Exception);
 
 #define CHK_NE_GOTO(EC, ERR, LABEL) \
     if ((EC) != (ERR))              \
@@ -202,6 +203,8 @@ struct _mp_padding_pkcs1v15_t;
 struct _mp_padding_pss_t;
 struct _mp_padding_oaep_t;
 struct _mp_padding_mgf1_t;
+struct _mp_twofactor_hotp_t;
+struct _mp_twofactor_totp_t;
 
 typedef struct _mp_ec_curve_t
 {
@@ -448,6 +451,25 @@ typedef struct _mp_padding_mgf1_t
     struct _mp_hash_algorithm_t *algorithm;
 } mp_padding_mgf1_t;
 
+typedef struct _mp_twofactor_hotp_t
+{
+    mp_obj_base_t base;
+    mp_obj_t key;
+    mp_int_t length;
+    struct _mp_hash_algorithm_t *algorithm;
+    bool enforce_key_length;
+} mp_twofactor_hotp_t;
+
+typedef struct _mp_twofactor_totp_t
+{
+    mp_obj_base_t base;
+    mp_obj_t key;
+    mp_int_t length;
+    struct _mp_hash_algorithm_t *algorithm;
+    mp_int_t time_step;
+    bool enforce_key_length;
+} mp_twofactor_totp_t;
+
 enum
 {
     CIPHER_MODE_CBC = 1,
@@ -510,6 +532,8 @@ STATIC mp_obj_type_t padding_pkcs1v15_type;
 STATIC mp_obj_type_t padding_pss_type;
 STATIC mp_obj_type_t padding_oaep_type;
 STATIC mp_obj_type_t padding_mgf1_type;
+STATIC mp_obj_type_t twofactor_hotp_type;
+STATIC mp_obj_type_t twofactor_totp_type;
 
 #if defined(MBEDTLS_GCM_ALT) || defined(MBEDTLS_AES_ALT)
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef *hcryp)
@@ -569,6 +593,34 @@ STATIC inline void micropython_printh(const uint8_t *b, size_t l)
         printf("%02X%c", b[i], DEBUG_MICROPYTHON_NEXTCHR[i < l - 1]);
     }
 }
+
+#if 0
+STATIC vstr_t *vstr_hexlify(vstr_t *vstr_out, const byte *in, size_t in_len)
+{
+    vstr_init(vstr_out, in_len);
+
+    if (in != NULL && in_len)
+    {
+        for (mp_uint_t i = in_len; i--;)
+        {
+            byte d = (*in >> 4);
+            if (d > 9)
+            {
+                d += 'a' - '9' - 1;
+            }
+            vstr_add_char(vstr_out, d + '0');
+            d = (*in++ & 0xf);
+            if (d > 9)
+            {
+                d += 'a' - '9' - 1;
+            }
+            vstr_add_char(vstr_out, d + '0');
+        }
+    }
+
+    return vstr_out;
+}
+#endif
 
 STATIC mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
 {
@@ -872,8 +924,7 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
     mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     mp_obj_t hash_algorithm = args[ARG_hash_algorithm].u_obj;
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -1546,8 +1597,7 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -1694,8 +1744,7 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -2213,8 +2262,7 @@ STATIC mp_obj_type_t hash_algorithm_prehashed_type = {
 
 STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 {
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -2484,8 +2532,7 @@ STATIC mp_obj_type_t hash_algorithm_sha512_type = {
 STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
-    if (!mp_obj_is_type(args[0], &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(args[0], &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(args[0], &hash_algorithm_sha1_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(args[0], &hash_algorithm_sha384_type)
 #endif
@@ -2634,8 +2681,7 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     {
         mp_raise_TypeError(MP_ERROR_TEXT("Expected key bytes"));
     }
-    if (!mp_obj_is_type(args[1], &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(args[1], &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(args[1], &hash_algorithm_sha1_type) && !mp_obj_is_type(args[1], &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(args[1], &hash_algorithm_sha384_type)
 #endif
@@ -3048,8 +3094,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         mp_raise_ValueError(MP_ERROR_TEXT("Certificate format"));
     }
 
-    if ((crt.sig_md != MBEDTLS_MD_SHA1)
-        && (crt.sig_md != MBEDTLS_MD_SHA256)
+    if ((crt.sig_md != MBEDTLS_MD_SHA1) && (crt.sig_md != MBEDTLS_MD_SHA256)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && (crt.sig_md != MBEDTLS_MD_SHA384)
 #endif
@@ -3405,8 +3450,7 @@ STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t has
         mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of rsa.RSAPublicKey or rsa.RSAPrivateKey"));
     }
 
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -3556,8 +3600,7 @@ STATIC mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, 
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.MGF1"));
     }
 
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -3631,8 +3674,7 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_pkcs1v15_obj, MP_ROM_
 
 STATIC mp_obj_t padding_mgf1(mp_obj_t algorithm)
 {
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -3693,8 +3735,7 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_obj_t algorithm = args[4];
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -4163,8 +4204,7 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     }
 
     mp_obj_t algorithm = args[3];
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type)
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
@@ -4986,6 +5026,7 @@ STATIC const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_AlreadyFinalized), MP_ROM_PTR(&mp_type_AlreadyFinalized)},
     {MP_ROM_QSTR(MP_QSTR_UnsupportedAlgorithm), MP_ROM_PTR(&mp_type_UnsupportedAlgorithm)},
     {MP_ROM_QSTR(MP_QSTR_InvalidKey), MP_ROM_PTR(&mp_type_InvalidKey)},
+    {MP_ROM_QSTR(MP_QSTR_InvalidToken), MP_ROM_PTR(&mp_type_InvalidToken)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(exceptions_locals_dict, exceptions_locals_dict_table);
@@ -5701,6 +5742,305 @@ STATIC mp_obj_type_t ciphers_type = {
     .locals_dict = (void *)&ciphers_locals_dict,
 };
 
+STATIC mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
+{
+    mp_obj_t _key = mp_const_none;
+    mp_int_t _md_type = 0;
+    mp_int_t _length = 0;
+    if (mp_obj_is_type(self_obj, &twofactor_hotp_type))
+    {
+        mp_twofactor_hotp_t *self = MP_OBJ_TO_PTR(self_obj);
+        _key = self->key;
+        _md_type = self->algorithm->md_type;
+        _length = self->length;
+    }
+    else if (mp_obj_is_type(self_obj, &twofactor_totp_type))
+    {
+        mp_twofactor_totp_t *self = MP_OBJ_TO_PTR(self_obj);
+        _key = self->key;
+        _md_type = self->algorithm->md_type;
+        _length = self->length;
+    }
+
+    if (!mp_obj_is_int(counter_obj))
+    {
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("int required, got %s"), mp_obj_get_type_str(counter_obj)));
+    }
+
+    mp_buffer_info_t bufinfo_key;
+    mp_get_buffer_raise(_key, &bufinfo_key, MP_BUFFER_READ);
+
+    mp_obj_t counter = cryptography_small_to_big_int(counter_obj);
+    vstr_t vstr_counter;
+    vstr_init_len(&vstr_counter, sizeof(unsigned long long));
+    mp_obj_int_to_bytes_impl(counter, true, vstr_counter.len, (byte *)vstr_counter.buf);
+
+    vstr_t vstr_hmac_value;
+    vstr_init_len(&vstr_hmac_value, mbedtls_md_get_size(mbedtls_md_info_from_type(_md_type)));
+    mbedtls_md_hmac(mbedtls_md_info_from_type(_md_type), (const byte *)bufinfo_key.buf, bufinfo_key.len, (const byte *)vstr_counter.buf, vstr_counter.len, (byte *)vstr_hmac_value.buf);
+
+    byte offset = vstr_hmac_value.buf[vstr_hmac_value.len - 1] & 0b1111;
+
+    mpz_t p;
+    mpz_init_zero(&p);
+    mpz_set_from_bytes(&p, true, 4, (const byte *)vstr_hmac_value.buf + offset);
+
+    mpz_t mask;
+    mpz_init_from_int(&mask, 0x7FFFFFFF);
+
+    mpz_t truncated_value;
+    mpz_init_zero(&truncated_value);
+    mpz_and_inpl(&truncated_value, &p, &mask);
+
+    mpz_t ten;
+    mpz_init_from_int(&ten, 10);
+
+    mpz_t length;
+    mpz_init_from_int(&length, _length);
+
+    mpz_t ten_pow_length;
+    mpz_init_zero(&ten_pow_length);
+    mpz_pow_inpl(&ten_pow_length, &ten, &length);
+
+    mpz_t quo;
+    mpz_init_zero(&quo);
+    mpz_t rem;
+    mpz_init_zero(&rem);
+    mpz_divmod_inpl(&quo, &rem, &truncated_value, &ten_pow_length);
+    mp_int_t hotp = 0;
+    mpz_as_int_checked(&rem, &hotp);
+    return mp_obj_new_int(hotp);
+}
+
+STATIC mp_obj_t twofactor_hotp_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+{
+    mp_arg_check_num(n_args, n_kw, 3, 4, false);
+    enum
+    {
+        ARG_key,
+        ARG_length,
+        ARG_algorithm,
+        ARG_enforce_key_length
+    };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_key, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_length, MP_ARG_INT, {.u_int = 6}},
+        {MP_QSTR_algorithm, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_enforce_key_length, MP_ARG_BOOL, {.u_bool = mp_const_true}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_buffer_info_t bufinfo_key;
+    mp_get_buffer_raise(args[ARG_key].u_obj, &bufinfo_key, MP_BUFFER_READ);
+
+    bool enforce_key_length = args[ARG_enforce_key_length].u_bool;
+    if (bufinfo_key.len < 16 && enforce_key_length)
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Key length has to be at least 128 bits."));
+    }
+
+    mp_int_t length = args[ARG_length].u_int;
+    if (length < 6 || length > 8)
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Length of HOTP has to be between 6 to 8."));
+    }
+
+    mp_obj_t hash_algorithm = args[ARG_algorithm].u_obj;
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_TypeError, MP_ERROR_TEXT("Algorithm must be SHA1, SHA256 or SHA512."));
+    }
+
+    mp_twofactor_hotp_t *HOTP = m_new_obj(mp_twofactor_hotp_t);
+    HOTP->base.type = &twofactor_hotp_type;
+    HOTP->key = mp_obj_new_bytes((const byte *)bufinfo_key.buf, bufinfo_key.len);
+    HOTP->length = length;
+    HOTP->algorithm = hash_algorithm;
+    HOTP->enforce_key_length = enforce_key_length;
+
+    return MP_OBJ_FROM_PTR(HOTP);
+}
+
+STATIC mp_obj_t twofactor_hotp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
+{
+    mp_twofactor_hotp_t *self = MP_OBJ_TO_PTR(self_obj);
+    return twofactor_otp_generate(self, counter_obj);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_twofactor_hotp_generate_obj, twofactor_hotp_generate);
+
+STATIC mp_obj_t twofactor_hotp_verify(mp_obj_t self_obj, mp_obj_t hotp_obj, mp_obj_t counter_obj)
+{
+    if (!mp_obj_is_int(hotp_obj))
+    {
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("int required, got %s"), mp_obj_get_type_str(hotp_obj)));
+    }
+
+    mp_twofactor_hotp_t *self = MP_OBJ_TO_PTR(self_obj);
+    mp_obj_t hotp_value = twofactor_hotp_generate(self, counter_obj);
+
+    if (!mp_obj_equal(hotp_value, hotp_obj))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Supplied HOTP value does not match."));
+    }
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_twofactor_hotp_verify_obj, twofactor_hotp_verify);
+
+STATIC mp_obj_t twofactor_hotp_get_provisioning_uri(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    (void)args;
+    mp_raise_NotImplementedError(MP_ERROR_TEXT(""));
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_twofactor_hotp_get_provisioning_uri_obj, 4, 4, twofactor_hotp_get_provisioning_uri);
+
+STATIC const mp_rom_map_elem_t twofactor_hotp_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_generate), MP_ROM_PTR(&mod_twofactor_hotp_generate_obj)},
+    {MP_ROM_QSTR(MP_QSTR_verify), MP_ROM_PTR(&mod_twofactor_hotp_verify_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_provisioning_uri), MP_ROM_PTR(&mod_twofactor_hotp_get_provisioning_uri_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(twofactor_hotp_locals_dict, twofactor_hotp_locals_dict_table);
+
+STATIC mp_obj_type_t twofactor_hotp_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_HOTP,
+    .make_new = twofactor_hotp_make_new,
+    .locals_dict = (void *)&twofactor_hotp_locals_dict,
+};
+
+STATIC mp_obj_t twofactor_totp_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+{
+    mp_arg_check_num(n_args, n_kw, 4, 5, false);
+    enum
+    {
+        ARG_key,
+        ARG_length,
+        ARG_algorithm,
+        ARG_time_step,
+        ARG_enforce_key_length
+    };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_key, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_length, MP_ARG_INT, {.u_int = 6}},
+        {MP_QSTR_algorithm, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_time_step, MP_ARG_INT, {.u_int = 30}},
+        {MP_QSTR_enforce_key_length, MP_ARG_BOOL, {.u_bool = mp_const_true}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_buffer_info_t bufinfo_key;
+    mp_get_buffer_raise(args[ARG_key].u_obj, &bufinfo_key, MP_BUFFER_READ);
+
+    bool enforce_key_length = args[ARG_enforce_key_length].u_bool;
+    if (bufinfo_key.len < 16 && enforce_key_length)
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Key length has to be at least 128 bits."));
+    }
+
+    mp_int_t length = args[ARG_length].u_int;
+    if (length < 6 || length > 8)
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Length of HOTP has to be between 6 to 8."));
+    }
+
+    mp_obj_t hash_algorithm = args[ARG_algorithm].u_obj;
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_TypeError, MP_ERROR_TEXT("Algorithm must be SHA1, SHA256 or SHA512."));
+    }
+
+    mp_int_t time_step = args[ARG_time_step].u_int;
+
+    mp_twofactor_totp_t *TOTP = m_new_obj(mp_twofactor_totp_t);
+    TOTP->base.type = &twofactor_totp_type;
+    TOTP->key = mp_obj_new_bytes((const byte *)bufinfo_key.buf, bufinfo_key.len);
+    TOTP->length = length;
+    TOTP->algorithm = hash_algorithm;
+    TOTP->time_step = time_step;
+    TOTP->enforce_key_length = enforce_key_length;
+
+    return MP_OBJ_FROM_PTR(TOTP);
+}
+
+STATIC mp_obj_t twofactor_totp_generate(mp_obj_t self_obj, mp_obj_t time_obj)
+{
+    if (!mp_obj_is_int(time_obj))
+    {
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("int required, got %s"), mp_obj_get_type_str(time_obj)));
+    }
+    mp_twofactor_totp_t *self = MP_OBJ_TO_PTR(self_obj);
+    mp_int_t counter = (mp_int_t)(mp_obj_get_int(time_obj) / self->time_step);
+    return twofactor_otp_generate(self, mp_obj_new_int(counter));
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_twofactor_totp_generate_obj, twofactor_totp_generate);
+
+STATIC mp_obj_t twofactor_totp_verify(mp_obj_t self_obj, mp_obj_t totp_obj, mp_obj_t time_obj)
+{
+    mp_twofactor_totp_t *self = MP_OBJ_TO_PTR(self_obj);
+    mp_obj_t hotp_value = twofactor_totp_generate(self, time_obj);
+
+    if (!mp_obj_is_int(totp_obj))
+    {
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("int required, got %s"), mp_obj_get_type_str(totp_obj)));
+    }
+
+    if (!mp_obj_equal(hotp_value, totp_obj))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Supplied HOTP value does not match."));
+    }
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_twofactor_totp_verify_obj, twofactor_totp_verify);
+
+STATIC mp_obj_t twofactor_totp_get_provisioning_uri(size_t n_args, const mp_obj_t *args)
+{
+    (void)n_args;
+    (void)args;
+    mp_raise_NotImplementedError(MP_ERROR_TEXT(""));
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_twofactor_totp_get_provisioning_uri_obj, 4, 4, twofactor_totp_get_provisioning_uri);
+
+STATIC const mp_rom_map_elem_t twofactor_totp_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_generate), MP_ROM_PTR(&mod_twofactor_totp_generate_obj)},
+    {MP_ROM_QSTR(MP_QSTR_verify), MP_ROM_PTR(&mod_twofactor_totp_verify_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_provisioning_uri), MP_ROM_PTR(&mod_twofactor_totp_get_provisioning_uri_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(twofactor_totp_locals_dict, twofactor_totp_locals_dict_table);
+
+STATIC mp_obj_type_t twofactor_totp_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_TOTP,
+    .make_new = twofactor_totp_make_new,
+    .locals_dict = (void *)&twofactor_totp_locals_dict,
+};
+
+STATIC const mp_rom_map_elem_t twofactor_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_HOTP), MP_ROM_PTR(&twofactor_hotp_type)},
+    {MP_ROM_QSTR(MP_QSTR_TOTP), MP_ROM_PTR(&twofactor_totp_type)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(twofactor_locals_dict, twofactor_locals_dict_table);
+
+STATIC mp_obj_type_t twofactor_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_twofactor,
+    .locals_dict = (void *)&twofactor_locals_dict,
+};
+
 STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
     {MP_ROM_QSTR(MP_QSTR_ciphers), MP_ROM_PTR(&ciphers_type)},
@@ -5712,6 +6052,7 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_padding), MP_ROM_PTR(&padding_type)},
     {MP_ROM_QSTR(MP_QSTR_rsa), MP_ROM_PTR(&rsa_type)},
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
+    {MP_ROM_QSTR(MP_QSTR_twofactor), MP_ROM_PTR(&twofactor_type)},
     {MP_ROM_QSTR(MP_QSTR_utils), MP_ROM_PTR(&utils_type)},
 #if defined(MBEDTLS_VERSION_C)
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type)},
