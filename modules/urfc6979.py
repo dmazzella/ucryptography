@@ -10,7 +10,12 @@ from cryptography import utils as crypto_util
 class RFC6979(object):
 
     def __init__(self, msg, x, q, hashfunc=hashes.SHA256):
-        if hashfunc != hashes.SHA256:
+        if hashfunc not in (
+            hashes.SHA1,
+            hashes.SHA256,
+            hashes.SHA384,
+            hashes.SHA512
+        ):
             raise exceptions.UnsupportedAlgorithm()
         self.x = x
         self.q = q
@@ -45,15 +50,19 @@ class RFC6979(object):
         key_and_msg = self._int2octets(self.x) + self._bits2octets(h1)
         v = b'\x01' * hash_size
         k = b'\x00' * hash_size
+
         hmac_context = hmac.HMAC(k, algorithm)
         hmac_context.update(v + b'\x00' + key_and_msg)
         k = hmac_context.finalize()
+
         hmac_context = hmac.HMAC(k, algorithm)
         hmac_context.update(v)
         v = hmac_context.finalize()
+
         hmac_context = hmac.HMAC(k, algorithm)
         hmac_context.update(v + b'\x01' + key_and_msg)
         k = hmac_context.finalize()
+
         hmac_context = hmac.HMAC(k, algorithm)
         hmac_context.update(v)
         v = hmac_context.finalize()
@@ -68,9 +77,11 @@ class RFC6979(object):
             nonce = self._bits2int(t)
             if nonce >= 1 and nonce < self.q:
                 return nonce
+
             hmac_context = hmac.HMAC(k, algorithm)
             hmac_context.update(v + b'\x00')
             k = hmac_context.finalize()
+
             hmac_context = hmac.HMAC(k, algorithm)
             hmac_context.update(v)
             v = hmac_context.finalize()
