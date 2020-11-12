@@ -2446,7 +2446,7 @@ STATIC mp_obj_t hash_algorithm_sha1_make_new(const mp_obj_type_t *type, size_t n
 
 STATIC const mp_rom_map_elem_t hash_algorithm_sha1_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_sha1)},
-    {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(32)},
+    {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(20)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha1_locals_dict, hash_algorithm_sha1_locals_dict_table);
@@ -3476,24 +3476,8 @@ STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t has
         emlen = (mp_int_t)(mp_obj_get_int(int_bit_length(RSAPrivateKey->public_key->public_numbers->n)) + 6) / 8;
     }
 
-    mp_int_t digest_size = 0;
-    if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type))
-    {
-        digest_size = 20;
-    }
-    else if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type))
-    {
-        digest_size = 32;
-    }
-    else if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type))
-    {
-        digest_size = 48;
-    }
-    else if (mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type))
-    {
-        digest_size = 64;
-    }
-
+    mp_hash_algorithm_t *HashAlgorithm = MP_OBJ_TO_PTR(hash_algorithm);
+    mp_int_t digest_size = mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type));
     mp_int_t salt_length = emlen - digest_size - 2;
     return mp_obj_new_int(salt_length);
 }

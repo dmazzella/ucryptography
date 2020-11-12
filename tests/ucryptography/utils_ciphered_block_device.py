@@ -30,20 +30,21 @@ def load_bytes(filename):
         return f.read()
 
 
-try:
+if __name__ == "__main__":
     try:
-        bdev = utils.CipheredBlockDevice(128)
-        uos.VfsLfs2.mkfs(bdev)
-        uos.mount(uos.VfsLfs2(bdev), "/flash2")
+        try:
+            bdev = utils.CipheredBlockDevice(128, erase_block_size=512)
+            uos.VfsLfs2.mkfs(bdev)
+            uos.mount(uos.VfsLfs2(bdev), "/flash2")
+        except OSError as ex:
+            print("error mounting /flash2", ex)
+        else:
+            data = b"\xaa" * 250
+
+            dump_bytes("/flash2/test0.data", data)
+            print(uos.stat("/flash2/test0.data"))
+            assert load_bytes("/flash2/test0.data") == data
+            print(uos.statvfs("/flash2"))
+
     except OSError as ex:
-        print("error mounting /flash2", ex)
-    else:
-        data = b"\xaa" * 250
-
-        dump_bytes("/flash2/test0.data", data)
-        print(uos.stat("/flash2/test0.data"))
-        assert load_bytes("/flash2/test0.data") == data
-        print(uos.statvfs("/flash2"))
-
-except OSError as ex:
-    print(ex)
+        print(ex)
