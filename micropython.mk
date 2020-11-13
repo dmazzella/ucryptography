@@ -41,5 +41,11 @@ ifeq ($(MCU_SERIES),wb)
     SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/ecp_alt.c
     SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/rsa_alt.c
     SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/ecdsa_alt.c
+
+    HAL_SRC_C += $(addprefix $(HAL_DIR)/Src/stm32$(MCU_SERIES)xx_,\
+        hal_cryp.c \
+        hal_cryp_ex.c \
+        hal_pka.c \
+    )
 endif
 endif
