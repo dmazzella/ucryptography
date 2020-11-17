@@ -585,6 +585,7 @@ void HAL_PKA_MspDeInit(PKA_HandleTypeDef *hpka)
 }
 #endif
 
+#if 0
 #define DEBUG_MICROPYTHON_NEXTCHR "\n:"
 STATIC inline void micropython_printh(const uint8_t *b, size_t l)
 {
@@ -594,7 +595,6 @@ STATIC inline void micropython_printh(const uint8_t *b, size_t l)
     }
 }
 
-#if 0
 STATIC vstr_t *vstr_hexlify(vstr_t *vstr_out, const byte *in, size_t in_len)
 {
     vstr_init(vstr_out, in_len);
@@ -919,7 +919,7 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
         ARG_hash_algorithm
     };
     static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_hash_algorithm, MP_ARG_OBJ}};
+        {MP_QSTR_hash_algorithm, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}}};
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
@@ -5643,7 +5643,7 @@ STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, siz
         ARG_min_tag_length
     };
     static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_initialization_vector, MP_ARG_OBJ},
+        {MP_QSTR_initialization_vector, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
         {MP_QSTR_tag, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
         {MP_QSTR_min_tag_length, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 16}},
     };
