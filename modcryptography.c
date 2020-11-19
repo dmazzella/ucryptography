@@ -421,6 +421,17 @@ typedef struct _mp_util_block_device_t
     vstr_t *data;
 } mp_util_block_device_t;
 
+typedef struct _mp_util_rfc6979_t
+{
+    mp_obj_base_t base;
+    mp_obj_t msg;
+    mp_obj_t x;
+    mp_obj_t q;
+    mp_int_t qlen;
+    mp_int_t rlen;
+    struct _mp_hash_algorithm_t *algorithm;
+} mp_util_rfc6979_t;
+
 typedef struct _mp_padding_pkcs1v15_t
 {
     mp_obj_base_t base;
@@ -528,6 +539,9 @@ STATIC mp_obj_type_t ciphers_algorithms_aes_type;
 STATIC mp_obj_type_t ciphers_modes_cbc_type;
 STATIC mp_obj_type_t ciphers_modes_gcm_type;
 STATIC mp_obj_type_t utils_block_device_type;
+#if 0
+STATIC mp_obj_type_t utils_rfc6979_type;
+#endif
 STATIC mp_obj_type_t padding_pkcs1v15_type;
 STATIC mp_obj_type_t padding_pss_type;
 STATIC mp_obj_type_t padding_oaep_type;
@@ -2292,7 +2306,226 @@ STATIC mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_block_device_obj, 1, mod_block_device);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_block_device_obj, MP_ROM_PTR(&mod_block_device_obj));
 
+STATIC mp_obj_t _bits2int(mp_util_rfc6979_t *self, mp_obj_t b_obj)
+{
+    mp_buffer_info_t bufinfo_b;
+    mp_get_buffer_raise(b_obj, &bufinfo_b, MP_BUFFER_READ);
+    mp_obj_int_t *i = cryptography_small_to_big_int(mp_obj_int_from_bytes_impl(true, bufinfo_b.len, (const byte *)bufinfo_b.buf));
+    mp_int_t blen = bufinfo_b.len * 8;
+    if (blen > self->qlen)
+    {
+        mpz_shr_inpl(&i->mpz, &i->mpz, (blen - self->qlen));
+    }
+    return i;
+}
+
+STATIC mp_obj_t _int2octets(mp_util_rfc6979_t *self, mp_obj_t x_obj)
+{
+    mp_buffer_info_t bufinfo_octets;
+    int x_len = (mp_obj_get_int(int_bit_length(x_obj)) + 7) / 8;
+    cryptography_get_buffer(x_obj, true, x_len, &bufinfo_octets);
+
+    vstr_t padding_octets_vstr;
+    vstr_init(&padding_octets_vstr, ((self->rlen / 8) - bufinfo_octets.len));
+    for (mp_uint_t i = 0; i < ((self->rlen / 8) - bufinfo_octets.len); i++)
+    {
+        vstr_add_byte(&padding_octets_vstr, 0x00);
+    }
+    vstr_add_strn(&padding_octets_vstr, bufinfo_octets.buf, bufinfo_octets.len);
+
+    return mp_obj_new_bytes((const byte *)padding_octets_vstr.buf, padding_octets_vstr.len);
+}
+
+STATIC mp_obj_t _bits2octets(mp_util_rfc6979_t *self, mp_obj_t b_obj)
+{
+    mp_obj_int_t *z1 = cryptography_small_to_big_int(_bits2int(self, b_obj));
+    mp_obj_int_t *q = cryptography_small_to_big_int(self->q);
+
+    mpz_t quo;
+    mpz_init_zero(&quo);
+
+    mp_obj_int_t *z2 = mp_obj_int_new_mpz();
+    mpz_divmod_inpl(&quo, &z2->mpz, &z1->mpz, &q->mpz);
+
+    mpz_deinit(&quo);
+
+    mp_obj_t z2o = _int2octets(self, z2);
+    return z2o;
+}
+
+STATIC mp_obj_t utils_rfc6979_gen_nonce(mp_obj_t self_obj)
+{
+    mp_util_rfc6979_t *self = MP_OBJ_TO_PTR(self_obj);
+
+    mp_buffer_info_t bufinfo_msg;
+    mp_get_buffer_raise(self->msg, &bufinfo_msg, MP_BUFFER_READ);
+
+    mp_hash_algorithm_t *algorithm = MP_OBJ_TO_PTR(self->algorithm);
+    mp_int_t hash_size = mbedtls_md_get_size(mbedtls_md_info_from_type(algorithm->md_type));
+
+    vstr_t vstr_h1;
+    vstr_init_len(&vstr_h1, hash_size);
+    mbedtls_md(mbedtls_md_info_from_type(algorithm->md_type), (const byte *)bufinfo_msg.buf, bufinfo_msg.len, (byte *)vstr_h1.buf);
+
+    mp_buffer_info_t bufinfo_key_octets;
+    mp_get_buffer_raise(_int2octets(self, self->x), &bufinfo_key_octets, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_msg_octets;
+    mp_get_buffer_raise(_bits2octets(self, mp_obj_new_bytes((const byte *)vstr_h1.buf, vstr_h1.len)), &bufinfo_msg_octets, MP_BUFFER_READ);
+
+    vstr_t vstr_key_and_msg;
+    vstr_init(&vstr_key_and_msg, bufinfo_key_octets.len + bufinfo_msg_octets.len);
+    vstr_add_strn(&vstr_key_and_msg, bufinfo_key_octets.buf, bufinfo_key_octets.len);
+    vstr_add_strn(&vstr_key_and_msg, bufinfo_msg_octets.buf, bufinfo_msg_octets.len);
+
+    vstr_t vstr_v;
+    vstr_init(&vstr_v, hash_size);
+    for (mp_int_t i = 0; i < hash_size; i++)
+    {
+        vstr_add_byte(&vstr_v, 0x01);
+    }
+
+    vstr_t vstr_k;
+    vstr_init(&vstr_k, hash_size);
+    for (mp_int_t i = 0; i < hash_size; i++)
+    {
+        vstr_add_byte(&vstr_k, 0x00);
+    }
+
+    vstr_t vstr_v_00_key_and_msg;
+    vstr_init(&vstr_v_00_key_and_msg, vstr_v.len + 1 + vstr_key_and_msg.len);
+    vstr_add_strn(&vstr_v_00_key_and_msg, vstr_v.buf, vstr_v.len);
+    vstr_add_byte(&vstr_v_00_key_and_msg, 0x00);
+    vstr_add_strn(&vstr_v_00_key_and_msg, vstr_key_and_msg.buf, vstr_key_and_msg.len);
+
+    mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v_00_key_and_msg.buf, vstr_v_00_key_and_msg.len, (byte *)vstr_k.buf);
+
+    mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v.buf, vstr_v.len, (byte *)vstr_v.buf);
+
+    vstr_t vstr_v_01_key_and_msg;
+    vstr_init(&vstr_v_01_key_and_msg, vstr_v.len + 1 + vstr_key_and_msg.len);
+    vstr_add_strn(&vstr_v_01_key_and_msg, vstr_v.buf, vstr_v.len);
+    vstr_add_byte(&vstr_v_01_key_and_msg, 0x01);
+    vstr_add_strn(&vstr_v_01_key_and_msg, vstr_key_and_msg.buf, vstr_key_and_msg.len);
+
+    mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v_01_key_and_msg.buf, vstr_v_01_key_and_msg.len, (byte *)vstr_k.buf);
+
+    mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v.buf, vstr_v.len, (byte *)vstr_v.buf);
+
+    mp_obj_int_t *q = cryptography_small_to_big_int(self->q);
+
+    mpz_t one;
+    mpz_init_from_int(&one, 1);
+
+    while (true)
+    {
+        vstr_t vstr_temp;
+        vstr_init(&vstr_temp, 0);
+
+        while ((mp_int_t)(vstr_temp.len * 8) < self->qlen)
+        {
+            mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v.buf, vstr_v.len, (byte *)vstr_v.buf);
+            vstr_add_strn(&vstr_temp, vstr_v.buf, vstr_v.len);
+        }
+
+        mp_obj_int_t *nonce = cryptography_small_to_big_int(_bits2int(self, mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_temp)));
+        if (mpz_cmp(&nonce->mpz, &one) >= 0 && mpz_cmp(&nonce->mpz, &q->mpz) < 0)
+        {
+            mpz_deinit(&one);
+            return nonce;
+        }
+
+        vstr_t vstr_v_00;
+        vstr_init(&vstr_v_00, vstr_v.len + 1);
+        vstr_add_strn(&vstr_v_00, vstr_v.buf, vstr_v.len);
+        vstr_add_byte(&vstr_v_00, 0x00);
+
+        mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v_00.buf, vstr_v_00.len, (byte *)vstr_k.buf);
+
+        mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v.buf, vstr_v.len, (byte *)vstr_v.buf);
+    }
+
+    return mp_const_none;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(utils_rfc6979_gen_nonce_obj, utils_rfc6979_gen_nonce);
+
+STATIC const mp_rom_map_elem_t utils_rfc6979_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_gen_nonce), MP_ROM_PTR(&utils_rfc6979_gen_nonce_obj)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(utils_rfc6979_locals_dict, utils_rfc6979_locals_dict_table);
+
+STATIC mp_obj_type_t utils_rfc6979_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_RFC6979,
+    .locals_dict = (void *)&utils_rfc6979_locals_dict,
+};
+
+STATIC mp_obj_t mod_rfc6979(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
+{
+    enum
+    {
+        ARG_msg,
+        ARG_x,
+        ARG_q,
+        ARG_hashfunc
+    };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_msg, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_x, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_q, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+        {MP_QSTR_hashfunc, MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+    };
+
+    mp_arg_val_t vals[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, vals);
+
+    mp_obj_t msg = vals[ARG_msg].u_obj;
+    mp_buffer_info_t bufinfo_msg;
+    mp_get_buffer_raise(msg, &bufinfo_msg, MP_BUFFER_READ);
+
+    mp_obj_t x = vals[ARG_x].u_obj;
+    if (!mp_obj_is_int(x))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected x int"));
+    }
+
+    mp_obj_t q = vals[ARG_q].u_obj;
+    if (!mp_obj_is_int(q))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected q int"));
+    }
+
+    mp_obj_t hash_algorithm = vals[ARG_hashfunc].u_obj;
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
+#if !defined(MBEDTLS_SHA512_NO_SHA384)
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
+#endif
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+    }
+
+    mp_int_t qlen = mp_obj_get_int(int_bit_length(q));
+
+    mp_util_rfc6979_t *RFC6979 = m_new_obj(mp_util_rfc6979_t);
+    RFC6979->base.type = &utils_rfc6979_type;
+    RFC6979->msg = msg;
+    RFC6979->x = x;
+    RFC6979->q = q;
+    RFC6979->qlen = qlen;
+    RFC6979->rlen = ((mp_int_t)(qlen + 7) / 8) * 8;
+    RFC6979->algorithm = hash_algorithm;
+
+    return MP_OBJ_FROM_PTR(RFC6979);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_rfc6979_obj, 3, mod_rfc6979);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rfc6979_obj, MP_ROM_PTR(&mod_rfc6979_obj));
+
 STATIC const mp_rom_map_elem_t utils_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_RFC6979), MP_ROM_PTR(&mod_static_rfc6979_obj)},
     {MP_ROM_QSTR(MP_QSTR_CipheredBlockDevice), MP_ROM_PTR(&mod_static_block_device_obj)},
     {MP_ROM_QSTR(MP_QSTR_Prehashed), MP_ROM_PTR(&mod_static_hash_algorithm_prehashed_obj)},
     {MP_ROM_QSTR(MP_QSTR_constant_time_bytes_eq), MP_ROM_PTR(&mod_static_constant_time_bytes_eq_obj)},
@@ -5763,23 +5996,22 @@ STATIC mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
 
     mpz_t ten_pow_length;
     mpz_init_zero(&ten_pow_length);
+
     mpz_pow_inpl(&ten_pow_length, &ten, &length);
+
     mpz_deinit(&ten);
     mpz_deinit(&length);
 
     mpz_t quo;
     mpz_init_zero(&quo);
-    mpz_t rem;
-    mpz_init_zero(&rem);
-    mpz_divmod_inpl(&quo, &rem, &truncated_value, &ten_pow_length);
+    mp_obj_int_t *hotp = mp_obj_int_new_mpz();
+
+    mpz_divmod_inpl(&quo, &hotp->mpz, &truncated_value, &ten_pow_length);
+
     mpz_deinit(&truncated_value);
-
-    mp_int_t hotp = 0;
-    mpz_as_int_checked(&rem, &hotp);
     mpz_deinit(&quo);
-    mpz_deinit(&rem);
 
-    return mp_obj_new_int(hotp);
+    return hotp;
 }
 
 STATIC mp_obj_t twofactor_hotp_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)

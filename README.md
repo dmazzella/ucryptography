@@ -7,6 +7,20 @@ Lightweight porting of [cryptography](https://github.com/pyca/cryptography)  to 
 
 To build such a module, compile MicroPython with an extra make flag named ```USER_C_MODULES``` set to the directory containing all modules you want included (not to the module itself).
 
+### Compiling the cmodule into unix port
+
+```bash
+$ git clone https://github.com/micropython/micropython.git
+$ cd micropython
+micropython$ git submodule update --init
+micropython$ cd lib/mbedtls
+micropython/lib/mbedtls$ git checkout mbedtls-2.18
+micropython/lib/mbedtls$ cd ../../
+micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
+micropython$ make -j2 -C mpy-cross/
+micropython$ make -j2 -C ports/unix/ VARIANT="standard" MICROPY_SSL_AXTLS=0 MICROPY_SSL_MBEDTLS=1 USER_C_MODULES="$(pwd)/usercmodule"
+```
+
 ```python
 import cryptography
 ```
