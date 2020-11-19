@@ -1505,17 +1505,18 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 
     util_decode_dss_signature(bufinfo_signature.buf, bufinfo_signature.len, &r, &s);
 
-    mbedtls_mpi_free(&r);
-    mbedtls_mpi_free(&s);
-
     int ecdsa_verify = 0;
     if ((ecdsa_verify = mbedtls_ecdsa_verify(&ecp.grp, (const byte *)vstr_digest.buf, vstr_digest.len, &ecp.Q, &r, &s)) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
+        mbedtls_mpi_free(&r);
+        mbedtls_mpi_free(&s);
         mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ecdsa_verify);
     }
 
     mbedtls_ecp_keypair_free(&ecp);
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
 
     return mp_const_none;
 }

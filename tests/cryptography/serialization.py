@@ -128,11 +128,14 @@ def main():
         digest.update(b"cacca")
         digest.update(b"cacca")
         msg_hash = digest.finalize()
-        signature = private_key.sign(msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
+        signature = private_key.sign(
+            msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
         print("len", len(signature), "signature", signature)
-        public_key.verify(signature, msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
+        public_key.verify(signature, msg_hash, ec.ECDSA(
+            utils.Prehashed(chosen_hash)))
 
-        public_key1 = serialization.load_der_public_key(EC_PUBLIC_KEY_DER)
+        public_key1 = serialization.load_der_public_key(
+            EC_PUBLIC_KEY_DER, default_backend())
         public_numbers1 = public_key1.public_numbers()
         print("public_key.curve", public_key1.curve.name)
         public_bytes1 = public_key1.public_bytes(
@@ -142,7 +145,8 @@ def main():
         print("public_key.public_bytes", public_bytes1)
         print("public_key.public_numbers.x", public_numbers1.x)
         print("public_key.public_numbers.y", public_numbers1.y)
-        public_key1.verify(signature, msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
+        public_key1.verify(signature, msg_hash, ec.ECDSA(
+            utils.Prehashed(chosen_hash)))
 
     def rsa_serialization():
         private_key = serialization.load_der_private_key(
@@ -151,7 +155,8 @@ def main():
         public_numbers = private_key.public_key().public_numbers()
         print("n", public_numbers.n)
         print("e", public_numbers.e)
-        print("key_size", public_numbers.public_key(backend=default_backend()).key_size)
+        print("key_size", public_numbers.public_key(
+            default_backend()).key_size)
         print(
             "private_bytes",
             private_key.private_bytes(
@@ -197,7 +202,8 @@ def main():
             ),
         )
 
-        public_key1 = serialization.load_der_public_key(RSA_PUBLIC_KEY_DER)
+        public_key1 = serialization.load_der_public_key(
+            RSA_PUBLIC_KEY_DER, default_backend())
         public_numbers1 = public_key1.public_numbers()
         public_bytes1 = public_key1.public_bytes(
             encoding=serialization.Encoding.DER,
