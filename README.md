@@ -90,6 +90,7 @@ import cryptography
   - HOTP
   - TOTP
 - utils
+  - RFC6979
   - CipheredBlockDevice
   - Prehashed
   - constant_time_bytes_eq
