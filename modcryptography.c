@@ -54,6 +54,10 @@
 #endif // MICROPY_HW_ENABLE_RNG
 #endif
 
+#if MICROPY_LONGINT_IMPL != MICROPY_LONGINT_IMPL_MPZ
+#error "MICROPY_LONGINT_IMPL must be MICROPY_LONGINT_IMPL_MPZ"
+#endif
+
 MP_DEFINE_EXCEPTION(InvalidSignature, Exception);
 MP_DEFINE_EXCEPTION(AlreadyFinalized, Exception);
 MP_DEFINE_EXCEPTION(NotYetFinalized, Exception);
@@ -636,6 +640,57 @@ STATIC vstr_t *vstr_hexlify(vstr_t *vstr_out, const byte *in, size_t in_len)
 }
 #endif
 
+STATIC mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
+{
+    if (mp_obj_is_small_int(arg))
+    {
+        mpz_init_from_int(temp, MP_OBJ_SMALL_INT_VALUE(arg));
+        return temp;
+    }
+    else
+    {
+        mp_obj_int_t *arp_p = MP_OBJ_TO_PTR(arg);
+        return &(arp_p->mpz);
+    }
+}
+
+STATIC mp_obj_t int_bit_length(mp_obj_t x)
+{
+    mpz_t n_temp;
+    mpz_t *n = mp_mpz_for_int(x, &n_temp);
+    if (mpz_is_zero(n))
+    {
+        return mp_obj_new_int_from_uint(0);
+    }
+    mpz_t *dest = m_new_obj(mpz_t);
+    dest->neg = n->neg;
+    dest->fixed_dig = 0;
+    dest->alloc = n->alloc;
+    dest->len = n->len;
+    dest->dig = m_new(mpz_dig_t, n->alloc);
+    memcpy(dest->dig, n->dig, n->alloc * sizeof(mpz_dig_t));
+    mpz_abs_inpl(dest, dest);
+    mp_uint_t num_bits = 0;
+    while (dest->len > 0)
+    {
+        mpz_shr_inpl(dest, dest, 1);
+        num_bits++;
+    }
+    if (dest != NULL)
+    {
+        m_del(mpz_dig_t, dest->dig, dest->alloc);
+        m_del_obj(mpz_t, dest);
+    }
+    if (n == &n_temp)
+    {
+        mpz_deinit(n);
+    }
+    return mp_obj_new_int_from_ull(num_bits);
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_int_bit_length_obj, int_bit_length);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_int_bit_length_obj, MP_ROM_PTR(&mod_int_bit_length_obj));
+
 STATIC mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
 {
     if (!mp_obj_is_int(arg))
@@ -653,35 +708,21 @@ STATIC mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
     return arg;
 }
 
-STATIC mpz_t *cryptography_mpz_for_int(mp_obj_t arg, mpz_t *temp)
+STATIC void cryptography_get_buffer(const mp_obj_t o, bool big_endian, mp_buffer_info_t *bufinfo)
 {
-    if (mp_obj_is_small_int(arg))
+    mp_obj_t oo = o;
+    if (mp_obj_is_int(oo))
     {
-        mpz_init_from_int(temp, MP_OBJ_SMALL_INT_VALUE(arg));
-        return temp;
-    }
-    else
-    {
-        mp_obj_int_t *arp_p = MP_OBJ_TO_PTR(arg);
-        return &(arp_p->mpz);
-    }
-}
-
-STATIC void cryptography_get_buffer(mp_obj_t o, bool big_endian, size_t len, mp_buffer_info_t *bufinfo)
-{
-    if (mp_obj_is_int(o))
-    {
-        vstr_t vstr;
-        vstr_init_len(&vstr, len);
-
         mpz_t o_temp;
-        mpz_t *o_temp_p = cryptography_mpz_for_int(o, &o_temp);
+        mpz_t *o_temp_p = mp_mpz_for_int(o, &o_temp);
         bool is_neg = mpz_is_neg(o_temp_p);
         if (is_neg)
         {
             mpz_abs_inpl(o_temp_p, o_temp_p);
         }
-        mpz_as_bytes(o_temp_p, big_endian, len, (byte *)vstr.buf);
+        vstr_t vstr;
+        vstr_init_len(&vstr, (mpz_max_num_bits(o_temp_p) + 7) / 8);
+        mpz_as_bytes(o_temp_p, big_endian, vstr.len, (byte *)vstr.buf);
         if (is_neg)
         {
             mpz_neg_inpl(o_temp_p, o_temp_p);
@@ -691,14 +732,27 @@ STATIC void cryptography_get_buffer(mp_obj_t o, bool big_endian, size_t len, mp_
             mpz_deinit(o_temp_p);
         }
 
-        if (!mp_get_buffer(mp_obj_new_bytearray_by_ref(vstr.len, (byte *)vstr.buf), bufinfo, MP_BUFFER_READ))
-        {
-            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("object with buffer protocol or int required, got %s"), mp_obj_get_type_str(o)));
-        }
+        oo = mp_obj_new_bytearray_by_ref(vstr.len, (byte *)vstr.buf);
     }
-    else if (!mp_get_buffer(o, bufinfo, MP_BUFFER_READ))
+
+    if (!mp_get_buffer(oo, bufinfo, MP_BUFFER_READ))
     {
-        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("object with buffer protocol or int required, got %s"), mp_obj_get_type_str(o)));
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_TypeError, MP_ERROR_TEXT("object with buffer protocol or int required, got %s"), mp_obj_get_type_str(oo)));
+    }
+}
+
+STATIC void mbedtls_mpi_read_binary_from_mp_obj(mbedtls_mpi *mpi, const mp_obj_t o, bool big_endian)
+{
+    mp_buffer_info_t bufinfo_o;
+    cryptography_get_buffer(o, big_endian, &bufinfo_o);
+
+    if (big_endian)
+    {
+        mbedtls_mpi_read_binary(mpi, (const byte *)bufinfo_o.buf, bufinfo_o.len);
+    }
+    else
+    {
+        mbedtls_mpi_read_binary_le(mpi, (const byte *)bufinfo_o.buf, bufinfo_o.len);
     }
 }
 
@@ -733,70 +787,6 @@ STATIC mp_obj_t mod_constant_time_bytes_eq(mp_obj_t a, mp_obj_t b)
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_constant_time_bytes_eq_obj, mod_constant_time_bytes_eq);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_constant_time_bytes_eq_obj, MP_ROM_PTR(&mod_constant_time_bytes_eq_obj));
-
-#if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
-STATIC mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
-{
-    if (mp_obj_is_small_int(arg))
-    {
-        mpz_init_from_int(temp, MP_OBJ_SMALL_INT_VALUE(arg));
-        return temp;
-    }
-    else
-    {
-        mp_obj_int_t *arp_p = MP_OBJ_TO_PTR(arg);
-        return &(arp_p->mpz);
-    }
-}
-#endif
-
-STATIC mp_obj_t int_bit_length(mp_obj_t x)
-{
-#if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
-    mpz_t n_temp;
-    mpz_t *n = mp_mpz_for_int(x, &n_temp);
-    if (mpz_is_zero(n))
-    {
-        return mp_obj_new_int_from_uint(0);
-    }
-    mpz_t *dest = m_new_obj(mpz_t);
-    dest->neg = n->neg;
-    dest->fixed_dig = 0;
-    dest->alloc = n->alloc;
-    dest->len = n->len;
-    dest->dig = m_new(mpz_dig_t, n->alloc);
-    memcpy(dest->dig, n->dig, n->alloc * sizeof(mpz_dig_t));
-    mpz_abs_inpl(dest, dest);
-    mp_uint_t num_bits = 0;
-    while (dest->len > 0)
-    {
-        mpz_shr_inpl(dest, dest, 1);
-        num_bits++;
-    }
-    if (dest != NULL)
-    {
-        m_del(mpz_dig_t, dest->dig, dest->alloc);
-        m_del_obj(mpz_t, dest);
-    }
-    if (n == &n_temp)
-    {
-        mpz_deinit(n);
-    }
-    return mp_obj_new_int_from_ull(num_bits);
-#else
-    mp_uint_t dest = MP_OBJ_SMALL_INT_VALUE(x);
-    mp_uint_t num_bits = 0;
-    while (dest > 0)
-    {
-        dest >>= 1;
-        num_bits++;
-    }
-    return mp_obj_new_int_from_uint(num_bits);
-#endif
-}
-
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_int_bit_length_obj, int_bit_length);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_int_bit_length_obj, MP_ROM_PTR(&mod_int_bit_length_obj));
 
 STATIC int util_decode_dss_signature(const unsigned char *sig, size_t slen, mbedtls_mpi *r, mbedtls_mpi *s)
 {
@@ -889,21 +879,13 @@ STATIC int util_encode_dss_signature(const mbedtls_mpi *r, const mbedtls_mpi *s,
 
 STATIC mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
 {
-    mp_buffer_info_t bufinfo_r;
-    int r_len = (mp_obj_get_int(int_bit_length(r_obj)) + 7) / 8;
-    cryptography_get_buffer(r_obj, true, r_len, &bufinfo_r);
-
-    mp_buffer_info_t bufinfo_s;
-    int s_len = (mp_obj_get_int(int_bit_length(s_obj)) + 7) / 8;
-    cryptography_get_buffer(s_obj, true, s_len, &bufinfo_s);
-
     mbedtls_mpi r;
     mbedtls_mpi_init(&r);
-    mbedtls_mpi_read_binary(&r, (const byte *)bufinfo_r.buf, bufinfo_r.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&r, r_obj, true);
 
     mbedtls_mpi s;
     mbedtls_mpi_init(&s);
-    mbedtls_mpi_read_binary(&s, (const byte *)bufinfo_s.buf, bufinfo_s.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&s, s_obj, true);
 
     vstr_t vstr_sig;
     vstr_init_len(&vstr_sig, MBEDTLS_ECDSA_MAX_LEN);
@@ -1913,21 +1895,13 @@ STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_pr
         mp_raise_ValueError(MP_ERROR_TEXT("Expected encoding value 1 (DER) or 2 (PEM)"));
     }
 
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(public_numbers->e)) + 7) / 8;
-    cryptography_get_buffer(public_numbers->e, true, e_len, &bufinfo_e);
-
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
-
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(public_numbers->n)) + 7) / 8;
-    cryptography_get_buffer(public_numbers->n, true, n_len, &bufinfo_n);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, public_numbers->e, true);
 
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&N, public_numbers->n, true);
 
     if (public_numbers != MP_OBJ_NULL && private_numbers == MP_OBJ_NULL)
     {
@@ -1961,29 +1935,17 @@ STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_pr
     }
     else if (public_numbers != MP_OBJ_NULL && private_numbers != MP_OBJ_NULL)
     {
-        mp_buffer_info_t bufinfo_p;
-        int p_len = (mp_obj_get_int(int_bit_length(private_numbers->p)) + 7) / 8;
-        cryptography_get_buffer(private_numbers->p, true, p_len, &bufinfo_p);
-
         mbedtls_mpi P;
         mbedtls_mpi_init(&P);
-        mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
-
-        mp_buffer_info_t bufinfo_q;
-        int q_len = (mp_obj_get_int(int_bit_length(private_numbers->q)) + 7) / 8;
-        cryptography_get_buffer(private_numbers->q, true, q_len, &bufinfo_q);
+        mbedtls_mpi_read_binary_from_mp_obj(&P, private_numbers->p, true);
 
         mbedtls_mpi Q;
         mbedtls_mpi_init(&Q);
-        mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
-
-        mp_buffer_info_t bufinfo_d;
-        int d_len = (mp_obj_get_int(int_bit_length(private_numbers->d)) + 7) / 8;
-        cryptography_get_buffer(private_numbers->d, true, d_len, &bufinfo_d);
+        mbedtls_mpi_read_binary_from_mp_obj(&Q, private_numbers->q, true);
 
         mbedtls_mpi D;
         mbedtls_mpi_init(&D);
-        mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+        mbedtls_mpi_read_binary_from_mp_obj(&D, private_numbers->d, true);
 
         mbedtls_pk_context pk;
         mbedtls_pk_init(&pk);
@@ -2323,8 +2285,7 @@ STATIC mp_obj_t _bits2int(mp_util_rfc6979_t *self, mp_obj_t b_obj)
 STATIC mp_obj_t _int2octets(mp_util_rfc6979_t *self, mp_obj_t x_obj)
 {
     mp_buffer_info_t bufinfo_octets;
-    int x_len = (mp_obj_get_int(int_bit_length(x_obj)) + 7) / 8;
-    cryptography_get_buffer(x_obj, true, x_len, &bufinfo_octets);
+    cryptography_get_buffer(x_obj, true, &bufinfo_octets);
 
     vstr_t padding_octets_vstr;
     vstr_init(&padding_octets_vstr, ((self->rlen / 8) - bufinfo_octets.len));
@@ -3855,21 +3816,13 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
 
     mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_numbers;
 
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
-
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
-
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&N, RSAPublicNumbers->n, true);
 
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, RSAPublicNumbers->e, true);
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
@@ -3940,21 +3893,13 @@ STATIC mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
 
     mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_numbers;
 
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
-
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
-
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&N, RSAPublicNumbers->n, true);
 
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, RSAPublicNumbers->e, true);
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
@@ -4078,21 +4023,13 @@ STATIC mp_obj_t rsa_public_numbers_make_new(const mp_obj_type_t *type, size_t n_
         mp_raise_TypeError(MP_ERROR_TEXT("Expected N int"));
     }
 
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(e)) + 7) / 8;
-    cryptography_get_buffer(e, true, e_len, &bufinfo_e);
-
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(n)) + 7) / 8;
-    cryptography_get_buffer(n, true, n_len, &bufinfo_n);
-
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&N, n, true);
 
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, e, true);
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
@@ -4196,74 +4133,42 @@ STATIC mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
 
     mp_rsa_private_numbers_t *RSAPrivateNumbers = self->private_numbers;
 
-    mp_buffer_info_t bufinfo_p;
-    int p_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->p)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->p, true, p_len, &bufinfo_p);
-
     mbedtls_mpi P;
     mbedtls_mpi_init(&P);
-    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
-
-    mp_buffer_info_t bufinfo_q;
-    int q_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->q)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->q, true, q_len, &bufinfo_q);
+    mbedtls_mpi_read_binary_from_mp_obj(&P, RSAPrivateNumbers->p, true);
 
     mbedtls_mpi Q;
     mbedtls_mpi_init(&Q);
-    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
-
-    mp_buffer_info_t bufinfo_d;
-    int d_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->d)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->d, true, d_len, &bufinfo_d);
+    mbedtls_mpi_read_binary_from_mp_obj(&Q, RSAPrivateNumbers->q, true);
 
     mbedtls_mpi D;
     mbedtls_mpi_init(&D);
-    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
-
-    mp_buffer_info_t bufinfo_dmp1;
-    int dmp1_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->dmp1)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->dmp1, true, dmp1_len, &bufinfo_dmp1);
+    mbedtls_mpi_read_binary_from_mp_obj(&D, RSAPrivateNumbers->d, true);
 
     mbedtls_mpi DMP1;
     mbedtls_mpi_init(&DMP1);
-    mbedtls_mpi_read_binary(&DMP1, (const byte *)bufinfo_dmp1.buf, bufinfo_dmp1.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&DMP1, RSAPrivateNumbers->dmp1, true);
     mbedtls_mpi_free(&DMP1);
-
-    mp_buffer_info_t bufinfo_dmq1;
-    int dmq1_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->dmq1)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->dmq1, true, dmq1_len, &bufinfo_dmq1);
 
     mbedtls_mpi DMQ1;
     mbedtls_mpi_init(&DMQ1);
-    mbedtls_mpi_read_binary(&DMQ1, (const byte *)bufinfo_dmq1.buf, bufinfo_dmq1.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&DMQ1, RSAPrivateNumbers->dmq1, true);
     mbedtls_mpi_free(&DMQ1);
-
-    mp_buffer_info_t bufinfo_iqmp;
-    int iqmp_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->iqmp)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->iqmp, true, iqmp_len, &bufinfo_iqmp);
 
     mbedtls_mpi IQMP;
     mbedtls_mpi_init(&IQMP);
-    mbedtls_mpi_read_binary(&IQMP, (const byte *)bufinfo_iqmp.buf, bufinfo_iqmp.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&IQMP, RSAPrivateNumbers->iqmp, true);
     mbedtls_mpi_free(&IQMP);
 
     mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_key->public_numbers;
 
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
-
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
-
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, RSAPublicNumbers->e, true);
 
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&N, RSAPublicNumbers->n, true);
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
@@ -4381,74 +4286,42 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
 
     mp_rsa_private_numbers_t *RSAPrivateNumbers = self->private_numbers;
 
-    mp_buffer_info_t bufinfo_p;
-    int p_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->p)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->p, true, p_len, &bufinfo_p);
-
     mbedtls_mpi P;
     mbedtls_mpi_init(&P);
-    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
-
-    mp_buffer_info_t bufinfo_q;
-    int q_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->q)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->q, true, q_len, &bufinfo_q);
+    mbedtls_mpi_read_binary_from_mp_obj(&P, RSAPrivateNumbers->p, true);
 
     mbedtls_mpi Q;
     mbedtls_mpi_init(&Q);
-    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
-
-    mp_buffer_info_t bufinfo_d;
-    int d_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->d)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->d, true, d_len, &bufinfo_d);
+    mbedtls_mpi_read_binary_from_mp_obj(&Q, RSAPrivateNumbers->q, true);
 
     mbedtls_mpi D;
     mbedtls_mpi_init(&D);
-    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
-
-    mp_buffer_info_t bufinfo_dmp1;
-    int dmp1_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->dmp1)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->dmp1, true, dmp1_len, &bufinfo_dmp1);
+    mbedtls_mpi_read_binary_from_mp_obj(&D, RSAPrivateNumbers->d, true);
 
     mbedtls_mpi DMP1;
     mbedtls_mpi_init(&DMP1);
-    mbedtls_mpi_read_binary(&DMP1, (const byte *)bufinfo_dmp1.buf, bufinfo_dmp1.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&DMP1, RSAPrivateNumbers->dmp1, true);
     mbedtls_mpi_free(&DMP1);
-
-    mp_buffer_info_t bufinfo_dmq1;
-    int dmq1_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->dmq1)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->dmq1, true, dmq1_len, &bufinfo_dmq1);
 
     mbedtls_mpi DMQ1;
     mbedtls_mpi_init(&DMQ1);
-    mbedtls_mpi_read_binary(&DMQ1, (const byte *)bufinfo_dmq1.buf, bufinfo_dmq1.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&DMQ1, RSAPrivateNumbers->dmq1, true);
     mbedtls_mpi_free(&DMQ1);
-
-    mp_buffer_info_t bufinfo_iqmp;
-    int iqmp_len = (mp_obj_get_int(int_bit_length(RSAPrivateNumbers->iqmp)) + 7) / 8;
-    cryptography_get_buffer(RSAPrivateNumbers->iqmp, true, iqmp_len, &bufinfo_iqmp);
 
     mbedtls_mpi IQMP;
     mbedtls_mpi_init(&IQMP);
-    mbedtls_mpi_read_binary(&IQMP, (const byte *)bufinfo_iqmp.buf, bufinfo_iqmp.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&IQMP, RSAPrivateNumbers->iqmp, true);
     mbedtls_mpi_free(&IQMP);
 
     mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_key->public_numbers;
 
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
-
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
-
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, RSAPublicNumbers->e, true);
 
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&N, RSAPublicNumbers->n, true);
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
@@ -4621,72 +4494,40 @@ STATIC mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n
         mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of rsa.RSAPublicNumbers"));
     }
 
-    mp_buffer_info_t bufinfo_p;
-    int p_len = (mp_obj_get_int(int_bit_length(p)) + 7) / 8;
-    cryptography_get_buffer(p, true, p_len, &bufinfo_p);
-
     mbedtls_mpi P;
     mbedtls_mpi_init(&P);
-    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
-
-    mp_buffer_info_t bufinfo_q;
-    int q_len = (mp_obj_get_int(int_bit_length(q)) + 7) / 8;
-    cryptography_get_buffer(q, true, q_len, &bufinfo_q);
+    mbedtls_mpi_read_binary_from_mp_obj(&P, p, true);
 
     mbedtls_mpi Q;
     mbedtls_mpi_init(&Q);
-    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
-
-    mp_buffer_info_t bufinfo_d;
-    int d_len = (mp_obj_get_int(int_bit_length(d)) + 7) / 8;
-    cryptography_get_buffer(d, true, d_len, &bufinfo_d);
+    mbedtls_mpi_read_binary_from_mp_obj(&Q, q, true);
 
     mbedtls_mpi D;
     mbedtls_mpi_init(&D);
-    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
-
-    mp_buffer_info_t bufinfo_dmp1;
-    int dmp1_len = (mp_obj_get_int(int_bit_length(dmp1)) + 7) / 8;
-    cryptography_get_buffer(dmp1, true, dmp1_len, &bufinfo_dmp1);
+    mbedtls_mpi_read_binary_from_mp_obj(&D, d, true);
 
     mbedtls_mpi DMP1;
     mbedtls_mpi_init(&DMP1);
-    mbedtls_mpi_read_binary(&DMP1, (const byte *)bufinfo_dmp1.buf, bufinfo_dmp1.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&DMP1, dmp1, true);
     mbedtls_mpi_free(&DMP1);
-
-    mp_buffer_info_t bufinfo_dmq1;
-    int dmq1_len = (mp_obj_get_int(int_bit_length(dmq1)) + 7) / 8;
-    cryptography_get_buffer(dmq1, true, dmq1_len, &bufinfo_dmq1);
 
     mbedtls_mpi DMQ1;
     mbedtls_mpi_init(&DMQ1);
-    mbedtls_mpi_read_binary(&DMQ1, (const byte *)bufinfo_dmq1.buf, bufinfo_dmq1.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&DMQ1, dmq1, true);
     mbedtls_mpi_free(&DMQ1);
-
-    mp_buffer_info_t bufinfo_iqmp;
-    int iqmp_len = (mp_obj_get_int(int_bit_length(iqmp)) + 7) / 8;
-    cryptography_get_buffer(iqmp, true, iqmp_len, &bufinfo_iqmp);
 
     mbedtls_mpi IQMP;
     mbedtls_mpi_init(&IQMP);
-    mbedtls_mpi_read_binary(&IQMP, (const byte *)bufinfo_iqmp.buf, bufinfo_iqmp.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&IQMP, iqmp, true);
     mbedtls_mpi_free(&IQMP);
-
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->e)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->e, true, e_len, &bufinfo_e);
 
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
-
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(RSAPublicNumbers->n)) + 7) / 8;
-    cryptography_get_buffer(RSAPublicNumbers->n, true, n_len, &bufinfo_n);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, RSAPublicNumbers->e, true);
 
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&N, RSAPublicNumbers->n, true);
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
@@ -4791,21 +4632,13 @@ STATIC mp_obj_type_t rsa_private_numbers_type = {
 
 STATIC mp_obj_t rsa_crt_iqmp(mp_obj_t p, mp_obj_t q)
 {
-    mp_buffer_info_t bufinfo_p;
-    int p_len = (mp_obj_get_int(int_bit_length(p)) + 7) / 8;
-    cryptography_get_buffer(p, true, p_len, &bufinfo_p);
-
     mbedtls_mpi P;
     mbedtls_mpi_init(&P);
-    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
-
-    mp_buffer_info_t bufinfo_q;
-    int q_len = (mp_obj_get_int(int_bit_length(q)) + 7) / 8;
-    cryptography_get_buffer(q, true, q_len, &bufinfo_q);
+    mbedtls_mpi_read_binary_from_mp_obj(&P, p, true);
 
     mbedtls_mpi Q;
     mbedtls_mpi_init(&Q);
-    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&Q, q, true);
 
     mbedtls_mpi QP;
     mbedtls_mpi_init(&QP);
@@ -4837,21 +4670,13 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_iqmp_obj, MP_ROM_PTR(
 
 STATIC mp_obj_t rsa_crt_dmp1(mp_obj_t d, mp_obj_t p)
 {
-    mp_buffer_info_t bufinfo_d;
-    int d_len = (mp_obj_get_int(int_bit_length(d)) + 7) / 8;
-    cryptography_get_buffer(d, true, d_len, &bufinfo_d);
-
     mbedtls_mpi D;
     mbedtls_mpi_init(&D);
-    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
-
-    mp_buffer_info_t bufinfo_p;
-    int p_len = (mp_obj_get_int(int_bit_length(p)) + 7) / 8;
-    cryptography_get_buffer(p, true, p_len, &bufinfo_p);
+    mbedtls_mpi_read_binary_from_mp_obj(&D, d, true);
 
     mbedtls_mpi P;
     mbedtls_mpi_init(&P);
-    mbedtls_mpi_read_binary(&P, (const byte *)bufinfo_p.buf, bufinfo_p.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&P, p, true);
 
     mbedtls_mpi Psub1;
     mbedtls_mpi_init(&Psub1);
@@ -4888,21 +4713,13 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_dmp1_obj, MP_ROM_PTR(
 
 STATIC mp_obj_t rsa_crt_dmq1(mp_obj_t d, mp_obj_t q)
 {
-    mp_buffer_info_t bufinfo_d;
-    int d_len = (mp_obj_get_int(int_bit_length(d)) + 7) / 8;
-    cryptography_get_buffer(d, true, d_len, &bufinfo_d);
-
     mbedtls_mpi D;
     mbedtls_mpi_init(&D);
-    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
-
-    mp_buffer_info_t bufinfo_q;
-    int q_len = (mp_obj_get_int(int_bit_length(q)) + 7) / 8;
-    cryptography_get_buffer(q, true, q_len, &bufinfo_q);
+    mbedtls_mpi_read_binary_from_mp_obj(&D, d, true);
 
     mbedtls_mpi Q;
     mbedtls_mpi_init(&Q);
-    mbedtls_mpi_read_binary(&Q, (const byte *)bufinfo_q.buf, bufinfo_q.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&Q, q, true);
 
     mbedtls_mpi Qsub1;
     mbedtls_mpi_init(&Qsub1);
@@ -4939,29 +4756,17 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_dmq1_obj, MP_ROM_PTR(
 
 STATIC mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
 {
-    mp_buffer_info_t bufinfo_n;
-    int n_len = (mp_obj_get_int(int_bit_length(n)) + 7) / 8;
-    cryptography_get_buffer(n, true, n_len, &bufinfo_n);
-
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
-    mbedtls_mpi_read_binary(&N, (const byte *)bufinfo_n.buf, bufinfo_n.len);
-
-    mp_buffer_info_t bufinfo_e;
-    int e_len = (mp_obj_get_int(int_bit_length(e)) + 7) / 8;
-    cryptography_get_buffer(e, true, e_len, &bufinfo_e);
+    mbedtls_mpi_read_binary_from_mp_obj(&N, n, true);
 
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
-    mbedtls_mpi_read_binary(&E, (const byte *)bufinfo_e.buf, bufinfo_e.len);
-
-    mp_buffer_info_t bufinfo_d;
-    int d_len = (mp_obj_get_int(int_bit_length(d)) + 7) / 8;
-    cryptography_get_buffer(d, true, d_len, &bufinfo_d);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, e, true);
 
     mbedtls_mpi D;
     mbedtls_mpi_init(&D);
-    mbedtls_mpi_read_binary(&D, (const byte *)bufinfo_d.buf, bufinfo_d.len);
+    mbedtls_mpi_read_binary_from_mp_obj(&D, d, true);
 
     mbedtls_mpi P;
     mbedtls_mpi_init(&P);
