@@ -756,6 +756,21 @@ STATIC void mbedtls_mpi_read_binary_from_mp_obj(mbedtls_mpi *mpi, const mp_obj_t
     }
 }
 
+STATIC mp_obj_t mbedtls_mpi_write_binary_to_mp_obj(const mbedtls_mpi *mpi, bool big_endian)
+{
+    vstr_t vstr_mpi;
+    vstr_init_len(&vstr_mpi, mbedtls_mpi_size(mpi));
+    if (big_endian)
+    {
+        mbedtls_mpi_write_binary(mpi, (byte *)vstr_mpi.buf, vstr_len(&vstr_mpi));
+    }
+    else
+    {
+        mbedtls_mpi_write_binary_le(mpi, (byte *)vstr_mpi.buf, vstr_len(&vstr_mpi));
+    }
+    return mp_obj_int_from_bytes_impl(big_endian, vstr_len(&vstr_mpi), (const byte *)vstr_mpi.buf);
+}
+
 STATIC uint8_t constant_time_bytes_eq(uint8_t *a, size_t len_a, uint8_t *b, size_t len_b)
 {
     size_t i = 0;
@@ -837,17 +852,7 @@ STATIC mp_obj_t mod_decode_dss_signature(mp_obj_t signature_obj)
 
     util_decode_dss_signature(bufinfo_signature.buf, bufinfo_signature.len, &r, &s);
 
-    vstr_t vstr_r;
-    vstr_init_len(&vstr_r, mbedtls_mpi_size(&r));
-    mbedtls_mpi_write_binary(&r, (byte *)vstr_r.buf, vstr_len(&vstr_r));
-
-    vstr_t vstr_s;
-    vstr_init_len(&vstr_s, mbedtls_mpi_size(&s));
-    mbedtls_mpi_write_binary(&s, (byte *)vstr_s.buf, vstr_len(&vstr_s));
-
-    mp_obj_t rs[2] = {
-        mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_r), (const byte *)vstr_r.buf),
-        mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_s), (const byte *)vstr_s.buf)};
+    mp_obj_t rs[2] = {mbedtls_mpi_write_binary_to_mp_obj(&r, true), mbedtls_mpi_write_binary_to_mp_obj(&s, true)};
 
     mbedtls_mpi_free(&r);
     mbedtls_mpi_free(&s);
@@ -1100,32 +1105,12 @@ STATIC mp_ec_curve_t *ec_curve_secpXXXr1_make_new_helper(mp_obj_t type, mbedtls_
     mbedtls_ecp_group_init(&grp);
     mbedtls_ecp_group_load(&grp, EllipticCurve->ecp_group_id);
 
-    vstr_t vstr_p;
-    vstr_init_len(&vstr_p, mbedtls_mpi_size(&grp.P));
-    mbedtls_mpi_write_binary(&grp.P, (byte *)vstr_p.buf, vstr_len(&vstr_p));
-    EllipticCurve->p = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_p), (const byte *)vstr_p.buf);
-
+    EllipticCurve->p = mbedtls_mpi_write_binary_to_mp_obj(&grp.P, true);
     EllipticCurve->a = mp_obj_new_int(-3);
-
-    vstr_t vstr_b;
-    vstr_init_len(&vstr_b, mbedtls_mpi_size(&grp.B));
-    mbedtls_mpi_write_binary(&grp.B, (byte *)vstr_b.buf, vstr_len(&vstr_b));
-    EllipticCurve->b = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_b), (const byte *)vstr_b.buf);
-
-    vstr_t vstr_n;
-    vstr_init_len(&vstr_n, mbedtls_mpi_size(&grp.N));
-    mbedtls_mpi_write_binary(&grp.N, (byte *)vstr_n.buf, vstr_len(&vstr_n));
-    EllipticCurve->n = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_n), (const byte *)vstr_n.buf);
-
-    vstr_t vstr_G_x;
-    vstr_init_len(&vstr_G_x, mbedtls_mpi_size(&grp.G.X));
-    mbedtls_mpi_write_binary(&grp.G.X, (byte *)vstr_G_x.buf, vstr_len(&vstr_G_x));
-    EllipticCurve->G_x = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_G_x), (const byte *)vstr_G_x.buf);
-
-    vstr_t vstr_G_y;
-    vstr_init_len(&vstr_G_y, mbedtls_mpi_size(&grp.G.Y));
-    mbedtls_mpi_write_binary(&grp.G.Y, (byte *)vstr_G_y.buf, vstr_len(&vstr_G_y));
-    EllipticCurve->G_y = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_G_y), (const byte *)vstr_G_y.buf);
+    EllipticCurve->b = mbedtls_mpi_write_binary_to_mp_obj(&grp.B, true);
+    EllipticCurve->n = mbedtls_mpi_write_binary_to_mp_obj(&grp.N, true);
+    EllipticCurve->G_x = mbedtls_mpi_write_binary_to_mp_obj(&grp.G.X, true);
+    EllipticCurve->G_y = mbedtls_mpi_write_binary_to_mp_obj(&grp.G.Y, true);
 
     mbedtls_ecp_group_free(&grp);
 
@@ -1790,14 +1775,6 @@ STATIC mp_obj_type_t ec_private_key_type = {
 
 STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
 {
-    vstr_t vstr_q_x;
-    vstr_init_len(&vstr_q_x, mbedtls_mpi_size(&ecp_keypair->Q.X));
-    mbedtls_mpi_write_binary(&ecp_keypair->Q.X, (byte *)vstr_q_x.buf, vstr_len(&vstr_q_x));
-
-    vstr_t vstr_q_y;
-    vstr_init_len(&vstr_q_y, mbedtls_mpi_size(&ecp_keypair->Q.Y));
-    mbedtls_mpi_write_binary(&ecp_keypair->Q.Y, (byte *)vstr_q_y.buf, vstr_len(&vstr_q_y));
-
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
     switch (ecp_keypair->grp.id)
     {
@@ -1834,8 +1811,8 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     mp_ec_public_numbers_t *EllipticCurvePublicNumbers = m_new_obj(mp_ec_public_numbers_t);
     EllipticCurvePublicNumbers->base.type = &ec_public_numbers_type;
     EllipticCurvePublicNumbers->curve = EllipticCurve;
-    EllipticCurvePublicNumbers->x = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_q_x), (const byte *)vstr_q_x.buf);
-    EllipticCurvePublicNumbers->y = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_q_y), (const byte *)vstr_q_y.buf);
+    EllipticCurvePublicNumbers->x = mbedtls_mpi_write_binary_to_mp_obj(&ecp_keypair->Q.X, true);
+    EllipticCurvePublicNumbers->y = mbedtls_mpi_write_binary_to_mp_obj(&ecp_keypair->Q.Y, true);
     EllipticCurvePublicNumbers->public_key = EllipticCurvePublicKey;
 
     mp_obj_t s2b_x = EllipticCurvePublicNumbers->x;
@@ -1989,20 +1966,10 @@ STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_pr
 
 STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
 {
-    vstr_t vstr_n;
-    vstr_init_len(&vstr_n, mbedtls_mpi_size(&rsa->N));
-    mbedtls_mpi_write_binary(&rsa->N, (byte *)vstr_n.buf, vstr_len(&vstr_n));
-    mp_obj_t n = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_n), (const byte *)vstr_n.buf);
-
-    vstr_t vstr_e;
-    vstr_init_len(&vstr_e, mbedtls_mpi_size(&rsa->E));
-    mbedtls_mpi_write_binary(&rsa->E, (byte *)vstr_e.buf, vstr_len(&vstr_e));
-    mp_obj_t e = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_e), (const byte *)vstr_e.buf);
-
     mp_rsa_public_numbers_t *RSAPublicNumbers = m_new_obj(mp_rsa_public_numbers_t);
     RSAPublicNumbers->base.type = &rsa_public_numbers_type;
-    RSAPublicNumbers->e = e;
-    RSAPublicNumbers->n = n;
+    RSAPublicNumbers->e = mbedtls_mpi_write_binary_to_mp_obj(&rsa->E, true);
+    RSAPublicNumbers->n = mbedtls_mpi_write_binary_to_mp_obj(&rsa->N, true);
 
     mp_rsa_public_key_t *RSAPublicKey = m_new_obj(mp_rsa_public_key_t);
     RSAPublicKey->base.type = &rsa_public_key_type;
@@ -2013,45 +1980,15 @@ STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
 
     if (private)
     {
-        vstr_t vstr_p;
-        vstr_init_len(&vstr_p, mbedtls_mpi_size(&rsa->P));
-        mbedtls_mpi_write_binary(&rsa->P, (byte *)vstr_p.buf, vstr_len(&vstr_p));
-        mp_obj_t p = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_p), (const byte *)vstr_p.buf);
-
-        vstr_t vstr_q;
-        vstr_init_len(&vstr_q, mbedtls_mpi_size(&rsa->Q));
-        mbedtls_mpi_write_binary(&rsa->Q, (byte *)vstr_q.buf, vstr_len(&vstr_q));
-        mp_obj_t q = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_q), (const byte *)vstr_q.buf);
-
-        vstr_t vstr_d;
-        vstr_init_len(&vstr_d, mbedtls_mpi_size(&rsa->D));
-        mbedtls_mpi_write_binary(&rsa->D, (byte *)vstr_d.buf, vstr_len(&vstr_d));
-        mp_obj_t d = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_d), (const byte *)vstr_d.buf);
-
-        vstr_t vstr_dmp1;
-        vstr_init_len(&vstr_dmp1, mbedtls_mpi_size(&rsa->DP));
-        mbedtls_mpi_write_binary(&rsa->DP, (byte *)vstr_dmp1.buf, vstr_len(&vstr_dmp1));
-        mp_obj_t dmp1 = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_dmp1), (const byte *)vstr_dmp1.buf);
-
-        vstr_t vstr_dmq1;
-        vstr_init_len(&vstr_dmq1, mbedtls_mpi_size(&rsa->DQ));
-        mbedtls_mpi_write_binary(&rsa->DQ, (byte *)vstr_dmq1.buf, vstr_len(&vstr_dmq1));
-        mp_obj_t dmq1 = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_dmq1), (const byte *)vstr_dmq1.buf);
-
-        vstr_t vstr_iqmp;
-        vstr_init_len(&vstr_iqmp, mbedtls_mpi_size(&rsa->QP));
-        mbedtls_mpi_write_binary(&rsa->QP, (byte *)vstr_iqmp.buf, vstr_len(&vstr_iqmp));
-        mp_obj_t iqmp = mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_iqmp), (const byte *)vstr_iqmp.buf);
-
         mp_rsa_private_numbers_t *RSAPrivateNumbers = m_new_obj(mp_rsa_private_numbers_t);
         RSAPrivateNumbers->base.type = &rsa_private_numbers_type;
         RSAPrivateNumbers->public_numbers = RSAPublicNumbers;
-        RSAPrivateNumbers->p = p;
-        RSAPrivateNumbers->q = q;
-        RSAPrivateNumbers->d = d;
-        RSAPrivateNumbers->dmp1 = dmp1;
-        RSAPrivateNumbers->dmq1 = dmq1;
-        RSAPrivateNumbers->iqmp = iqmp;
+        RSAPrivateNumbers->p = mbedtls_mpi_write_binary_to_mp_obj(&rsa->P, true);
+        RSAPrivateNumbers->q = mbedtls_mpi_write_binary_to_mp_obj(&rsa->Q, true);
+        RSAPrivateNumbers->d = mbedtls_mpi_write_binary_to_mp_obj(&rsa->D, true);
+        RSAPrivateNumbers->dmp1 = mbedtls_mpi_write_binary_to_mp_obj(&rsa->DP, true);
+        RSAPrivateNumbers->dmq1 = mbedtls_mpi_write_binary_to_mp_obj(&rsa->DQ, true);
+        RSAPrivateNumbers->iqmp = mbedtls_mpi_write_binary_to_mp_obj(&rsa->QP, true);
 
         mp_rsa_private_key_t *RSAPrivateKey = m_new_obj(mp_rsa_private_key_t);
         RSAPrivateKey->base.type = &rsa_private_key_type;
@@ -4645,21 +4582,16 @@ STATIC mp_obj_t rsa_crt_iqmp(mp_obj_t p, mp_obj_t q)
 
     mbedtls_mpi_inv_mod(&QP, &Q, &P);
 
-    if (mbedtls_mpi_cmp_int(&QP, 0) != 0)
-    {
-        vstr_t vstr_pq;
-        vstr_init_len(&vstr_pq, mbedtls_mpi_size(&QP));
-        mbedtls_mpi_write_binary(&QP, (byte *)vstr_pq.buf, vstr_len(&vstr_pq));
-
-        mbedtls_mpi_free(&P);
-        mbedtls_mpi_free(&Q);
-        mbedtls_mpi_free(&QP);
-
-        return mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_pq), (const byte *)vstr_pq.buf);
-    }
-
     mbedtls_mpi_free(&P);
     mbedtls_mpi_free(&Q);
+
+    if (mbedtls_mpi_cmp_int(&QP, 0) != 0)
+    {
+        mp_obj_t pq = mbedtls_mpi_write_binary_to_mp_obj(&QP, true);
+        mbedtls_mpi_free(&QP);
+        return pq;
+    }
+
     mbedtls_mpi_free(&QP);
 
     return mp_const_none;
@@ -4686,23 +4618,17 @@ STATIC mp_obj_t rsa_crt_dmp1(mp_obj_t d, mp_obj_t p)
     mbedtls_mpi_init(&DP);
     mbedtls_mpi_mod_mpi(&DP, &D, &Psub1);
 
-    if (mbedtls_mpi_cmp_int(&DP, 0) != 0)
-    {
-        vstr_t vstr_dmp1;
-        vstr_init_len(&vstr_dmp1, mbedtls_mpi_size(&DP));
-        mbedtls_mpi_write_binary(&DP, (byte *)vstr_dmp1.buf, vstr_len(&vstr_dmp1));
-
-        mbedtls_mpi_free(&D);
-        mbedtls_mpi_free(&P);
-        mbedtls_mpi_free(&Psub1);
-        mbedtls_mpi_free(&DP);
-
-        return mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_dmp1), (const byte *)vstr_dmp1.buf);
-    }
-
     mbedtls_mpi_free(&D);
     mbedtls_mpi_free(&P);
     mbedtls_mpi_free(&Psub1);
+
+    if (mbedtls_mpi_cmp_int(&DP, 0) != 0)
+    {
+        mp_obj_t dmp1 = mbedtls_mpi_write_binary_to_mp_obj(&DP, true);
+        mbedtls_mpi_free(&DP);
+        return dmp1;
+    }
+
     mbedtls_mpi_free(&DP);
 
     return mp_const_none;
@@ -4729,23 +4655,17 @@ STATIC mp_obj_t rsa_crt_dmq1(mp_obj_t d, mp_obj_t q)
     mbedtls_mpi_init(&DQ);
     mbedtls_mpi_mod_mpi(&DQ, &D, &Qsub1);
 
-    if (mbedtls_mpi_cmp_int(&DQ, 0) != 0)
-    {
-        vstr_t vstr_dmq1;
-        vstr_init_len(&vstr_dmq1, mbedtls_mpi_size(&DQ));
-        mbedtls_mpi_write_binary(&DQ, (byte *)vstr_dmq1.buf, vstr_len(&vstr_dmq1));
-
-        mbedtls_mpi_free(&D);
-        mbedtls_mpi_free(&Q);
-        mbedtls_mpi_free(&Qsub1);
-        mbedtls_mpi_free(&DQ);
-
-        return mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_dmq1), (const byte *)vstr_dmq1.buf);
-    }
-
     mbedtls_mpi_free(&D);
     mbedtls_mpi_free(&Q);
     mbedtls_mpi_free(&Qsub1);
+
+    if (mbedtls_mpi_cmp_int(&DQ, 0) != 0)
+    {
+        mp_obj_t dmq1 = mbedtls_mpi_write_binary_to_mp_obj(&DQ, true);
+        mbedtls_mpi_free(&DQ);
+        return dmq1;
+    }
+
     mbedtls_mpi_free(&DQ);
 
     return mp_const_none;
@@ -4776,17 +4696,7 @@ STATIC mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
 
     if (mbedtls_rsa_deduce_primes(&N, &D, &E, &P, &Q) == 0)
     {
-        vstr_t vstr_p;
-        vstr_init_len(&vstr_p, mbedtls_mpi_size(&P));
-        mbedtls_mpi_write_binary(&P, (byte *)vstr_p.buf, vstr_len(&vstr_p));
-
-        vstr_t vstr_q;
-        vstr_init_len(&vstr_q, mbedtls_mpi_size(&Q));
-        mbedtls_mpi_write_binary(&Q, (byte *)vstr_q.buf, vstr_len(&vstr_q));
-
-        mp_obj_t pq[2] = {
-            mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_p), (const byte *)vstr_p.buf),
-            mp_obj_int_from_bytes_impl(true, vstr_len(&vstr_q), (const byte *)vstr_q.buf)};
+        mp_obj_t pq[2] = {mbedtls_mpi_write_binary_to_mp_obj(&P, true), mbedtls_mpi_write_binary_to_mp_obj(&Q, true)};
 
         mbedtls_mpi_free(&N);
         mbedtls_mpi_free(&E);
