@@ -11,7 +11,7 @@ from cryptography.hazmat.backends import default_backend
 def main():
     data = b"a secret message"
 
-    def AES_GCM():
+    def AES_AESGCM():
         aad = b"\xDE\xAD\xBE\xEF"
         key = b'\xd1}\x9c"e\x0c\xe0\xafb\x1c\xf3J^\xd7\xa7y<\x17\xdd\xed`eD\x051\xae\xbb\xa2\x91\xfeD\xe1'
         nonce = b"7M\xb4xy\x01t\x88\xd8\xf3\x9e\xc0"
@@ -25,16 +25,17 @@ def main():
         print(dt)
 
     print("AESGCM")
-    AES_GCM()
+    AES_AESGCM()
 
-    def GCM():
+    def AES_GCM():
         aad = b"\xDE\xAD\xBE\xEF"
         key = b'\xd1}\x9c"e\x0c\xe0\xafb\x1c\xf3J^\xd7\xa7y<\x17\xdd\xed`eD\x051\xae\xbb\xa2\x91\xfeD\xe1'
         nonce = iv = b"7M\xb4xy\x01t\x88\xd8\xf3\x9e\xc0"
         # key = ciphers.AESGCM.generate_key(256)
         # nonce = iv = urandom(12)
 
-        cipher = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend())
+        cipher = Cipher(algorithms.AES(key), modes.GCM(iv),
+                        backend=default_backend())
         encryptor = cipher.encryptor()
         encryptor.authenticate_additional_data(aad)
         ct = encryptor.update(data) + encryptor.finalize()
@@ -49,15 +50,16 @@ def main():
         print(dt)
 
     print("AES GCM")
-    GCM()
+    AES_GCM()
 
-    def CBC():
+    def AES_CBC():
         key = b"g\xa5\xc2S-\xba\xf87\xe9.\x97xTW+U\xd2\x83a\x81\xef/h\xf3w1\x95\xd26\x16\xc5\x0b"
         iv = b"W/\xa9M\xe4\xa2\x87\xe8\xc0Z\x96D\xd2\xb8\xdd\xc3"
         # key = os.urandom(32)
         # iv = os.urandom(16)
 
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv),
+                        backend=default_backend())
         encryptor = cipher.encryptor()
         ct = encryptor.update(data) + encryptor.finalize()
         print(ct)
@@ -66,7 +68,41 @@ def main():
         print(dt)
 
     print("AES CBC")
-    CBC()
+    AES_CBC()
+
+    def TripleDES_CBC():
+        key = b'\xc6\xcf\x90\xb2s\xca\x94\x15]-aDZ\x8b\xe9jT\x068\xec\x9ddi\x9d'
+        iv = b'\xf4\xe4l\xd9\x10e\xb3Z'
+        # key = os.urandom(24)
+        # iv = os.urandom(8)
+
+        cipher = Cipher(algorithms.TripleDES(
+            key), modes.CBC(iv), backend=default_backend())
+        encryptor = cipher.encryptor()
+        ct = encryptor.update(data) + encryptor.finalize()
+        print(ct)
+        decryptor = cipher.decryptor()
+        dt = decryptor.update(ct) + decryptor.finalize()
+        print(dt)
+
+    print("3DES CBC")
+    TripleDES_CBC()
+
+    def TripleDES_ECB():
+        key = b'\xc6\xcf\x90\xb2s\xca\x94\x15]-aDZ\x8b\xe9jT\x068\xec\x9ddi\x9d'
+        # key = os.urandom(24)
+
+        cipher = Cipher(algorithms.TripleDES(
+            key), modes.ECB(), backend=default_backend())
+        encryptor = cipher.encryptor()
+        ct = encryptor.update(data) + encryptor.finalize()
+        print(ct)
+        decryptor = cipher.decryptor()
+        dt = decryptor.update(ct) + decryptor.finalize()
+        print(dt)
+
+    print("3DES ECB")
+    TripleDES_ECB()
 
 
 if __name__ == "__main__":

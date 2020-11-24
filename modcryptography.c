@@ -173,6 +173,7 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/cipher.h"
 #include "mbedtls/gcm.h"
 #include "mbedtls/aes.h"
+#include "mbedtls/des.h"
 #include "mbedtls/ecdh.h"
 #include "mbedtls/asn1write.h"
 #include "mbedtls/rsa_internal.h"
@@ -198,7 +199,7 @@ struct _mp_ciphers_aesgcm_t;
 struct _mp_ciphers_cipher_t;
 struct _mp_ciphers_cipher_encryptor_t;
 struct _mp_ciphers_cipher_decryptor_t;
-struct _mp_ciphers_algorithms_aes_t;
+struct _mp_ciphers_algorithms_t;
 struct _mp_ciphers_modes_cbc_t;
 struct _mp_ciphers_modes_gcm_t;
 struct _mp_util_prehashed_t;
@@ -352,11 +353,12 @@ typedef struct _mp_ciphers_aesgcm_t
     mp_obj_t key;
 } mp_ciphers_aesgcm_t;
 
-typedef struct _mp_ciphers_algorithms_aes_t
+typedef struct _mp_ciphers_algorithms_t
 {
     mp_obj_base_t base;
     mp_obj_t key;
-} mp_ciphers_algorithms_aes_t;
+    int type;
+} mp_ciphers_algorithms_t;
 
 typedef struct _mp_ciphers_modes_cbc_t
 {
@@ -372,10 +374,15 @@ typedef struct _mp_ciphers_modes_gcm_t
     mp_obj_t min_tag_length;
 } mp_ciphers_modes_gcm_t;
 
+typedef struct _mp_ciphers_modes_ecb_t
+{
+    mp_obj_base_t base;
+} mp_ciphers_modes_ecb_t;
+
 typedef struct _mp_ciphers_cipher_t
 {
     mp_obj_base_t base;
-    struct _mp_ciphers_algorithms_aes_t *algorithm;
+    struct _mp_ciphers_algorithms_t *algorithm;
     mp_obj_t mode;
     int mode_type;
     struct _mp_ciphers_cipher_encryptor_t *encryptor;
@@ -487,8 +494,15 @@ typedef struct _mp_twofactor_totp_t
 
 enum
 {
+    CIPHER_ALGORITHM_AES = 1,
+    CIPHER_ALGORITHM_3DES = 2,
+};
+
+enum
+{
     CIPHER_MODE_CBC = 1,
     CIPHER_MODE_GCM = 2,
+    CIPHER_MODE_ECB = 3,
 };
 
 enum
@@ -540,8 +554,10 @@ STATIC mp_obj_type_t ciphers_cipher_type;
 STATIC mp_obj_type_t ciphers_cipher_encryptor_type;
 STATIC mp_obj_type_t ciphers_cipher_decryptor_type;
 STATIC mp_obj_type_t ciphers_algorithms_aes_type;
+STATIC mp_obj_type_t ciphers_algorithms_3des_type;
 STATIC mp_obj_type_t ciphers_modes_cbc_type;
 STATIC mp_obj_type_t ciphers_modes_gcm_type;
+STATIC mp_obj_type_t ciphers_modes_ecb_type;
 STATIC mp_obj_type_t utils_block_device_type;
 #if 0
 STATIC mp_obj_type_t utils_rfc6979_type;
@@ -5085,11 +5101,11 @@ STATIC mp_obj_type_t ciphers_aesgcm_type = {
 STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 2, 2, false);
-    if (!mp_obj_is_type(args[0], &ciphers_algorithms_aes_type))
+    if (!mp_obj_is_type(args[0], &ciphers_algorithms_aes_type) && !mp_obj_is_type(args[0], &ciphers_algorithms_3des_type))
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of algorithms.AES"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of algorithms.AES or algorithms.TripleDES"));
     }
-    mp_ciphers_algorithms_aes_t *algorithm = MP_OBJ_TO_PTR(args[0]);
+    mp_ciphers_algorithms_t *algorithm = MP_OBJ_TO_PTR(args[0]);
 
     int mode_type = -1;
 
@@ -5101,9 +5117,13 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
     {
         mode_type = CIPHER_MODE_GCM;
     }
+    else if (mp_obj_is_type(args[1], &ciphers_modes_ecb_type))
+    {
+        mode_type = CIPHER_MODE_ECB;
+    }
     else
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM or modes.ECB"));
     }
 
     mp_obj_t mode = args[1];
@@ -5153,7 +5173,7 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    if (bufinfo_data.len % 16)
+    if (bufinfo_data.len % (self->cipher->mode_type == CIPHER_MODE_ECB ? 8 : 16))
     {
         mp_raise_ValueError(MP_ERROR_TEXT("The length of the provided data is not a multiple of the block length"));
     }
@@ -5182,11 +5202,22 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
         vstr_t vstr_output;
         vstr_init_len(&vstr_output, vstr_input.len);
 
-        mbedtls_aes_context ctx;
-        mbedtls_aes_init(&ctx);
-        mbedtls_aes_setkey_enc(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
-        mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_ENCRYPT, vstr_input.len, (byte *)vstr_iv.buf, (const byte *)vstr_input.buf, (byte *)vstr_output.buf);
-        mbedtls_aes_free(&ctx);
+        if (self->cipher->algorithm->type == CIPHER_ALGORITHM_AES)
+        {
+            mbedtls_aes_context ctx;
+            mbedtls_aes_init(&ctx);
+            mbedtls_aes_setkey_enc(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
+            mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_ENCRYPT, vstr_input.len, (byte *)vstr_iv.buf, (const byte *)vstr_input.buf, (byte *)vstr_output.buf);
+            mbedtls_aes_free(&ctx);
+        }
+        else if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
+        {
+            mbedtls_des3_context ctx;
+            mbedtls_des3_init(&ctx);
+            mbedtls_des3_set3key_enc(&ctx, bufinfo_key.buf);
+            mbedtls_des3_crypt_cbc(&ctx, MBEDTLS_DES_ENCRYPT, vstr_input.len, (byte *)vstr_iv.buf, (const byte *)vstr_input.buf, (byte *)vstr_output.buf);
+            mbedtls_des3_free(&ctx);
+        }
 
         self->data = mp_obj_new_bytes((const byte *)vstr_input.buf, vstr_input.len);
 
@@ -5229,9 +5260,33 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
 
         return mp_obj_new_bytes((const byte *)vstr_output.buf + bufinfo_self_data.len, vstr_output.len - bufinfo_self_data.len);
     }
+    else if (self->cipher->mode_type == CIPHER_MODE_ECB)
+    {
+        mp_buffer_info_t bufinfo_key;
+        mp_get_buffer_raise(self->cipher->algorithm->key, &bufinfo_key, MP_BUFFER_READ);
+
+        vstr_t vstr_output;
+        vstr_init_len(&vstr_output, vstr_input.len);
+
+        if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
+        {
+            mbedtls_des3_context ctx;
+            mbedtls_des3_init(&ctx);
+            mbedtls_des3_set3key_enc(&ctx, bufinfo_key.buf);
+            for (mp_uint_t i = 0; i < vstr_input.len; i += 8)
+            {
+                mbedtls_des3_crypt_ecb(&ctx, (const byte *)vstr_input.buf + i, (byte *)vstr_output.buf + i);
+            }
+            mbedtls_des3_free(&ctx);
+        }
+
+        self->data = mp_obj_new_bytes((const byte *)vstr_input.buf, vstr_input.len);
+
+        return mp_obj_new_bytes((const byte *)vstr_output.buf + bufinfo_self_data.len, vstr_output.len - bufinfo_self_data.len);
+    }
     else
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM or modes.ECB"));
     }
 }
 
@@ -5253,7 +5308,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_encryptor_finalize_obj, encryptor_finalize)
 STATIC mp_obj_t encryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t aadata)
 {
     mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
-    if (self->cipher->mode_type == CIPHER_MODE_CBC)
+    if (self->cipher->mode_type == CIPHER_MODE_CBC || self->cipher->mode_type == CIPHER_MODE_ECB)
     {
         mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.GCM"));
     }
@@ -5289,7 +5344,7 @@ STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
         {
             if (attr == MP_QSTR_tag)
             {
-                if (self->cipher->mode_type == CIPHER_MODE_CBC)
+                if (self->cipher->mode_type == CIPHER_MODE_CBC || self->cipher->mode_type == CIPHER_MODE_ECB)
                 {
                     mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.GCM"));
                 }
@@ -5345,7 +5400,7 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    if (bufinfo_data.len % 16)
+    if (bufinfo_data.len % (self->cipher->mode_type == CIPHER_MODE_ECB ? 8 : 16))
     {
         mp_raise_ValueError(MP_ERROR_TEXT("The length of the provided data is not a multiple of the block length"));
     }
@@ -5376,11 +5431,22 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
         vstr_t vstr_output;
         vstr_init_len(&vstr_output, vstr_input.len);
 
-        mbedtls_aes_context ctx;
-        mbedtls_aes_init(&ctx);
-        mbedtls_aes_setkey_dec(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
-        mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_DECRYPT, vstr_input.len, (byte *)vstr_iv.buf, (const byte *)vstr_input.buf, (byte *)vstr_output.buf);
-        mbedtls_aes_free(&ctx);
+        if (self->cipher->algorithm->type == CIPHER_ALGORITHM_AES)
+        {
+            mbedtls_aes_context ctx;
+            mbedtls_aes_init(&ctx);
+            mbedtls_aes_setkey_dec(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
+            mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_DECRYPT, vstr_input.len, (byte *)vstr_iv.buf, (const byte *)vstr_input.buf, (byte *)vstr_output.buf);
+            mbedtls_aes_free(&ctx);
+        }
+        else if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
+        {
+            mbedtls_des3_context ctx;
+            mbedtls_des3_init(&ctx);
+            mbedtls_des3_set3key_dec(&ctx, bufinfo_key.buf);
+            mbedtls_des3_crypt_cbc(&ctx, MBEDTLS_DES_DECRYPT, vstr_input.len, (byte *)vstr_iv.buf, (const byte *)vstr_input.buf, (byte *)vstr_output.buf);
+            mbedtls_des3_free(&ctx);
+        }
 
         return mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
     }
@@ -5419,9 +5485,31 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
 
         return mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
     }
+    else if (self->cipher->mode_type == CIPHER_MODE_ECB)
+    {
+        mp_buffer_info_t bufinfo_key;
+        mp_get_buffer_raise(self->cipher->algorithm->key, &bufinfo_key, MP_BUFFER_READ);
+
+        vstr_t vstr_output;
+        vstr_init_len(&vstr_output, vstr_input.len);
+
+        if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
+        {
+            mbedtls_des3_context ctx;
+            mbedtls_des3_init(&ctx);
+            mbedtls_des3_set3key_dec(&ctx, bufinfo_key.buf);
+            for (mp_uint_t i = 0; i < vstr_input.len; i += 8)
+            {
+                mbedtls_des3_crypt_ecb(&ctx, (const byte *)vstr_input.buf + i, (byte *)vstr_output.buf + i);
+            }
+            mbedtls_des3_free(&ctx);
+        }
+
+        return mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
+    }
     else
     {
-        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM"));
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.CBC or modes.GCM or modes.ECB"));
     }
 }
 
@@ -5444,7 +5532,7 @@ STATIC mp_obj_t decryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t
 {
     mp_ciphers_cipher_decryptor_t *self = MP_OBJ_TO_PTR(self_o);
 
-    if (self->cipher->mode_type == CIPHER_MODE_CBC)
+    if (self->cipher->mode_type == CIPHER_MODE_CBC || self->cipher->mode_type == CIPHER_MODE_ECB)
     {
         mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of modes.GCM"));
     }
@@ -5531,11 +5619,12 @@ STATIC mp_obj_t algorithms_aes_make_new(const mp_obj_type_t *type, size_t n_args
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(key, &bufinfo, MP_BUFFER_READ);
 
-    mp_ciphers_algorithms_aes_t *AES = m_new_obj(mp_ciphers_algorithms_aes_t);
-    AES->base.type = &ciphers_algorithms_aes_type;
-    AES->key = key;
+    mp_ciphers_algorithms_t *CIPHER_ALGORITHM = m_new_obj(mp_ciphers_algorithms_t);
+    CIPHER_ALGORITHM->base.type = &ciphers_algorithms_aes_type;
+    CIPHER_ALGORITHM->key = key;
+    CIPHER_ALGORITHM->type = CIPHER_ALGORITHM_AES;
 
-    return MP_OBJ_FROM_PTR(AES);
+    return MP_OBJ_FROM_PTR(CIPHER_ALGORITHM);
 }
 
 STATIC mp_obj_type_t ciphers_algorithms_aes_type = {
@@ -5544,8 +5633,31 @@ STATIC mp_obj_type_t ciphers_algorithms_aes_type = {
     .make_new = algorithms_aes_make_new,
 };
 
+STATIC mp_obj_t algorithms_3des_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 1, 1, false);
+    mp_obj_t key = args[0];
+
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(key, &bufinfo, MP_BUFFER_READ);
+
+    mp_ciphers_algorithms_t *CIPHER_ALGORITHM = m_new_obj(mp_ciphers_algorithms_t);
+    CIPHER_ALGORITHM->base.type = &ciphers_algorithms_3des_type;
+    CIPHER_ALGORITHM->key = key;
+    CIPHER_ALGORITHM->type = CIPHER_ALGORITHM_3DES;
+
+    return MP_OBJ_FROM_PTR(CIPHER_ALGORITHM);
+}
+
+STATIC mp_obj_type_t ciphers_algorithms_3des_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_TripleDES,
+    .make_new = algorithms_3des_make_new,
+};
+
 STATIC const mp_rom_map_elem_t ciphers_algorithms_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_AES), MP_ROM_PTR(&ciphers_algorithms_aes_type)},
+    {MP_ROM_QSTR(MP_QSTR_TripleDES), MP_ROM_PTR(&ciphers_algorithms_3des_type)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ciphers_algorithms_locals_dict, ciphers_algorithms_locals_dict_table);
@@ -5564,14 +5676,14 @@ STATIC mp_obj_t modes_cbc_make_new(const mp_obj_type_t *type, size_t n_args, siz
     mp_buffer_info_t bufinfo_iv;
     mp_get_buffer_raise(initialization_vector, &bufinfo_iv, MP_BUFFER_READ);
 
-    if (bufinfo_iv.len != 16)
+    if (bufinfo_iv.len != 16 && bufinfo_iv.len != 8)
     {
         mp_raise_ValueError(MP_ERROR_TEXT("Invalid IV size for CBC"));
     }
 
     mp_ciphers_modes_cbc_t *CBC = m_new_obj(mp_ciphers_modes_cbc_t);
     CBC->base.type = &ciphers_modes_cbc_type;
-    CBC->initialization_vector = mp_obj_new_bytes((const byte *)bufinfo_iv.buf, 16);
+    CBC->initialization_vector = mp_obj_new_bytes((const byte *)bufinfo_iv.buf, bufinfo_iv.len);
 
     return MP_OBJ_FROM_PTR(CBC);
 }
@@ -5625,9 +5737,26 @@ STATIC mp_obj_type_t ciphers_modes_gcm_type = {
     .make_new = modes_gcm_make_new,
 };
 
+STATIC mp_obj_t modes_ecb_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 0, 0, false);
+
+    mp_ciphers_modes_ecb_t *ECB = m_new_obj(mp_ciphers_modes_ecb_t);
+    ECB->base.type = &ciphers_modes_ecb_type;
+
+    return MP_OBJ_FROM_PTR(ECB);
+}
+
+STATIC mp_obj_type_t ciphers_modes_ecb_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_ECB,
+    .make_new = modes_ecb_make_new,
+};
+
 STATIC const mp_rom_map_elem_t ciphers_modes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_CBC), MP_ROM_PTR(&ciphers_modes_cbc_type)},
     {MP_ROM_QSTR(MP_QSTR_GCM), MP_ROM_PTR(&ciphers_modes_gcm_type)},
+    {MP_ROM_QSTR(MP_QSTR_ECB), MP_ROM_PTR(&ciphers_modes_ecb_type)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(ciphers_modes_locals_dict, ciphers_modes_locals_dict_table);
