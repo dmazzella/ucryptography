@@ -2224,7 +2224,7 @@ STATIC mp_obj_t _int2octets(mp_util_rfc6979_t *self, mp_obj_t x_obj)
     mp_buffer_info_t bufinfo_octets;
     cryptography_get_buffer(x_obj, true, &bufinfo_octets);
 
-   vstr_t padding_octets_vstr;
+    vstr_t padding_octets_vstr;
     vstr_init(&padding_octets_vstr, ((self->rlen / 8) - bufinfo_octets.len));
     for (mp_uint_t i = 0; i < ((self->rlen / 8) - bufinfo_octets.len); i++)
     {
