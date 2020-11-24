@@ -721,7 +721,7 @@ STATIC void cryptography_get_buffer(const mp_obj_t o, bool big_endian, mp_buffer
             mpz_abs_inpl(o_temp_p, o_temp_p);
         }
         vstr_t vstr;
-        vstr_init_len(&vstr, (mpz_max_num_bits(o_temp_p) + 7) / 8);
+        vstr_init_len(&vstr, (mp_obj_get_int(int_bit_length(oo)) + 7) / 8);
         mpz_as_bytes(o_temp_p, big_endian, vstr.len, (byte *)vstr.buf);
         if (is_neg)
         {
@@ -2224,7 +2224,7 @@ STATIC mp_obj_t _int2octets(mp_util_rfc6979_t *self, mp_obj_t x_obj)
     mp_buffer_info_t bufinfo_octets;
     cryptography_get_buffer(x_obj, true, &bufinfo_octets);
 
-    vstr_t padding_octets_vstr;
+   vstr_t padding_octets_vstr;
     vstr_init(&padding_octets_vstr, ((self->rlen / 8) - bufinfo_octets.len));
     for (mp_uint_t i = 0; i < ((self->rlen / 8) - bufinfo_octets.len); i++)
     {
@@ -2232,7 +2232,7 @@ STATIC mp_obj_t _int2octets(mp_util_rfc6979_t *self, mp_obj_t x_obj)
     }
     vstr_add_strn(&padding_octets_vstr, bufinfo_octets.buf, bufinfo_octets.len);
 
-    return mp_obj_new_bytes((const byte *)padding_octets_vstr.buf, padding_octets_vstr.len);
+    return mp_obj_new_bytearray_by_ref(padding_octets_vstr.len, (byte *)padding_octets_vstr.buf);
 }
 
 STATIC mp_obj_t _bits2octets(mp_util_rfc6979_t *self, mp_obj_t b_obj)
@@ -2270,7 +2270,7 @@ STATIC mp_obj_t utils_rfc6979_gen_nonce(mp_obj_t self_obj)
     mp_get_buffer_raise(_int2octets(self, self->x), &bufinfo_key_octets, MP_BUFFER_READ);
 
     mp_buffer_info_t bufinfo_msg_octets;
-    mp_get_buffer_raise(_bits2octets(self, mp_obj_new_bytes((const byte *)vstr_h1.buf, vstr_h1.len)), &bufinfo_msg_octets, MP_BUFFER_READ);
+    mp_get_buffer_raise(_bits2octets(self, mp_obj_new_bytearray_by_ref(vstr_h1.len, (byte *)vstr_h1.buf)), &bufinfo_msg_octets, MP_BUFFER_READ);
 
     vstr_t vstr_key_and_msg;
     vstr_init(&vstr_key_and_msg, bufinfo_key_octets.len + bufinfo_msg_octets.len);
@@ -2327,7 +2327,7 @@ STATIC mp_obj_t utils_rfc6979_gen_nonce(mp_obj_t self_obj)
             vstr_add_strn(&vstr_temp, vstr_v.buf, vstr_v.len);
         }
 
-        mp_obj_int_t *nonce = cryptography_small_to_big_int(_bits2int(self, mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr_temp)));
+        mp_obj_int_t *nonce = cryptography_small_to_big_int(_bits2int(self, mp_obj_new_bytearray_by_ref(vstr_temp.len, (byte *)vstr_temp.buf)));
         if (mpz_cmp(&nonce->mpz, &one) >= 0 && mpz_cmp(&nonce->mpz, &q->mpz) < 0)
         {
             mpz_deinit(&one);
