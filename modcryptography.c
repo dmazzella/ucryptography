@@ -5268,7 +5268,18 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
         vstr_t vstr_output;
         vstr_init_len(&vstr_output, vstr_input.len);
 
-        if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
+        if (self->cipher->algorithm->type == CIPHER_ALGORITHM_AES)
+        {
+            mbedtls_aes_context ctx;
+            mbedtls_aes_init(&ctx);
+            mbedtls_aes_setkey_enc(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
+            for (mp_uint_t i = 0; i < vstr_input.len; i += 16)
+            {
+                mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, (const byte *)vstr_input.buf + i, (byte *)vstr_output.buf + i);
+            }
+            mbedtls_aes_free(&ctx);
+        }
+        else if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
         {
             mbedtls_des3_context ctx;
             mbedtls_des3_init(&ctx);
@@ -5493,7 +5504,18 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
         vstr_t vstr_output;
         vstr_init_len(&vstr_output, vstr_input.len);
 
-        if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
+        if (self->cipher->algorithm->type == CIPHER_ALGORITHM_AES)
+        {
+            mbedtls_aes_context ctx;
+            mbedtls_aes_init(&ctx);
+            mbedtls_aes_setkey_dec(&ctx, bufinfo_key.buf, bufinfo_key.len * 8);
+            for (mp_uint_t i = 0; i < vstr_input.len; i += 16)
+            {
+                mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_DECRYPT, (const byte *)vstr_input.buf + i, (byte *)vstr_output.buf + i);
+            }
+            mbedtls_aes_free(&ctx);
+        }
+        else if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
         {
             mbedtls_des3_context ctx;
             mbedtls_des3_init(&ctx);

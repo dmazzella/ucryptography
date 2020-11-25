@@ -104,6 +104,22 @@ def main():
     AES_CBC()
 
     @profile
+    def AES_ECB():
+        key = b"g\xa5\xc2S-\xba\xf87\xe9.\x97xTW+U\xd2\x83a\x81\xef/h\xf3w1\x95\xd26\x16\xc5\x0b"
+        # key = urandom(32)
+
+        cipher = ciphers.Cipher(ciphers.algorithms.AES(key), ciphers.modes.ECB())
+        encryptor = cipher.encryptor()
+        ct = encryptor.update(data) + encryptor.finalize()
+        print(ct)
+        decryptor = cipher.decryptor()
+        dt = decryptor.update(ct) + decryptor.finalize()
+        print(dt)
+
+    print("AES ECB")
+    AES_ECB()
+
+    @profile
     def TripleDES_CBC():
         key = b'\xc6\xcf\x90\xb2s\xca\x94\x15]-aDZ\x8b\xe9jT\x068\xec\x9ddi\x9d'
         iv = b'\xf4\xe4l\xd9\x10e\xb3Z'
