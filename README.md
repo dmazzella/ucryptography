@@ -18,7 +18,7 @@ micropython/lib/mbedtls$ git checkout mbedtls-2.18
 micropython/lib/mbedtls$ cd ../../
 micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
 micropython$ make -j2 -C mpy-cross/
-micropython$ make -j2 -C ports/unix/ VARIANT="standard" MICROPY_SSL_AXTLS=0 MICROPY_SSL_MBEDTLS=1 USER_C_MODULES="$(pwd)/usercmodule"
+micropython$ make -j2 -C ports/unix/ VARIANT="dev" MICROPY_SSL_AXTLS=0 MICROPY_SSL_MBEDTLS=1 USER_C_MODULES="$(pwd)/usercmodule"
 ```
 
 ```python
