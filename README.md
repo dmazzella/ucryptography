@@ -32,8 +32,10 @@ import cryptography
   - Cipher
   - algorithms
     - AES
+    - TripleDES
   - modes
     - CBC
+    - ECB
     - GCM
 - ec
   - ECDH
