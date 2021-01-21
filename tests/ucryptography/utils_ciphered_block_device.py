@@ -2,8 +2,10 @@
 # pylint:disable=import-error
 # pylint:disable=no-member
 import uos
+import urandom
 import utime
 
+from cryptography import ciphers
 from cryptography import utils
 
 
@@ -33,18 +35,30 @@ def load_bytes(filename):
 if __name__ == "__main__":
     try:
         try:
-            bdev = utils.CipheredBlockDevice(128, erase_block_size=512)
+            key = b"g\xa5\xc2S-\xba\xf87\xe9.\x97xTW+U\xd2\x83a\x81\xef/h\xf3w1\x95\xd26\x16\xc5\x0b"
+            iv = b"W/\xa9M\xe4\xa2\x87\xe8\xc0Z\x96D\xd2\xb8\xdd\xc3"
+
+            cipher = ciphers.Cipher(
+                ciphers.algorithms.AES(key),
+                ciphers.modes.CBC(iv)
+            )
+            bdev = utils.CipheredBlockDevice(
+                128,
+                erase_block_size=512,
+                cipher=cipher
+            )
             uos.VfsLfs2.mkfs(bdev)
             uos.mount(uos.VfsLfs2(bdev), "/flash2")
         except OSError as ex:
             print("error mounting /flash2", ex)
         else:
-            data = b"\xaa" * 250
-
-            dump_bytes("/flash2/test0.data", data)
-            print(uos.stat("/flash2/test0.data"))
-            assert load_bytes("/flash2/test0.data") == data
-            print(uos.statvfs("/flash2"))
+            for i in range(1):
+                data = b"\xaa" * urandom.randint(0, 1024)
+                fname = "/flash2/test{}.data".format(i)
+                dump_bytes(fname, data)
+                print(uos.stat(fname))
+                assert load_bytes(fname) == data
+                print(uos.statvfs("/flash2"))
 
     except OSError as ex:
         print(ex)
