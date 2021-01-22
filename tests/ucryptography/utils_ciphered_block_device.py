@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 # pylint:disable=import-error
 # pylint:disable=no-member
+HAS_STORAGE = False
+try:
+    import pyb
+    HAS_STORAGE = hasattr(pyb, 'Flash')
+except ImportError:
+    pass
+
 import uos
 import urandom
 import utime
@@ -42,22 +49,33 @@ if __name__ == "__main__":
                 ciphers.algorithms.AES(key),
                 ciphers.modes.CBC(iv)
             )
-            bdev = utils.CipheredBlockDevice(
-                128,
-                erase_block_size=512,
-                cipher=cipher
-            )
+            if HAS_STORAGE:
+                bdev = utils.CipheredBlockDevice(
+                    storage=pyb.Flash(start=0, len=1024 * (256)),
+                    blocks=128,
+                    erase_block_size=512,
+                    cipher=cipher
+                )
+                # bdev = pyb.Flash(start=0, len=1024 * (256))
+            else:
+                bdev = utils.CipheredBlockDevice(
+                    blocks=128,
+                    erase_block_size=512,
+                    cipher=cipher
+                )
             uos.VfsLfs2.mkfs(bdev)
             uos.mount(uos.VfsLfs2(bdev), "/flash2")
+            print(uos.statvfs("/flash2"))
         except OSError as ex:
             print("error mounting /flash2", ex)
         else:
-            for i in range(1):
+            for i in range(10):
                 data = b"\xaa" * urandom.randint(0, 1024)
                 fname = "/flash2/test{}.data".format(i)
                 dump_bytes(fname, data)
                 print(uos.stat(fname))
                 assert load_bytes(fname) == data
+                # print(data)
                 print(uos.statvfs("/flash2"))
 
     except OSError as ex:

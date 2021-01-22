@@ -33,6 +33,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "py/mperrno.h"
+#include "py/objtype.h"
 #include "py/objstr.h"
 #include "py/objint.h"
 #include "py/runtime.h"
@@ -52,6 +54,9 @@
 #include "rng.h"
 #define rand() rng_get()
 #endif // MICROPY_HW_ENABLE_RNG
+#if MICROPY_HW_ENABLE_STORAGE
+#include "storage.h"
+#endif // MICROPY_HW_ENABLE_STORAGE
 #endif
 
 #if MICROPY_LONGINT_IMPL != MICROPY_LONGINT_IMPL_MPZ
@@ -427,6 +432,7 @@ typedef struct _mp_util_prehashed_t
 typedef struct _mp_util_block_device_t
 {
     mp_obj_base_t base;
+    mp_obj_t storage;
     mp_int_t blocks;
     mp_int_t erase_block_size;
     vstr_t *data;
@@ -656,6 +662,43 @@ STATIC vstr_t *vstr_hexlify(vstr_t *vstr_out, const byte *in, size_t in_len)
     return vstr_out;
 }
 #endif
+
+STATIC void print_exception(vstr_t *vstr_print, mp_obj_t exc)
+{
+    mp_print_t print;
+    vstr_clear(vstr_print);
+    vstr_init_print(vstr_print, 16, &print);
+    if (mp_obj_is_exception_instance(exc))
+    {
+        size_t n, *values;
+        mp_obj_exception_get_traceback(exc, &n, &values);
+        if (n > 0)
+        {
+            assert(n % 3 == 0);
+            mp_print_str(&print, "Traceback (most recent call last):\n");
+            for (int i = n - 3; i >= 0; i -= 3)
+            {
+#if MICROPY_ENABLE_SOURCE_LINE
+                mp_printf(&print, "  File \"%q\", line %d", values[i], (int)values[i + 1]);
+#else
+                mp_printf(&print, "  File \"%q\"", values[i]);
+#endif
+                // the block name can be NULL if it's unknown
+                qstr block = values[i + 2];
+                if (block == MP_QSTR_NULL)
+                {
+                    mp_print_str(&print, "\n");
+                }
+                else
+                {
+                    mp_printf(&print, ", in %q\n", block);
+                }
+            }
+        }
+    }
+    mp_obj_print_helper(&print, exc, PRINT_EXC);
+    mp_print_str(&print, "\n");
+}
 
 STATIC mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
 {
@@ -5759,12 +5802,48 @@ STATIC mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *arg
             decryptor->cipher = self->cipher;
             self->cipher->decryptor = decryptor;
         }
-        mp_int_t addr = block * self->erase_block_size + off;
-        decryptor_update(self->cipher->decryptor, mp_obj_new_bytearray_by_ref(bufinfo_buf.len, (byte *)self->data->buf + addr));
-        decryptor_finalize(self->cipher->decryptor);
-        mp_buffer_info_t bufinfo_decrypted_buf;
-        mp_get_buffer_raise(self->cipher->decryptor->data, &bufinfo_decrypted_buf, MP_BUFFER_READ);
-        memcpy((byte *)bufinfo_buf.buf, (byte *)bufinfo_decrypted_buf.buf, bufinfo_decrypted_buf.len);
+        if (self->storage != NULL)
+        {
+            mp_obj_t dest[5];
+            mp_obj_instance_t *storage = self->storage;
+            mp_load_method_protected(storage, MP_QSTR_readblocks, dest, true);
+            if (dest[0] != MP_OBJ_NULL && dest[1] == storage)
+            {
+                nlr_buf_t nlr;
+                if (nlr_push(&nlr) == 0)
+                {
+                    dest[2] = args[1];
+                    dest[3] = mp_obj_new_bytearray_by_ref(bufinfo_buf.len, (byte *)bufinfo_buf.buf);
+                    dest[4] = (n_args == 4 ? args[3] : mp_obj_new_int(0));
+                    mp_obj_t response = mp_call_method_n_kw(3, 0, dest);
+                    (void)response;
+                    nlr_pop();
+
+                    decryptor_update(self->cipher->decryptor, dest[3]);
+                    decryptor_finalize(self->cipher->decryptor);
+                    mp_buffer_info_t bufinfo_decrypted_buf;
+                    mp_get_buffer_raise(self->cipher->decryptor->data, &bufinfo_decrypted_buf, MP_BUFFER_READ);
+                    memcpy((byte *)bufinfo_buf.buf, (byte *)bufinfo_decrypted_buf.buf, bufinfo_decrypted_buf.len);
+                    return mp_const_none;
+                }
+                else
+                {
+                    // uncaught exception
+                    vstr_t buffer_exc;
+                    vstr_init(&buffer_exc, 0);
+                    print_exception(&buffer_exc, (mp_obj_t)nlr.ret_val);
+                }
+            }
+        }
+        else
+        {
+            mp_int_t addr = block * self->erase_block_size + off;
+            decryptor_update(self->cipher->decryptor, mp_obj_new_bytearray_by_ref(bufinfo_buf.len, (byte *)self->data->buf + addr));
+            decryptor_finalize(self->cipher->decryptor);
+            mp_buffer_info_t bufinfo_decrypted_buf;
+            mp_get_buffer_raise(self->cipher->decryptor->data, &bufinfo_decrypted_buf, MP_BUFFER_READ);
+            memcpy((byte *)bufinfo_buf.buf, (byte *)bufinfo_decrypted_buf.buf, bufinfo_decrypted_buf.len);
+        }
     }
     else
     {
@@ -5805,8 +5884,38 @@ STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *ar
         encryptor_finalize(self->cipher->encryptor);
         mp_buffer_info_t bufinfo_encrypted_buf;
         mp_get_buffer_raise(self->cipher->encryptor->data, &bufinfo_encrypted_buf, MP_BUFFER_READ);
-        mp_int_t addr = block * self->erase_block_size + off;
-        memcpy(((byte *)self->data->buf) + addr, (byte *)bufinfo_encrypted_buf.buf, bufinfo_encrypted_buf.len);
+        if (self->storage != NULL)
+        {
+            mp_obj_t dest[5];
+            mp_obj_instance_t *storage = self->storage;
+            mp_load_method_protected(storage, MP_QSTR_writeblocks, dest, true);
+            if (dest[0] != MP_OBJ_NULL && dest[1] == storage)
+            {
+                nlr_buf_t nlr;
+                if (nlr_push(&nlr) == 0)
+                {
+                    dest[2] = args[1];
+                    dest[3] = mp_obj_new_bytearray_by_ref(bufinfo_encrypted_buf.len, (byte *)bufinfo_encrypted_buf.buf);
+                    dest[4] = (n_args == 4 ? args[3] : mp_obj_new_int(0));
+                    mp_obj_t response = mp_call_method_n_kw(3, 0, dest);
+                    (void)response;
+                    nlr_pop();
+                    return mp_const_none;
+                }
+                else
+                {
+                    // uncaught exception
+                    vstr_t buffer_exc;
+                    vstr_init(&buffer_exc, 0);
+                    print_exception(&buffer_exc, (mp_obj_t)nlr.ret_val);
+                }
+            }
+        }
+        else
+        {
+            mp_int_t addr = block * self->erase_block_size + off;
+            memcpy(((byte *)self->data->buf) + addr, (byte *)bufinfo_encrypted_buf.buf, bufinfo_encrypted_buf.len);
+        }
     }
     else
     {
@@ -5823,11 +5932,36 @@ STATIC mp_obj_t utils_block_device_ioctl(mp_obj_t self_in, mp_obj_t op_in, mp_ob
 {
     mp_util_block_device_t *self = MP_OBJ_TO_PTR(self_in);
     mp_int_t op = mp_obj_get_int(op_in);
+    mp_int_t arg = 0;
     if (mp_obj_is_int(arg_in))
     {
-        mp_int_t arg = mp_obj_get_int(arg_in);
-        if (arg == 0)
+        arg = mp_obj_get_int(arg_in);
+    }
+    (void)arg;
+
+    if (self->storage != NULL)
+    {
+        mp_obj_t dest[4];
+        mp_obj_instance_t *storage = self->storage;
+        mp_load_method_protected(storage, MP_QSTR_ioctl, dest, true);
+        if (dest[0] != MP_OBJ_NULL && dest[1] == storage)
         {
+            nlr_buf_t nlr;
+            if (nlr_push(&nlr) == 0)
+            {
+                dest[2] = op_in;
+                dest[3] = arg_in;
+                mp_obj_t response = mp_call_method_n_kw(2, 0, dest);
+                nlr_pop();
+                return response;
+            }
+            else
+            {
+                // uncaught exception
+                vstr_t buffer_exc;
+                vstr_init(&buffer_exc, 0);
+                print_exception(&buffer_exc, (mp_obj_t)nlr.ret_val);
+            }
         }
     }
 
@@ -5889,12 +6023,18 @@ STATIC mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *
 {
     enum
     {
+#if MICROPY_HW_ENABLE_STORAGE
+        ARG_storage,
+#endif
         ARG_blocks,
         ARG_erase_block_size,
         ARG_cipher
     };
     static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_blocks, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 128}},
+#if MICROPY_HW_ENABLE_STORAGE
+        {MP_QSTR_storage, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
+#endif
+        {MP_QSTR_blocks, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 128}},
         {MP_QSTR_erase_block_size, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 512}},
         {MP_QSTR_cipher, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
     };
@@ -5923,21 +6063,45 @@ STATIC mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *
     }
     mp_util_block_device_t *BlockDevice = m_new_obj(mp_util_block_device_t);
     BlockDevice->base.type = &utils_block_device_type;
-    BlockDevice->erase_block_size = vals[ARG_erase_block_size].u_int;
-    BlockDevice->blocks = vals[ARG_blocks].u_int;
+    BlockDevice->storage = NULL;
+
+#if MICROPY_HW_ENABLE_STORAGE
+    mp_obj_t storage_obj = vals[ARG_storage].u_obj;
+    struct _pyb_flash_obj_t *storage = NULL;
+    if (storage_obj != MP_OBJ_NULL)
+    {
+        if (!mp_obj_is_type(storage_obj, &pyb_flash_type))
+        {
+            mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of pyb.Flash"));
+        }
+        storage = MP_OBJ_TO_PTR(storage_obj);
+        BlockDevice->storage = storage;
+    }
+#endif
+
     BlockDevice->data = NULL;
     BlockDevice->cipher = cipher;
-    if ((BlockDevice->data = vstr_new(BlockDevice->blocks * BlockDevice->erase_block_size)) == NULL)
+    if (BlockDevice->storage != NULL)
     {
-        mp_raise_msg_varg(&mp_type_MemoryError, MP_ERROR_TEXT("memory allocation failed, allocating %d bytes"), BlockDevice->blocks);
+        BlockDevice->erase_block_size = mp_obj_get_int(utils_block_device_ioctl(BlockDevice, mp_obj_new_int(BLOCKDEV_IOCTL_BLOCK_ERASE), mp_obj_new_int(0)));
+        BlockDevice->blocks = mp_obj_get_int(utils_block_device_ioctl(BlockDevice, mp_obj_new_int(BLOCKDEV_IOCTL_BLOCK_COUNT), mp_obj_new_int(0)));
     }
-    BlockDevice->data->len = BlockDevice->data->alloc;
-    memset(BlockDevice->data->buf, 0, BlockDevice->data->len);
+    else
+    {
+        BlockDevice->erase_block_size = vals[ARG_erase_block_size].u_int;
+        BlockDevice->blocks = vals[ARG_blocks].u_int;
+        if ((BlockDevice->data = vstr_new(BlockDevice->blocks * BlockDevice->erase_block_size)) == NULL)
+        {
+            mp_raise_msg_varg(&mp_type_MemoryError, MP_ERROR_TEXT("memory allocation failed, allocating %d bytes"), BlockDevice->blocks);
+        }
+        BlockDevice->data->len = BlockDevice->data->alloc;
+        memset(BlockDevice->data->buf, 0, BlockDevice->data->len);
+    }
 
     return MP_OBJ_FROM_PTR(BlockDevice);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_block_device_obj, 1, mod_block_device);
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_block_device_obj, 0, mod_block_device);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_block_device_obj, MP_ROM_PTR(&mod_block_device_obj));
 
 STATIC mp_obj_t _bits2int(mp_util_rfc6979_t *self, mp_obj_t b_obj)
