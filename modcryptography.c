@@ -5847,8 +5847,38 @@ STATIC mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *arg
     }
     else
     {
-        mp_int_t addr = block * self->erase_block_size + off;
-        memcpy((byte *)bufinfo_buf.buf, ((byte *)self->data->buf) + addr, bufinfo_buf.len);
+        if (self->storage != NULL)
+        {
+            mp_obj_t dest[5];
+            mp_obj_instance_t *storage = self->storage;
+            mp_load_method_protected(storage, MP_QSTR_readblocks, dest, true);
+            if (dest[0] != MP_OBJ_NULL && dest[1] == storage)
+            {
+                nlr_buf_t nlr;
+                if (nlr_push(&nlr) == 0)
+                {
+                    dest[2] = args[1];
+                    dest[3] = mp_obj_new_bytearray_by_ref(bufinfo_buf.len, (byte *)bufinfo_buf.buf);
+                    dest[4] = (n_args == 4 ? args[3] : mp_obj_new_int(0));
+                    mp_obj_t response = mp_call_method_n_kw(3, 0, dest);
+                    (void)response;
+                    nlr_pop();
+                    return mp_const_none;
+                }
+                else
+                {
+                    // uncaught exception
+                    vstr_t buffer_exc;
+                    vstr_init(&buffer_exc, 0);
+                    print_exception(&buffer_exc, (mp_obj_t)nlr.ret_val);
+                }
+            }
+        }
+        else
+        {
+            mp_int_t addr = block * self->erase_block_size + off;
+            memcpy((byte *)bufinfo_buf.buf, ((byte *)self->data->buf) + addr, bufinfo_buf.len);
+        }
     }
 
     return mp_const_none;
@@ -5919,8 +5949,38 @@ STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *ar
     }
     else
     {
-        mp_int_t addr = block * self->erase_block_size + off;
-        memcpy(((byte *)self->data->buf) + addr, (byte *)bufinfo_buf.buf, bufinfo_buf.len);
+        if (self->storage != NULL)
+        {
+            mp_obj_t dest[5];
+            mp_obj_instance_t *storage = self->storage;
+            mp_load_method_protected(storage, MP_QSTR_writeblocks, dest, true);
+            if (dest[0] != MP_OBJ_NULL && dest[1] == storage)
+            {
+                nlr_buf_t nlr;
+                if (nlr_push(&nlr) == 0)
+                {
+                    dest[2] = args[1];
+                    dest[3] = mp_obj_new_bytearray_by_ref(bufinfo_buf.len, (byte *)bufinfo_buf.buf);
+                    dest[4] = (n_args == 4 ? args[3] : mp_obj_new_int(0));
+                    mp_obj_t response = mp_call_method_n_kw(3, 0, dest);
+                    (void)response;
+                    nlr_pop();
+                    return mp_const_none;
+                }
+                else
+                {
+                    // uncaught exception
+                    vstr_t buffer_exc;
+                    vstr_init(&buffer_exc, 0);
+                    print_exception(&buffer_exc, (mp_obj_t)nlr.ret_val);
+                }
+            }
+        }
+        else
+        {
+            mp_int_t addr = block * self->erase_block_size + off;
+            memcpy(((byte *)self->data->buf) + addr, (byte *)bufinfo_buf.buf, bufinfo_buf.len);
+        }
     }
 
     return mp_const_none;

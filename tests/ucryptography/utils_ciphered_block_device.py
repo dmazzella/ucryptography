@@ -50,24 +50,38 @@ if __name__ == "__main__":
                 ciphers.modes.CBC(iv)
             )
             if HAS_STORAGE:
-                bdev = utils.CipheredBlockDevice(
-                    storage=pyb.Flash(start=0, len=1024 * (256)),
+                uos.umount("/flash")
+                BLOCK_SIZE = 1024
+                FS_SIZE = BLOCK_SIZE * (256-64)
+                bdev1 = pyb.Flash(start=0, len=FS_SIZE)
+                bdev2 = pyb.Flash(start=FS_SIZE, len=(BLOCK_SIZE * 64))
+                bdevc1 = utils.CipheredBlockDevice(
+                    storage=bdev1,
                     blocks=128,
-                    erase_block_size=512,
+                    erase_block_size=BLOCK_SIZE,
                     cipher=cipher
                 )
-                # bdev = pyb.Flash(start=0, len=1024 * (256))
+                bdevc2 = utils.CipheredBlockDevice(
+                    storage=bdev2,
+                    blocks=128,
+                    erase_block_size=BLOCK_SIZE,
+                    cipher=cipher
+                )
+
+                uos.VfsFat.mkfs(bdevc1)
+                uos.mount(uos.VfsFat(bdevc1), "/flash")
+                print(uos.statvfs("/flash"))
             else:
                 bdev = utils.CipheredBlockDevice(
                     blocks=128,
-                    erase_block_size=512,
+                    erase_block_size=BLOCK_SIZE,
                     cipher=cipher
                 )
-            uos.VfsLfs2.mkfs(bdev)
-            uos.mount(uos.VfsLfs2(bdev), "/flash2")
+            uos.VfsLfs2.mkfs(bdevc2)
+            uos.mount(uos.VfsLfs2(bdevc2), "/flash2")
             print(uos.statvfs("/flash2"))
         except OSError as ex:
-            print("error mounting /flash2", ex)
+            print("os error", ex)
         else:
             for i in range(10):
                 data = b"\xaa" * urandom.randint(0, 1024)
