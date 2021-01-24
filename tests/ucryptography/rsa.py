@@ -107,8 +107,23 @@ def main():
         signature = private_key.sign(
             message,
             padding.PKCS1v15(),
+            None,
+        )
+        print("PKCS1v15 raw signature", signature)
+
+        public_key.verify(
+            signature,
+            message,
+            padding.PKCS1v15(),
+            None,
+        )
+
+        signature = private_key.sign(
+            message,
+            padding.PKCS1v15(),
             chosen_hash,
         )
+
         print("PKCS1v15 signature", signature)
 
         public_key.verify(

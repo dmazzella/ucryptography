@@ -3417,14 +3417,25 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
+    }
+
+    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PKCS1v15 for hashes algorithm None"));
     }
 
     vstr_t vstr_digest;
     mp_hash_algorithm_t *HashAlgorithm = NULL;
-    if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType))
+    {
+        HashAlgorithm = NULL;
+        vstr_init_len(&vstr_digest, 0);
+        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
+    }
+    else if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
     {
         HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(algorithm))->algorithm;
         vstr_init_len(&vstr_digest, 0);
@@ -3486,7 +3497,8 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
         mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
     }
 
-    if ((ret = mbedtls_pk_verify(&pk, HashAlgorithm->md_type, (const byte *)vstr_digest.buf, salt_length, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
+    mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
+    if ((ret = mbedtls_pk_verify(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
     {
         mbedtls_pk_free(&pk);
         mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
@@ -3887,14 +3899,25 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
 #endif
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
+    }
+
+    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PKCS1v15 for hashes algorithm None"));
     }
 
     vstr_t vstr_digest;
     mp_hash_algorithm_t *HashAlgorithm = NULL;
-    if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType))
+    {
+        HashAlgorithm = NULL;
+        vstr_init_len(&vstr_digest, 0);
+        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
+    }
+    else if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
     {
         HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(algorithm))->algorithm;
         vstr_init_len(&vstr_digest, 0);
@@ -3984,10 +4007,11 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
         mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
     }
 
+    mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
     byte buf[MBEDTLS_MPI_MAX_SIZE];
     memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
     size_t olen = 0;
-    if ((ret = mbedtls_pk_sign(&pk, HashAlgorithm->md_type, (const byte *)vstr_digest.buf, salt_length, buf, &olen, mp_random, NULL)) != 0)
+    if ((ret = mbedtls_pk_sign(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, buf, &olen, mp_random, NULL)) != 0)
     {
         mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
     }

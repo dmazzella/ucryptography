@@ -3,6 +3,7 @@
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.backends.openssl.rsa import _rsa_sig_sign, _rsa_sig_verify
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import hashes
@@ -131,6 +132,24 @@ def main():
         )
 
         message = b"A message I want to sign"
+        signature = _rsa_sig_sign(
+            default_backend(),
+            padding.PKCS1v15(),
+            None,
+            private_key,
+            message,
+        )
+        print("PKCS1v15 raw signature", signature)
+
+        _rsa_sig_verify(
+            default_backend(),
+            padding.PKCS1v15(),
+            None,
+            public_key,
+            signature,
+            message
+        )
+
         signature = private_key.sign(
             message,
             padding.PKCS1v15(),
