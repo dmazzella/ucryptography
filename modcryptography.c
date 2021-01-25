@@ -989,9 +989,9 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
 #endif
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(hash_algorithm) == &mp_type_NoneType))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
     }
 
     mp_ec_ecdsa_t *ECDSA = m_new_obj(mp_ec_ecdsa_t);
@@ -1496,13 +1496,18 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
 #endif
-        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
 
     vstr_t vstr_digest;
-    if (mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+    if ((mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
+    {
+        vstr_init_len(&vstr_digest, 0);
+        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
+    }
+    else if (mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
     {
         mp_hash_algorithm_t *HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(ecdsa->algorithm))->algorithm;
         (void)HashAlgorithm;
@@ -1649,13 +1654,18 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
 #endif
-        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
     {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
     }
 
     vstr_t vstr_digest;
-    if (mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
+    if ((mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
+    {
+        vstr_init_len(&vstr_digest, 0);
+        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
+    }
+    else if (mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
     {
         mp_hash_algorithm_t *HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(ecdsa->algorithm))->algorithm;
         (void)HashAlgorithm;

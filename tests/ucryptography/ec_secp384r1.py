@@ -43,8 +43,24 @@ def numbers(curve, x, y, private_value):
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     t = utime.ticks_us()
     pu_k.verify(
-        signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+        signature, msg_hash, crypto_ec.ECDSA(
+            crypto_utils.Prehashed(chosen_hash))
     )
+    delta_t = utime.ticks_diff(utime.ticks_us(), t)
+    print("{:6.3f}".format(delta_t / 1000))
+
+    message = b"A message I want to sign"
+    print("message", message, len(message))
+
+    t = utime.ticks_us()
+    signature = pr_k.sign(message, crypto_ec.ECDSA(None))
+    delta_t = utime.ticks_diff(utime.ticks_us(), t)
+    print("{:6.3f}".format(delta_t / 1000))
+
+    print("signature", signature, len(signature))
+
+    t = utime.ticks_us()
+    pu_k.verify(signature, message, crypto_ec.ECDSA(None))
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print("{:6.3f}".format(delta_t / 1000))
 
@@ -81,7 +97,8 @@ def derive(curve, private_value):
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     t = utime.ticks_us()
     pu_k.verify(
-        signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+        signature, msg_hash, crypto_ec.ECDSA(
+            crypto_utils.Prehashed(chosen_hash))
     )
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print("{:6.3f}".format(delta_t / 1000))
@@ -119,7 +136,8 @@ def generate(curve):
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
     t = utime.ticks_us()
     pu_k.verify(
-        signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+        signature, msg_hash, crypto_ec.ECDSA(
+            crypto_utils.Prehashed(chosen_hash))
     )
     delta_t = utime.ticks_diff(utime.ticks_us(), t)
     print("{:6.3f}".format(delta_t / 1000))

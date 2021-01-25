@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import (
     ec as crypto_ec,
     utils as crypto_utils,
 )
+from cryptography.hazmat.backends.openssl.ec import _ecdsa_sig_sign, _ecdsa_sig_verify
 from cryptography.hazmat.primitives import serialization
 
 
@@ -44,6 +45,12 @@ def numbers(curve, x, y, private_value):
     pu_k.verify(
         signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
     )
+
+    message = b"A message I want to sign"
+    signature = _ecdsa_sig_sign(default_backend(), pr_k, message)
+    print("message", message, len(message))
+    print("signature", signature, len(signature))
+    _ecdsa_sig_verify(default_backend(), pu_k, signature, message)
 
 
 def derive(curve, private_value):
