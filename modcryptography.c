@@ -6415,6 +6415,44 @@ STATIC mp_obj_t mod_rfc6979(size_t n_args, const mp_obj_t *args, mp_map_t *kw_ar
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_rfc6979_obj, 3, mod_rfc6979);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rfc6979_obj, MP_ROM_PTR(&mod_rfc6979_obj));
 
+STATIC mp_obj_t rsa_deduce_private_exponent(mp_obj_t p, mp_obj_t q, mp_obj_t e)
+{
+    mbedtls_mpi P;
+    mbedtls_mpi_init(&P);
+    mbedtls_mpi_read_binary_from_mp_obj(&P, p, true);
+
+    mbedtls_mpi Q;
+    mbedtls_mpi_init(&Q);
+    mbedtls_mpi_read_binary_from_mp_obj(&Q, q, true);
+
+    mbedtls_mpi E;
+    mbedtls_mpi_init(&E);
+    mbedtls_mpi_read_binary_from_mp_obj(&E, e, true);
+
+    mbedtls_mpi D;
+    mbedtls_mpi_init(&D);
+
+    int ret = 1;
+    if ((ret = mbedtls_rsa_deduce_private_exponent(&P, &Q, &E, &D)) != 0)
+    {
+        mbedtls_mpi_free(&P);
+        mbedtls_mpi_free(&Q);
+        mbedtls_mpi_free(&E);
+        mbedtls_mpi_free(&D);
+    }
+
+    mbedtls_mpi_free(&P);
+    mbedtls_mpi_free(&Q);
+    mbedtls_mpi_free(&E);
+
+    mp_obj_t d = mbedtls_mpi_write_binary_to_mp_obj(&D, true);
+    mbedtls_mpi_free(&D);
+    return d;
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_rsa_deduce_private_exponent_obj, rsa_deduce_private_exponent);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_deduce_private_exponent_obj, MP_ROM_PTR(&mod_rsa_deduce_private_exponent_obj));
+
 STATIC const mp_rom_map_elem_t utils_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_RFC6979), MP_ROM_PTR(&mod_static_rfc6979_obj)},
     {MP_ROM_QSTR(MP_QSTR_CipheredBlockDevice), MP_ROM_PTR(&mod_static_block_device_obj)},
@@ -6423,6 +6461,7 @@ STATIC const mp_rom_map_elem_t utils_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_bit_length), MP_ROM_PTR(&mod_static_int_bit_length_obj)},
     {MP_ROM_QSTR(MP_QSTR_encode_dss_signature), MP_ROM_PTR(&mod_static_encode_dss_signature_obj)},
     {MP_ROM_QSTR(MP_QSTR_decode_dss_signature), MP_ROM_PTR(&mod_static_decode_dss_signature_obj)},
+    {MP_ROM_QSTR(MP_QSTR_rsa_deduce_private_exponent), MP_ROM_PTR(&mod_static_rsa_deduce_private_exponent_obj)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(utils_locals_dict, utils_locals_dict_table);
