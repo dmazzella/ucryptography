@@ -4879,9 +4879,12 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    if (bufinfo_data.len % (self->cipher->mode_type == CIPHER_MODE_ECB ? 8 : 16))
+    if (self->cipher->mode_type == CIPHER_MODE_CBC || self->cipher->mode_type == CIPHER_MODE_ECB)
     {
-        mp_raise_ValueError(MP_ERROR_TEXT("The length of the provided data is not a multiple of the block length"));
+        if (bufinfo_data.len % (self->cipher->algorithm->type == CIPHER_ALGORITHM_AES ? 16 : 8))
+        {
+            mp_raise_ValueError(MP_ERROR_TEXT("The length of the provided data is not a multiple of the block length"));
+        }
     }
 
     vstr_t vstr_input;
@@ -5117,9 +5120,12 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    if (bufinfo_data.len % (self->cipher->mode_type == CIPHER_MODE_ECB ? 8 : 16))
+    if (self->cipher->mode_type == CIPHER_MODE_CBC || self->cipher->mode_type == CIPHER_MODE_ECB)
     {
-        mp_raise_ValueError(MP_ERROR_TEXT("The length of the provided data is not a multiple of the block length"));
+        if (bufinfo_data.len % (self->cipher->algorithm->type == CIPHER_ALGORITHM_AES ? 16 : 8))
+        {
+            mp_raise_ValueError(MP_ERROR_TEXT("The length of the provided data is not a multiple of the block length"));
+        }
     }
 
     vstr_t vstr_input;

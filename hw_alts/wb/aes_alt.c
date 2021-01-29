@@ -794,7 +794,7 @@ int mbedtls_internal_aes_encrypt(mbedtls_aes_context *ctx,
                                  unsigned char output[16])
 {
 
-    if (HAL_CRYP_Encrypt(&ctx->hcryp_aes, (uint32_t *)input, 4, (uint32_t *)output, ST_AES_TIMEOUT) != HAL_OK)
+    if (HAL_CRYP_Encrypt(&ctx->hcryp_aes, (uint32_t *)input, 16, (uint32_t *)output, ST_AES_TIMEOUT) != HAL_OK)
     {
         return (MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED);
     }
@@ -805,7 +805,7 @@ int mbedtls_internal_aes_decrypt(mbedtls_aes_context *ctx,
                                  const unsigned char input[16],
                                  unsigned char output[16])
 {
-    if (HAL_CRYP_Decrypt(&ctx->hcryp_aes, (uint32_t *)input, 4, (uint32_t *)output, ST_AES_TIMEOUT) != HAL_OK)
+    if (HAL_CRYP_Decrypt(&ctx->hcryp_aes, (uint32_t *)input, 16, (uint32_t *)output, ST_AES_TIMEOUT) != HAL_OK)
     {
         return MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED;
     }
