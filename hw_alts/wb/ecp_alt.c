@@ -2378,7 +2378,10 @@ int mbedtls_ecp_read_key( mbedtls_ecp_group_id grp_id, mbedtls_ecp_keypair *key,
                     );
         }
         else
+        {
             ret = MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+            goto cleanup;
+        }
     }
 
 #endif
@@ -2420,7 +2423,10 @@ int mbedtls_ecp_write_key( mbedtls_ecp_keypair *key,
             MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary_le( &key->d, buf, buflen ) );
         }
         else
+        {
             ret = MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+            goto cleanup;
+        }
     }
 
 #endif
