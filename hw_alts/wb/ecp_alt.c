@@ -2394,7 +2394,7 @@ int mbedtls_ecp_read_key( mbedtls_ecp_group_id grp_id, mbedtls_ecp_keypair *key,
     }
 
 #endif
-cleanup:
+cleanup: __attribute__((unused))
 
     if( ret != 0 )
         mbedtls_mpi_free( &key->d );
@@ -2437,7 +2437,7 @@ int mbedtls_ecp_write_key( mbedtls_ecp_keypair *key,
     }
 
 #endif
-cleanup:
+cleanup: __attribute__((unused))
 
     return( ret );
 }
