@@ -99,6 +99,7 @@ import cryptography
   - bit_length
   - encode_dss_signature
   - decode_dss_signature
+  - rsa_deduce_private_exponent
 - version
   - get_number
   - get_string
