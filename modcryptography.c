@@ -33,11 +33,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "py/runtime.h"
 #include "py/mperrno.h"
 #include "py/objtype.h"
 #include "py/objstr.h"
 #include "py/objint.h"
-#include "py/runtime.h"
 #if defined(MICROPY_HW_LED1)
 #include "led.h"
 #endif

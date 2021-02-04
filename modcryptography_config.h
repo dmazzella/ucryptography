@@ -122,6 +122,7 @@
 #define MBEDTLS_NO_PLATFORM_ENTROPY
 
 #if !defined(calloc) && !defined(free)
+#include "py/runtime.h"
 #include "py/gc.h"
 #define gc_calloc(a, b) gc_alloc((a * b), 0)
 #define MBEDTLS_PLATFORM_MEMORY
