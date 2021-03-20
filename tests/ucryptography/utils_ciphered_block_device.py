@@ -49,9 +49,9 @@ if __name__ == "__main__":
                 ciphers.algorithms.AES(key),
                 ciphers.modes.CBC(iv)
             )
+            BLOCK_SIZE = 1024
             if HAS_STORAGE:
                 uos.umount("/flash")
-                BLOCK_SIZE = 1024
                 FS_SIZE = BLOCK_SIZE * (256-64)
                 bdev1 = pyb.Flash(start=0, len=FS_SIZE)
                 bdev2 = pyb.Flash(start=FS_SIZE, len=(BLOCK_SIZE * 64))
