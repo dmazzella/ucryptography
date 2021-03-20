@@ -85,6 +85,12 @@ typedef struct mbedtls_rsa_context
 }
 mbedtls_rsa_context;
 
+
+int rsa_pka_modexp( const mbedtls_mpi *exponent,
+                    const mbedtls_mpi *modulus,
+                    const unsigned char *input,
+                    unsigned char *output );
+
 #endif /* MBEDTLS_RSA_ALT */
 
 

@@ -94,10 +94,10 @@
  * @retval      0                                       Ok
  * @retval      MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED    Error in the HW
  */
-static int rsa_pka_modexp( const mbedtls_mpi *exponent,
-                           const mbedtls_mpi *modulus,
-                           const unsigned char *input,
-                           unsigned char *output )
+int rsa_pka_modexp( const mbedtls_mpi *exponent,
+                    const mbedtls_mpi *modulus,
+                    const unsigned char *input,
+                    unsigned char *output )
 {
     int ret = 0;
     size_t nlen;

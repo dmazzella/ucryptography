@@ -1930,6 +1930,34 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
 }
 
+#if !defined(MBEDTLS_RSA_ALT)
+STATIC int rsa_pka_modexp(const mbedtls_mpi *exponent,
+                          const mbedtls_mpi *modulus,
+                          const unsigned char *input,
+                          unsigned char *output)
+{
+    int ret = 0;
+    size_t mlen = mbedtls_mpi_size(modulus);
+
+    mbedtls_mpi A;
+    mbedtls_mpi_init(&A);
+    mbedtls_mpi_read_binary(&A, (const byte *)input, mlen);
+
+    mbedtls_mpi X;
+    mbedtls_mpi_init(&X);
+
+    if ((ret = mbedtls_mpi_exp_mod(&X, &A, exponent, modulus, NULL)) == 0)
+    {
+        mbedtls_mpi_write_binary(&X, (byte *)output, mlen);
+    }
+
+    mbedtls_mpi_init(&A);
+    mbedtls_mpi_init(&X);
+    return ret;
+}
+
+#endif /* MBEDTLS_RSA_ALT */
+
 STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_private_numbers_t *private_numbers, mp_obj_t encoding_o)
 {
     if (!mp_obj_is_int(encoding_o))
@@ -3417,9 +3445,9 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
     mp_obj_t padding = args[3];
-    if (!mp_obj_is_type(padding, &padding_pss_type) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    if (!(mp_obj_get_type(padding) == &mp_type_NoneType) && !mp_obj_is_type(padding, &padding_pss_type) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
     {
-        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PSS or padding.PKCS1v15"));
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PSS or padding.PKCS1v15 or None"));
     }
 
     mp_obj_t algorithm = args[4];
@@ -3432,7 +3460,7 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
     }
 
-    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType) && mp_obj_is_type(padding, &padding_pss_type))
     {
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PKCS1v15 for hashes algorithm None"));
     }
@@ -3484,9 +3512,6 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
     }
 
-    mbedtls_mpi_free(&N);
-    mbedtls_mpi_free(&E);
-
     mp_int_t salt_length = vstr_digest.len;
     if (mp_obj_is_type(padding, &padding_pss_type))
     {
@@ -3507,14 +3532,34 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
         mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
     }
 
-    mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
-    if ((ret = mbedtls_pk_verify(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
+    if (mp_obj_is_type(padding, &padding_pkcs1v15_type) || mp_obj_is_type(padding, &padding_pss_type))
     {
-        mbedtls_pk_free(&pk);
-        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+        mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
+        if ((ret = mbedtls_pk_verify(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
+        {
+            mbedtls_pk_free(&pk);
+            mbedtls_mpi_free(&N);
+            mbedtls_mpi_free(&E);
+            mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+        }
+    }
+    else
+    {
+        byte buf[MBEDTLS_MPI_MAX_SIZE];
+        memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
+
+        if ((ret = rsa_pka_modexp(&E, &N, (const byte *)bufinfo_signature.buf, buf)) != 0 && (memcmp(buf, (const byte *)vstr_digest.buf, vstr_digest.len) != 0))
+        {
+            mbedtls_pk_free(&pk);
+            mbedtls_mpi_free(&N);
+            mbedtls_mpi_free(&E);
+            mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+        }
     }
 
     mbedtls_pk_free(&pk);
+    mbedtls_mpi_free(&N);
+    mbedtls_mpi_free(&E);
     return mp_const_none;
 }
 
@@ -3899,9 +3944,9 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
     mp_obj_t padding = args[2];
-    if (!mp_obj_is_type(padding, &padding_pss_type) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    if (!(mp_obj_get_type(padding) == &mp_type_NoneType) && !mp_obj_is_type(padding, &padding_pss_type) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
     {
-        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PSS or padding.PKCS1v15"));
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PSS or padding.PKCS1v15 or None"));
     }
 
     mp_obj_t algorithm = args[3];
@@ -3914,7 +3959,7 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
     }
 
-    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType) && !mp_obj_is_type(padding, &padding_pkcs1v15_type))
+    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType) && mp_obj_is_type(padding, &padding_pss_type))
     {
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PKCS1v15 for hashes algorithm None"));
     }
@@ -3994,6 +4039,12 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
 
     if ((ret = mbedtls_rsa_complete(rsa)) != 0)
     {
+        mbedtls_pk_init(&pk);
+        mbedtls_mpi_free(&N);
+        mbedtls_mpi_free(&P);
+        mbedtls_mpi_free(&Q);
+        mbedtls_mpi_free(&D);
+        mbedtls_mpi_free(&E);
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
     }
 
@@ -4017,15 +4068,45 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
         mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
     }
 
-    mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
     byte buf[MBEDTLS_MPI_MAX_SIZE];
     memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
     size_t olen = 0;
-    if ((ret = mbedtls_pk_sign(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, buf, &olen, mp_random, NULL)) != 0)
+
+    if (mp_obj_is_type(padding, &padding_pkcs1v15_type) || mp_obj_is_type(padding, &padding_pss_type))
     {
-        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+        mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
+        if ((ret = mbedtls_pk_sign(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, buf, &olen, mp_random, NULL)) != 0)
+        {
+            mbedtls_pk_init(&pk);
+            mbedtls_mpi_free(&N);
+            mbedtls_mpi_free(&P);
+            mbedtls_mpi_free(&Q);
+            mbedtls_mpi_free(&D);
+            mbedtls_mpi_free(&E);
+            mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+        }
+    }
+    else
+    {
+        if ((ret = rsa_pka_modexp(&D, &N, (const byte *)vstr_digest.buf, buf)) != 0)
+        {
+            mbedtls_pk_init(&pk);
+            mbedtls_mpi_free(&N);
+            mbedtls_mpi_free(&P);
+            mbedtls_mpi_free(&Q);
+            mbedtls_mpi_free(&D);
+            mbedtls_mpi_free(&E);
+            mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+        }
+        olen = mbedtls_mpi_size(&N);
     }
 
+    mbedtls_pk_init(&pk);
+    mbedtls_mpi_free(&N);
+    mbedtls_mpi_free(&P);
+    mbedtls_mpi_free(&Q);
+    mbedtls_mpi_free(&D);
+    mbedtls_mpi_free(&E);
     return mp_obj_new_bytes((const byte *)buf, olen);
 }
 

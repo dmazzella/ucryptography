@@ -104,6 +104,21 @@ def main():
         )
 
         message = b"A message I want to sign"
+
+        signature = private_key.sign(
+            message,
+            None,
+            None,
+        )
+        print("raw signature", signature)
+
+        public_key.verify(
+            signature,
+            message,
+            None,
+            None,
+        )
+
         signature = private_key.sign(
             message,
             padding.PKCS1v15(),
