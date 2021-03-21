@@ -44,6 +44,7 @@ import cryptography
   - SECP384R1
   - SECP521R1
   - EllipticCurvePublicKey
+    - from_encoded_point
   - EllipticCurvePublicNumbers
   - EllipticCurvePrivateKey
   - EllipticCurvePrivateNumbers

@@ -2,6 +2,7 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
+import ubinascii
 from cryptography import ec, rsa, serialization, hashes, utils
 
 try:
@@ -63,6 +64,8 @@ ORNL6DeWlqbnKMK1l7xf3wNe1GZQ5vs4617zr3nCVjPhbs1qCCi8Ny/YTg==
 -----END PUBLIC KEY-----"""
 )
 
+EC_PUBLIC_KEY_UNCOMPRESSED = ubinascii.unhexlify(b'046fb0b63f7844c499106838d1fb14980ba52587a418dfeee55ffff93e0a208b3336dc00499ee94c54276d38c9769b746ae54dff5d6b6eacb590b56417dd2422c1')
+
 RSA_PRIVATE_KEY_DER = loads_sequence(
     """-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA1wJT+JTwNGPPb2SydhwhF+tU/wx8JeZkr1Pe9TNkzLMznBE3
@@ -108,6 +111,18 @@ MwIDAQAB
 
 def main():
     def ec_serialization():
+
+        public_key_u = ec.EllipticCurvePublicKey.from_encoded_point(
+            ec.SECP256R1(),
+            EC_PUBLIC_KEY_UNCOMPRESSED
+        )
+        print("public_key.curve", public_key_u.curve.name)
+        public_numbersu = public_key_u.public_numbers()
+        public_bytesu = public_key_u.public_bytes(serialization.Encoding.DER)
+        print("public_key.public_bytes", public_bytesu)
+        print("public_key.public_numbers.x", public_numbersu.x)
+        print("public_key.public_numbers.y", public_numbersu.y)
+
         private_key = serialization.load_der_private_key(EC_PRIVATE_KEY_DER, None)
         print("curve", private_key.curve.name)
         print("key_size", private_key.key_size)
