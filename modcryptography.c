@@ -3595,7 +3595,7 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
         byte buf[MBEDTLS_MPI_MAX_SIZE];
         memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
 
-        if ((ret = rsa_pka_modexp(&E, &N, (const byte *)bufinfo_signature.buf, buf)) != 0 && (memcmp(buf, (const byte *)vstr_digest.buf, vstr_digest.len) != 0))
+        if ((ret = rsa_pka_modexp(&E, &N, (const byte *)bufinfo_signature.buf, buf)) != 0 || (memcmp(buf, (const byte *)vstr_digest.buf, vstr_digest.len) != 0))
         {
             mbedtls_pk_free(&pk);
             mbedtls_mpi_free(&N);
