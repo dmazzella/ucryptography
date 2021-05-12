@@ -182,6 +182,7 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/ecdh.h"
 #include "mbedtls/asn1write.h"
 #include "mbedtls/rsa_internal.h"
+#include "BLAKE2/ref/blake2.h"
 
 struct _mp_ec_ecdsa_t;
 struct _mp_ec_ecdh_t;
@@ -314,6 +315,7 @@ typedef struct _mp_hash_algorithm_t
 {
     mp_obj_base_t base;
     mp_int_t md_type;
+    mp_int_t digest_size;
 } mp_hash_algorithm_t;
 
 typedef struct _mp_hash_context_t
@@ -518,6 +520,11 @@ enum
     SERIALIZATION_ENCODING_PEM = 2,
 };
 
+enum
+{
+    MBEDTLS_MD_NONE_BLAKE2S = -1,
+};
+
 // constants for block protocol ioctl
 #define BLOCKDEV_IOCTL_INIT (1)
 #define BLOCKDEV_IOCTL_DEINIT (2)
@@ -552,6 +559,7 @@ STATIC mp_obj_type_t hash_algorithm_sha256_type;
 STATIC mp_obj_type_t hash_algorithm_sha384_type;
 #endif
 STATIC mp_obj_type_t hash_algorithm_sha512_type;
+STATIC mp_obj_type_t hash_algorithm_blake2s_type;
 STATIC mp_obj_type_t hash_algorithm_prehashed_type;
 STATIC mp_obj_type_t hash_context_type;
 STATIC mp_obj_type_t hmac_context_type;
@@ -2199,7 +2207,7 @@ STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
 #endif
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type))
+        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_blake2s_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -2308,6 +2316,63 @@ STATIC mp_obj_type_t hash_algorithm_sha512_type = {
     .locals_dict = (void *)&hash_algorithm_sha512_locals_dict,
 };
 
+STATIC mp_obj_t hash_algorithm_blake2s_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+{
+    mp_arg_check_num(n_args, n_kw, 1, 1, false);
+    mp_int_t digest_size = 32;
+    if (!mp_obj_is_int(args[0]))
+    {
+        mp_raise_TypeError(MP_ERROR_TEXT("Expected digest_size int"));
+    }
+    digest_size = mp_obj_get_int(args[0]);
+    if (digest_size < 1 || digest_size > 32)
+    {
+        mp_raise_ValueError(MP_ERROR_TEXT("digest_size must be between 1 and 32 bytes"));
+    }
+    mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
+    HashAlgorithm->base.type = &hash_algorithm_blake2s_type;
+    HashAlgorithm->md_type = MBEDTLS_MD_NONE_BLAKE2S;
+    HashAlgorithm->digest_size = digest_size;
+    return MP_OBJ_FROM_PTR(HashAlgorithm);
+}
+
+STATIC void hash_algorithm_blake2s_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+{
+    mp_hash_algorithm_t *self = MP_OBJ_TO_PTR(obj);
+    (void)self;
+
+    if (dest[0] == MP_OBJ_NULL)
+    {
+        const mp_obj_type_t *type = mp_obj_get_type(obj);
+        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
+        if (elem != NULL)
+        {
+            if (attr == MP_QSTR_digest_size)
+            {
+                dest[0] = mp_obj_new_int(self->digest_size);
+                return;
+            }
+            mp_convert_member_lookup(obj, type, elem->value, dest);
+        }
+    }
+}
+
+STATIC const mp_rom_map_elem_t hash_algorithm_blake2s_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_blake2s)},
+    {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(32)},
+};
+
+STATIC MP_DEFINE_CONST_DICT(hash_algorithm_blake2s_locals_dict, hash_algorithm_blake2s_locals_dict_table);
+
+STATIC mp_obj_type_t hash_algorithm_blake2s_type = {
+    {&mp_type_type},
+    .name = MP_QSTR_BLAKE2s,
+    .make_new = hash_algorithm_blake2s_make_new,
+    .attr = hash_algorithm_blake2s_attr,
+    .locals_dict = (void *)&hash_algorithm_blake2s_locals_dict,
+};
+
 STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
@@ -2315,7 +2380,7 @@ STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, 
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(args[0], &hash_algorithm_sha384_type)
 #endif
-        && !mp_obj_is_type(args[0], &hash_algorithm_sha512_type))
+        && !mp_obj_is_type(args[0], &hash_algorithm_sha512_type) && !mp_obj_is_type(args[0], &hash_algorithm_blake2s_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -2388,8 +2453,17 @@ STATIC mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
     mp_get_buffer_raise(self->data, &bufinfo_data, MP_BUFFER_READ);
 
     vstr_t vstr_digest;
-    vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(self->algorithm->md_type)));
-    mbedtls_md(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+
+    if (self->algorithm->md_type == MBEDTLS_MD_NONE_BLAKE2S)
+    {
+        vstr_init_len(&vstr_digest, self->algorithm->digest_size);
+        blake2s((byte *)vstr_digest.buf, vstr_digest.len, (const byte *)bufinfo_data.buf, bufinfo_data.len, NULL, 0);
+    }
+    else
+    {
+        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(self->algorithm->md_type)));
+        mbedtls_md(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+    }
 
     self->data = mp_const_empty_bytes;
 
@@ -2442,6 +2516,7 @@ STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SHA384), MP_ROM_PTR(&hash_algorithm_sha384_type)},
 #endif
     {MP_ROM_QSTR(MP_QSTR_SHA512), MP_ROM_PTR(&hash_algorithm_sha512_type)},
+    {MP_ROM_QSTR(MP_QSTR_BLAKE2s), MP_ROM_PTR(&hash_algorithm_blake2s_type)},
     {MP_ROM_QSTR(MP_QSTR_Hash), MP_ROM_PTR(&hash_context_type)},
 };
 
@@ -2464,7 +2539,7 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
         && !mp_obj_is_type(args[1], &hash_algorithm_sha384_type)
 #endif
-        && !mp_obj_is_type(args[1], &hash_algorithm_sha512_type))
+        && !mp_obj_is_type(args[1], &hash_algorithm_sha512_type) && !mp_obj_is_type(args[1], &hash_algorithm_blake2s_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -2572,8 +2647,53 @@ STATIC mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
     mp_get_buffer_raise(self->data, &bufinfo_data, MP_BUFFER_READ);
 
     vstr_t vstr_digest;
-    vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(self->hash_context->algorithm->md_type)));
-    mbedtls_md_hmac(mbedtls_md_info_from_type(self->hash_context->algorithm->md_type), (const byte *)bufinfo_key.buf, bufinfo_key.len, (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+    if (self->hash_context->algorithm->md_type == MBEDTLS_MD_NONE_BLAKE2S)
+    {
+        size_t block_size = 64;
+        vstr_t vstr_ipad;
+        vstr_t vstr_opad;
+        vstr_init_len(&vstr_digest, self->hash_context->algorithm->digest_size);
+        vstr_init_len(&vstr_ipad, block_size);
+        vstr_init_len(&vstr_opad, block_size);
+
+        const byte *key = (const byte *)bufinfo_key.buf;
+        size_t keylen = bufinfo_key.len;
+
+        if (keylen > (size_t)block_size)
+        {
+            blake2s((byte *)vstr_digest.buf, vstr_digest.len, key, keylen, NULL, 0);
+            keylen = vstr_digest.len;
+            key = (byte *)vstr_digest.buf;
+        }
+
+        byte *ipad = (byte *)vstr_ipad.buf;
+        byte *opad = (byte *)vstr_opad.buf;
+
+        memset(ipad, 0x36, block_size);
+        memset(opad, 0x5C, block_size);
+
+        for (size_t i = 0; i < keylen; i++)
+        {
+            ipad[i] = (unsigned char)(ipad[i] ^ key[i]);
+            opad[i] = (unsigned char)(opad[i] ^ key[i]);
+        }
+
+        blake2s_state S[1];
+        blake2s_init(S, vstr_digest.len);
+        blake2s_update(S, ipad, block_size);
+        blake2s_update(S, (const byte *)bufinfo_data.buf, bufinfo_data.len);
+        blake2s_final(S, (byte *)vstr_digest.buf, vstr_digest.len);
+
+        blake2s_init(S, vstr_digest.len);
+        blake2s_update(S, opad, block_size);
+        blake2s_update(S, (byte *)vstr_digest.buf, vstr_digest.len);
+        blake2s_final(S, (byte *)vstr_digest.buf, vstr_digest.len);
+    }
+    else
+    {
+        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(self->hash_context->algorithm->md_type)));
+        mbedtls_md_hmac(mbedtls_md_info_from_type(self->hash_context->algorithm->md_type), (const byte *)bufinfo_key.buf, bufinfo_key.len, (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
+    }
 
     self->data = mp_const_empty_bytes;
 

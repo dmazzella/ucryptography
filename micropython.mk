@@ -27,8 +27,10 @@ else
         CFLAGS_USERMOD += -DMBEDTLS_ECDSA_SIGN_ALT
     endif
 endif
+CFLAGS_USERMOD += -I$(MOD_UCRYPTOGRAPHY_DIR)/BLAKE2/ref
 
 SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/modcryptography.c
+SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/BLAKE2/ref/blake2s-ref.c
 ifeq ($(MICROPY_SSL_MBEDTLS),)
     $(foreach src, $(wildcard $(MBEDTLS_DIR)/library/*.c), $(eval SRC_USERMOD += $(src)))
     ifneq ($(wildcard $(MBEDTLS_DIR)/crypto/*),)
