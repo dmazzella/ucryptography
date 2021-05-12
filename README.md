@@ -64,6 +64,7 @@ import cryptography
   - SHA256
   - SHA384
   - SHA512
+  - BLAKE2s
   - Hash
 - hmac
   - HMAC
