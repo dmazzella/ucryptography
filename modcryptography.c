@@ -5676,7 +5676,7 @@ STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, siz
     mp_get_buffer_raise(args[ARG_initialization_vector].u_obj, &bufinfo_iv, MP_BUFFER_READ);
 
     mp_buffer_info_t bufinfo_tag;
-    bool has_tag = mp_get_buffer(args[ARG_tag].u_obj, &bufinfo_tag, MP_BUFFER_READ);
+    bool has_tag = args[ARG_tag].u_obj != MP_OBJ_NULL && mp_get_buffer(args[ARG_tag].u_obj, &bufinfo_tag, MP_BUFFER_READ);
 
     mp_ciphers_modes_gcm_t *GCM = m_new_obj(mp_ciphers_modes_gcm_t);
     GCM->base.type = &ciphers_modes_gcm_type;
