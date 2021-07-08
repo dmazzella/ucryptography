@@ -1650,20 +1650,17 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 
     util_decode_dss_signature(bufinfo_signature.buf, bufinfo_signature.len, &r, &s);
 
-    int ecdsa_verify = 0;
-    if ((ecdsa_verify = mbedtls_ecdsa_verify(&ecp.grp, (const byte *)vstr_digest.buf, vstr_digest.len, &ecp.Q, &r, &s)) != 0)
-    {
-        mbedtls_ecp_keypair_free(&ecp);
-        mbedtls_mpi_free(&r);
-        mbedtls_mpi_free(&s);
-        vstr_clear(&vstr_digest);
-        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ecdsa_verify);
-    }
+    int ecdsa_verify = mbedtls_ecdsa_verify(&ecp.grp, (const byte *)vstr_digest.buf, vstr_digest.len, &ecp.Q, &r, &s);
 
     mbedtls_ecp_keypair_free(&ecp);
     mbedtls_mpi_free(&r);
     mbedtls_mpi_free(&s);
     vstr_clear(&vstr_digest);
+
+    if (ecdsa_verify != 0)
+    {
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ecdsa_verify);
+    }
 
     return mp_const_none;
 }
@@ -3717,27 +3714,16 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     if (mp_obj_is_type(padding, &padding_pkcs1v15_type) || mp_obj_is_type(padding, &padding_pss_type))
     {
         mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
-        if ((ret = mbedtls_pk_verify(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, (const byte *)bufinfo_signature.buf, bufinfo_signature.len)) != 0)
-        {
-            mbedtls_pk_free(&pk);
-            mbedtls_mpi_free(&N);
-            mbedtls_mpi_free(&E);
-            vstr_clear(&vstr_digest);
-            mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
-        }
+        ret = mbedtls_pk_verify(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, (const byte *)bufinfo_signature.buf, bufinfo_signature.len);
     }
     else
     {
         byte buf[MBEDTLS_MPI_MAX_SIZE];
         memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
-
-        if ((ret = rsa_pka_modexp(&E, &N, (const byte *)bufinfo_signature.buf, buf)) != 0 || (memcmp(buf, (const byte *)vstr_digest.buf, vstr_digest.len) != 0))
+        ret = rsa_pka_modexp(&E, &N, (const byte *)bufinfo_signature.buf, buf);
+        if (ret == 0)
         {
-            mbedtls_pk_free(&pk);
-            mbedtls_mpi_free(&N);
-            mbedtls_mpi_free(&E);
-            vstr_clear(&vstr_digest);
-            mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+            ret = memcmp(buf, (const byte *)vstr_digest.buf, vstr_digest.len);
         }
     }
 
@@ -3745,6 +3731,12 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     mbedtls_mpi_free(&N);
     mbedtls_mpi_free(&E);
     vstr_clear(&vstr_digest);
+
+    if (ret != 0)
+    {
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+    }
+
     return mp_const_none;
 }
 
@@ -3783,46 +3775,40 @@ STATIC mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
     mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
 
-    int ret = 1;
-    if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) != 0)
+    mp_obj_t enc = mp_const_none;
+    int ret = -1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) == 0)
     {
-        mbedtls_pk_free(&pk);
-        mbedtls_mpi_free(&N);
-        mbedtls_mpi_free(&E);
-
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
-    }
-
-    if (mp_obj_is_type(padding, &padding_oaep_type))
-    {
-        mp_padding_oaep_t *PADDING_OAEP = MP_OBJ_TO_PTR(padding);
-        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_OAEP->mgf->algorithm->md_type);
-    }
-    else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
-    {
+        if (mp_obj_is_type(padding, &padding_oaep_type))
+        {
+            mp_padding_oaep_t *PADDING_OAEP = MP_OBJ_TO_PTR(padding);
+            mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_OAEP->mgf->algorithm->md_type);
+        }
+        else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
+        {
 #if 0
         mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
 #endif
-        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
-    }
+            mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+        }
 
-    byte buf[MBEDTLS_MPI_MAX_SIZE];
-    memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
-    size_t olen = 0;
-    if ((ret = mbedtls_pk_encrypt(&pk, (const byte *)bufinfo_plaintext.buf, bufinfo_plaintext.len, buf, &olen, sizeof(buf), mp_random, NULL)) != 0)
-    {
-        mbedtls_pk_free(&pk);
-        mbedtls_mpi_free(&N);
-        mbedtls_mpi_free(&E);
-
-        return mp_const_none;
+        byte buf[MBEDTLS_MPI_MAX_SIZE];
+        memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
+        size_t olen = 0;
+        ret = mbedtls_pk_encrypt(&pk, (const byte *)bufinfo_plaintext.buf, bufinfo_plaintext.len, buf, &olen, sizeof(buf), mp_random, NULL);
+        enc = mp_obj_new_bytes((const byte *)buf, olen);
     }
 
     mbedtls_pk_free(&pk);
     mbedtls_mpi_free(&N);
     mbedtls_mpi_free(&E);
 
-    return mp_obj_new_bytes((const byte *)buf, olen);
+    if (ret != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("rsa_encrypt"));
+    }
+
+    return enc;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_encrypt_obj, 3, 3, rsa_encrypt);
@@ -3913,24 +3899,25 @@ STATIC mp_obj_t rsa_public_numbers_make_new(const mp_obj_type_t *type, size_t n_
     mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
 
-    int ret = 1;
-    if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) != 0)
+    mp_obj_t public_numbers = mp_const_none;
+    int ret = -1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E)) == 0)
     {
-        mbedtls_pk_free(&pk);
-        mbedtls_mpi_free(&N);
-        mbedtls_mpi_free(&E);
-
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+        mp_obj_t pub_key = rsa_parse_keypair(rsa, false);
+        mp_rsa_public_key_t *RSAPublicKey = MP_OBJ_TO_PTR(pub_key);
+        public_numbers = RSAPublicKey->public_numbers;
     }
-
-    mp_obj_t pub_key = rsa_parse_keypair(rsa, false);
 
     mbedtls_pk_free(&pk);
     mbedtls_mpi_free(&N);
     mbedtls_mpi_free(&E);
 
-    mp_rsa_public_key_t *RSAPublicKey = MP_OBJ_TO_PTR(pub_key);
-    return RSAPublicKey->public_numbers;
+    if (ret != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("rsa_public_numbers"));
+    }
+
+    return public_numbers;
 }
 
 STATIC mp_obj_t rsa_public_numbers_public_key(mp_obj_t obj)
@@ -4052,67 +4039,48 @@ STATIC mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
     mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
 
-    int ret = 1;
-    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
+    mp_obj_t decrypt = mp_const_none;
+    int ret = -1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) == 0)
     {
-        mbedtls_pk_init(&pk);
-        mbedtls_mpi_free(&N);
-        mbedtls_mpi_free(&P);
-        mbedtls_mpi_free(&Q);
-        mbedtls_mpi_free(&D);
-        mbedtls_mpi_free(&E);
-
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
-    }
-
-    if ((ret = mbedtls_rsa_complete(rsa)) != 0)
-    {
-        mbedtls_pk_init(&pk);
-        mbedtls_mpi_free(&N);
-        mbedtls_mpi_free(&P);
-        mbedtls_mpi_free(&Q);
-        mbedtls_mpi_free(&D);
-        mbedtls_mpi_free(&E);
-
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
-    }
-
-    if (mp_obj_is_type(padding, &padding_oaep_type))
-    {
-        mp_padding_oaep_t *PADDING_OAEP = MP_OBJ_TO_PTR(padding);
-        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_OAEP->mgf->algorithm->md_type);
-    }
-    else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
-    {
+        if ((ret = mbedtls_rsa_complete(rsa)) == 0)
+        {
+            if (mp_obj_is_type(padding, &padding_oaep_type))
+            {
+                mp_padding_oaep_t *PADDING_OAEP = MP_OBJ_TO_PTR(padding);
+                mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_OAEP->mgf->algorithm->md_type);
+            }
+            else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
+            {
 #if 0
-        mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
+                mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
 #endif
-        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+                mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+            }
+
+            byte buf[MBEDTLS_MPI_MAX_SIZE];
+            memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
+            size_t olen = 0;
+            if ((ret = mbedtls_pk_decrypt(&pk, (const byte *)bufinfo_ciphertext.buf, bufinfo_ciphertext.len, buf, &olen, sizeof(buf), mp_random, NULL)) == 0)
+            {
+                decrypt = mp_obj_new_bytes((const byte *)buf, olen);
+            }
+        }
     }
 
-    byte buf[MBEDTLS_MPI_MAX_SIZE];
-    memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
-    size_t olen = 0;
-    if ((ret = mbedtls_pk_decrypt(&pk, (const byte *)bufinfo_ciphertext.buf, bufinfo_ciphertext.len, buf, &olen, sizeof(buf), mp_random, NULL)) != 0)
-    {
-        mbedtls_pk_init(&pk);
-        mbedtls_mpi_free(&N);
-        mbedtls_mpi_free(&P);
-        mbedtls_mpi_free(&Q);
-        mbedtls_mpi_free(&D);
-        mbedtls_mpi_free(&E);
-
-        return mp_const_none;
-    }
-
-    mbedtls_pk_init(&pk);
+    mbedtls_pk_free(&pk);
     mbedtls_mpi_free(&N);
     mbedtls_mpi_free(&P);
     mbedtls_mpi_free(&Q);
     mbedtls_mpi_free(&D);
     mbedtls_mpi_free(&E);
 
-    return mp_obj_new_bytes((const byte *)buf, olen);
+    if (ret != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+    }
+
+    return decrypt;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_decrypt_obj, 3, 3, rsa_decrypt);
@@ -4216,86 +4184,71 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
 
-    int ret = 1;
-    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
+    mp_obj_t sign = mp_const_none;
+    int ret = -1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) == 0)
     {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
-    }
+        if ((ret = mbedtls_rsa_complete(rsa)) == 0)
+        {
 
-    if ((ret = mbedtls_rsa_complete(rsa)) != 0)
-    {
-        mbedtls_pk_init(&pk);
-        mbedtls_mpi_free(&N);
-        mbedtls_mpi_free(&P);
-        mbedtls_mpi_free(&Q);
-        mbedtls_mpi_free(&D);
-        mbedtls_mpi_free(&E);
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
-    }
-
-    mp_int_t salt_length = vstr_digest.len;
-    if (mp_obj_is_type(padding, &padding_pss_type))
-    {
-        mp_padding_pss_t *PADDING_PSS = MP_OBJ_TO_PTR(padding);
+            mp_int_t salt_length = vstr_digest.len;
+            if (mp_obj_is_type(padding, &padding_pss_type))
+            {
+                mp_padding_pss_t *PADDING_PSS = MP_OBJ_TO_PTR(padding);
 #if 0
-        if (PADDING_PSS->salt_length == 0)
-        {
-            salt_length = mp_obj_get_int(padding_calculate_max_pss_salt_length(args[0], PADDING_PSS->mgf->algorithm));
-        }
+                if (PADDING_PSS->salt_length == 0)
+                {
+                    salt_length = mp_obj_get_int(padding_calculate_max_pss_salt_length(args[0], PADDING_PSS->mgf->algorithm));
+                }
 #endif
-        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_PSS->mgf->algorithm->md_type);
-    }
-    else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
-    {
+                mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_PSS->mgf->algorithm->md_type);
+            }
+            else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
+            {
 #if 0
-        mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
+                mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
 #endif
-        mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
-    }
+                mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+            }
 
-    byte buf[MBEDTLS_MPI_MAX_SIZE];
-    memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
-    size_t olen = 0;
+            byte buf[MBEDTLS_MPI_MAX_SIZE];
+            memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
+            size_t olen = 0;
 
-    if (mp_obj_is_type(padding, &padding_pkcs1v15_type) || mp_obj_is_type(padding, &padding_pss_type))
-    {
-        mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
-        if ((ret = mbedtls_pk_sign(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, buf, &olen, mp_random, NULL)) != 0)
-        {
-            mbedtls_pk_init(&pk);
-            mbedtls_mpi_free(&N);
-            mbedtls_mpi_free(&P);
-            mbedtls_mpi_free(&Q);
-            mbedtls_mpi_free(&D);
-            mbedtls_mpi_free(&E);
-            vstr_clear(&vstr_digest);
-            mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+            if (mp_obj_is_type(padding, &padding_pkcs1v15_type) || mp_obj_is_type(padding, &padding_pss_type))
+            {
+                mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
+                ret = mbedtls_pk_sign(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, buf, &olen, mp_random, NULL);
+            }
+            else
+            {
+                if ((ret = rsa_pka_modexp(&D, &N, (const byte *)vstr_digest.buf, buf)) == 0)
+                {
+                    olen = mbedtls_mpi_size(&N);
+                }
+            }
+
+            if (ret == 0)
+            {
+                sign = mp_obj_new_bytes((const byte *)buf, olen);
+            }
         }
     }
-    else
-    {
-        if ((ret = rsa_pka_modexp(&D, &N, (const byte *)vstr_digest.buf, buf)) != 0)
-        {
-            mbedtls_pk_init(&pk);
-            mbedtls_mpi_free(&N);
-            mbedtls_mpi_free(&P);
-            mbedtls_mpi_free(&Q);
-            mbedtls_mpi_free(&D);
-            mbedtls_mpi_free(&E);
-            vstr_clear(&vstr_digest);
-            mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
-        }
-        olen = mbedtls_mpi_size(&N);
-    }
 
-    mbedtls_pk_init(&pk);
+    mbedtls_pk_free(&pk);
     mbedtls_mpi_free(&N);
     mbedtls_mpi_free(&P);
     mbedtls_mpi_free(&Q);
     mbedtls_mpi_free(&D);
     mbedtls_mpi_free(&E);
     vstr_clear(&vstr_digest);
-    return mp_obj_new_bytes((const byte *)buf, olen);
+
+    if (ret != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("rsa_sign"));
+    }
+
+    return sign;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_sign_obj, 4, 4, rsa_sign);
@@ -4462,21 +4415,34 @@ STATIC mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n
     mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(pk);
 
-    int ret = 1;
-    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) != 0)
+    mp_obj_t private_numbers = mp_const_none;
+    int ret = -1;
+    if ((ret = mbedtls_rsa_import(rsa, &N, &P, &Q, &D, &E)) == 0)
     {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+        if ((ret = mbedtls_rsa_complete(rsa)) == 0)
+        {
+            mp_obj_t priv_key = rsa_parse_keypair(rsa, true);
+            mp_rsa_private_key_t *RSAPrivateKey = MP_OBJ_TO_PTR(priv_key);
+            private_numbers = RSAPrivateKey->private_numbers;
+        }
     }
 
-    if ((ret = mbedtls_rsa_complete(rsa)) != 0)
-    {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_complete"));
-    }
-
-    mp_obj_t priv_key = rsa_parse_keypair(rsa, true);
+    mbedtls_mpi_free(&P);
+    mbedtls_mpi_free(&Q);
+    mbedtls_mpi_free(&D);
+    mbedtls_mpi_free(&DMP1);
+    mbedtls_mpi_free(&DMQ1);
+    mbedtls_mpi_free(&IQMP);
+    mbedtls_mpi_free(&E);
+    mbedtls_mpi_free(&N);
     mbedtls_pk_free(&pk);
-    mp_rsa_private_key_t *RSAPrivateKey = MP_OBJ_TO_PTR(priv_key);
-    return RSAPrivateKey->private_numbers;
+
+    if (ret != 0)
+    {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("rsa_private_numbers"));
+    }
+
+    return private_numbers;
 }
 
 STATIC mp_obj_t rsa_private_numbers_private_key(mp_obj_t obj)
@@ -4685,17 +4651,12 @@ STATIC mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
     mbedtls_mpi Q;
     mbedtls_mpi_init(&Q);
 
-    if (mbedtls_rsa_deduce_primes(&N, &D, &E, &P, &Q) == 0)
+    mp_obj_t recover_prime_factor = mp_const_none;
+    int ret = -1;
+    if ((ret = mbedtls_rsa_deduce_primes(&N, &D, &E, &P, &Q)) == 0)
     {
         mp_obj_t pq[2] = {mbedtls_mpi_write_binary_to_mp_obj(&P, true), mbedtls_mpi_write_binary_to_mp_obj(&Q, true)};
-
-        mbedtls_mpi_free(&N);
-        mbedtls_mpi_free(&E);
-        mbedtls_mpi_free(&D);
-        mbedtls_mpi_free(&P);
-        mbedtls_mpi_free(&Q);
-
-        return mp_obj_new_tuple(2, pq);
+        recover_prime_factor = mp_obj_new_tuple(2, pq);
     }
 
     mbedtls_mpi_free(&N);
@@ -4704,7 +4665,7 @@ STATIC mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
     mbedtls_mpi_free(&P);
     mbedtls_mpi_free(&Q);
 
-    return mp_const_none;
+    return recover_prime_factor;
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_rsa_recover_prime_factors_obj, rsa_recover_prime_factors);
