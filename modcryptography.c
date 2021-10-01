@@ -187,6 +187,7 @@ STATIC mp_obj_type_t version_type = {
 #include "mbedtls/asn1write.h"
 #include "mbedtls/rsa_internal.h"
 #include "BLAKE2/ref/blake2.h"
+#include "c25519/src/edsign.h"
 
 struct _mp_ec_ecdsa_t;
 struct _mp_ec_ecdh_t;
@@ -4730,46 +4731,62 @@ STATIC mp_obj_type_t rsa_type = {
     .locals_dict = (void *)&rsa_locals_dict,
 };
 
-STATIC mp_obj_t ed25519_private_key_generate(void)
-{
-    mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
-
-    mp_ed25519_public_key_t *ED25519_PUBLIC_KEY = m_new_obj(mp_ed25519_public_key_t);
-    ED25519_PUBLIC_KEY->base.type = &ed25519_public_key_type;
-    ED25519_PUBLIC_KEY->public_bytes = mp_const_empty_bytes;
-
-    mp_ed25519_private_key_t *ED25519_PRIVATE_KEY = m_new_obj(mp_ed25519_private_key_t);
-    ED25519_PRIVATE_KEY->base.type = &ed25519_private_key_type;
-    ED25519_PRIVATE_KEY->public_key = ED25519_PUBLIC_KEY;
-    ED25519_PRIVATE_KEY->private_bytes = mp_const_empty_bytes;
-
-    return MP_OBJ_FROM_PTR(ED25519_PRIVATE_KEY);
-}
-
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_ed25519_private_key_generate_obj, ed25519_private_key_generate);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_private_key_generate_obj, MP_ROM_PTR(&mod_ed25519_private_key_generate_obj));
-
 STATIC mp_obj_t ed25519_private_key_from_private_bytes(mp_obj_t data)
 {
+#if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
     mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
-
+#else
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
+    if (bufinfo_data.len < EDSIGN_SECRET_KEY_SIZE)
+    {
+        mp_raise_ValueError(MP_ERROR_TEXT("private_bytes must be 32 bytes len"));
+    }
+
+    vstr_t vstr_pkey;
+    vstr_init_len(&vstr_pkey, EDSIGN_PUBLIC_KEY_SIZE);
+
+    edsign_sec_to_pub((byte *)vstr_pkey.buf, (byte *)bufinfo_data.buf);
+
     mp_ed25519_public_key_t *ED25519_PUBLIC_KEY = m_new_obj(mp_ed25519_public_key_t);
     ED25519_PUBLIC_KEY->base.type = &ed25519_public_key_type;
-    ED25519_PUBLIC_KEY->public_bytes = mp_const_empty_bytes;
+    ED25519_PUBLIC_KEY->public_bytes = mp_obj_new_bytes((const byte *)vstr_pkey.buf, vstr_pkey.len);
 
     mp_ed25519_private_key_t *ED25519_PRIVATE_KEY = m_new_obj(mp_ed25519_private_key_t);
     ED25519_PRIVATE_KEY->base.type = &ed25519_private_key_type;
     ED25519_PRIVATE_KEY->public_key = ED25519_PUBLIC_KEY;
-    ED25519_PRIVATE_KEY->private_bytes = mp_const_empty_bytes;
+    ED25519_PRIVATE_KEY->private_bytes = mp_obj_new_bytes((const byte *)bufinfo_data.buf, bufinfo_data.len);
+
+    vstr_clear(&vstr_pkey);
 
     return MP_OBJ_FROM_PTR(ED25519_PRIVATE_KEY);
+#endif
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_private_key_from_private_bytes_obj, ed25519_private_key_from_private_bytes);
 STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_private_key_from_private_bytes_obj, MP_ROM_PTR(&mod_ed25519_private_key_from_private_bytes_obj));
+
+STATIC mp_obj_t ed25519_private_key_generate(void)
+{
+#if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
+    mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
+#else
+    vstr_t vstr_skey;
+    vstr_init_len(&vstr_skey, EDSIGN_SECRET_KEY_SIZE);
+    mp_random(NULL, (byte *)vstr_skey.buf, vstr_skey.len);
+    mp_obj_t skey_o = mp_obj_new_bytes((const byte *)vstr_skey.buf, vstr_skey.len);
+
+    mp_ed25519_private_key_t *ED25519_PRIVATE_KEY = ed25519_private_key_from_private_bytes(skey_o);
+
+    vstr_clear(&vstr_skey);
+
+    return MP_OBJ_FROM_PTR(ED25519_PRIVATE_KEY);
+#endif
+}
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_ed25519_private_key_generate_obj, ed25519_private_key_generate);
+STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_private_key_generate_obj, MP_ROM_PTR(&mod_ed25519_private_key_generate_obj));
 
 STATIC mp_obj_t ed25519_private_key_public_key(mp_obj_t obj)
 {
@@ -4789,13 +4806,30 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_private_key_private_bytes_obj, ed25
 
 STATIC mp_obj_t ed25519_private_key_sign(mp_obj_t obj, mp_obj_t data)
 {
+#if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
+    mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
+#else
     mp_ed25519_private_key_t *self = MP_OBJ_TO_PTR(obj);
-    (void)self;
 
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    return mp_const_empty_bytes;
+    mp_buffer_info_t bufinfo_private_bytes;
+    mp_get_buffer_raise(self->private_bytes, &bufinfo_private_bytes, MP_BUFFER_READ);
+
+    mp_buffer_info_t bufinfo_public_bytes;
+    mp_get_buffer_raise(self->public_key->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
+
+    vstr_t vstr_signature;
+    vstr_init_len(&vstr_signature, EDSIGN_SIGNATURE_SIZE);
+    edsign_sign((byte *)vstr_signature.buf, (const byte *)bufinfo_public_bytes.buf, (const byte *)bufinfo_private_bytes.buf, (const byte *)bufinfo_data.buf, bufinfo_data.len);
+
+    mp_obj_t signature_o = mp_obj_new_bytes((const byte *)vstr_signature.buf, vstr_signature.len);
+
+    vstr_clear(&vstr_signature);
+
+    return signature_o;
+#endif
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ed25519_private_key_sign_obj, ed25519_private_key_sign);
@@ -4818,16 +4852,23 @@ STATIC mp_obj_type_t ed25519_private_key_type = {
 
 STATIC mp_obj_t ed25519_public_key_from_public_bytes(mp_obj_t data)
 {
+#if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
     mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
-
+#else
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
+    if (bufinfo_data.len < EDSIGN_PUBLIC_KEY_SIZE)
+    {
+        mp_raise_ValueError(MP_ERROR_TEXT("public_bytes must be 32 bytes len"));
+    }
+
     mp_ed25519_public_key_t *ED25519_PUBLIC_KEY = m_new_obj(mp_ed25519_public_key_t);
     ED25519_PUBLIC_KEY->base.type = &ed25519_public_key_type;
-    ED25519_PUBLIC_KEY->public_bytes = mp_const_empty_bytes;
+    ED25519_PUBLIC_KEY->public_bytes = mp_obj_new_bytes((const byte *)bufinfo_data.buf, bufinfo_data.len);
 
     return MP_OBJ_FROM_PTR(ED25519_PUBLIC_KEY);
+#endif
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_public_key_from_public_bytes_obj, ed25519_public_key_from_public_bytes);
@@ -4843,8 +4884,10 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_public_key_public_bytes_obj, ed2551
 
 STATIC mp_obj_t ed25519_public_key_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t data)
 {
+#if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
+    mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
+#else
     mp_ed25519_public_key_t *self = MP_OBJ_TO_PTR(obj);
-    (void)self;
 
     mp_buffer_info_t bufinfo_signature;
     mp_get_buffer_raise(signature, &bufinfo_signature, MP_BUFFER_READ);
@@ -4852,7 +4895,17 @@ STATIC mp_obj_t ed25519_public_key_verify(mp_obj_t obj, mp_obj_t signature, mp_o
     mp_buffer_info_t bufinfo_data;
     mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
 
-    return mp_const_empty_bytes;
+    mp_buffer_info_t bufinfo_public_bytes;
+    mp_get_buffer_raise(self->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
+
+    mp_int_t ret = edsign_verify((const byte *)bufinfo_signature.buf, (const byte *)bufinfo_public_bytes.buf, (const byte *)bufinfo_data.buf, bufinfo_data.len);
+    if (!ret)
+    {
+        mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ret);
+    }
+
+    return mp_const_none;
+#endif
 }
 
 STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_ed25519_public_key_verify_obj, ed25519_public_key_verify);
