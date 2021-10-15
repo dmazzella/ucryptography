@@ -11,7 +11,7 @@
  */
 /*
  *  Copyright (C) 2006-2018, Arm Limited (or its affiliates), All Rights Reserved
- *  Copyright (C) 2020, STMicroelectronics, All Rights Reserved
+ *  Copyright (C) 2021, STMicroelectronics, All Rights Reserved
  *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -85,9 +85,8 @@ typedef struct mbedtls_rsa_context
 }
 mbedtls_rsa_context;
 
-
-int rsa_pka_modexp( const mbedtls_mpi *exponent,
-                    const mbedtls_mpi *modulus,
+int rsa_pka_modexp( mbedtls_rsa_context *ctx,
+                    int is_private,
                     const unsigned char *input,
                     unsigned char *output );
 

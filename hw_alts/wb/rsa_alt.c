@@ -2,7 +2,7 @@
  *  The RSA public-key cryptosystem
  *
  *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
- *  Copyright (C) 2020, STMicroelectronics, All Rights Reserved
+ *  Copyright (C) 2021, STMicroelectronics, All Rights Reserved
  *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -85,46 +85,216 @@
 /* Private define ------------------------------------------------------------*/
 #define ST_PKA_TIMEOUT 5000      /* 5s timeout for the Public key accelerator */
 
+/* Private macro -------------------------------------------------------------*/
+/*
+ * 32-bit integer manipulation macros (big endian)
+ */
+#ifndef GET_UINT32_BE
+#define GET_UINT32_BE(n,b,i)                            \
+do {                                                    \
+    (n) = ( (uint32_t) (b)[(i)    ] << 24 )             \
+        | ( (uint32_t) (b)[(i) + 1] << 16 )             \
+        | ( (uint32_t) (b)[(i) + 2] <<  8 )             \
+        | ( (uint32_t) (b)[(i) + 3]       );            \
+} while( 0 )
+#endif
+
+/**
+ * @brief       Operate the PKA Arithmetic multiplication : AxB = A x B
+ * @param[in]   A         Operand A
+ * @param[in]   A_len     Operand A length
+ * @param[in]   B         Operand B
+ * @param[in]   B_len     Operand B length
+ * @param[out]  AxB       Result
+ * @retval      0                                       Ok
+ * @retval      MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED    Error in the HW
+ */
+static int rsa_pka_arithmetic_mul( const unsigned char *A,
+                                   size_t A_len,
+                                   const unsigned char *B,
+                                   size_t B_len,
+                                   uint32_t *AxB )
+{
+    RSA_VALIDATE_RET( A != NULL );
+    RSA_VALIDATE_RET( B != NULL );
+    RSA_VALIDATE_RET( AxB != NULL );
+
+    int ret = 0;
+    PKA_HandleTypeDef hpka = {0};
+    PKA_MulInTypeDef in = {0};
+    uint32_t *input_A = NULL;
+    uint32_t *input_B = NULL;
+    size_t i, op_len;
+
+    if ( A_len != B_len )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    op_len = A_len;
+
+    input_A = mbedtls_calloc( 1, op_len );
+    MBEDTLS_MPI_CHK( ( input_A == NULL ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
+
+    for( i = op_len/4 ; i > 0; i-- )
+        GET_UINT32_BE( input_A[( op_len/4 ) - i], A, 4*(i-1) );
+
+    input_B = mbedtls_calloc( 1, op_len );
+    MBEDTLS_MPI_CHK( ( input_B == NULL ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
+
+    for( i = op_len/4 ; i > 0; i-- )
+        GET_UINT32_BE( input_B[( op_len/4 ) - i], B, 4*(i-1) );
+
+    in.size = op_len/4;
+    in.pOp1 = input_A;
+    in.pOp2 = input_B;
+
+    /* Enable HW peripheral clock */
+    __HAL_RCC_PKA_CLK_ENABLE();
+
+    /* Initialize HW peripheral */
+    hpka.Instance = PKA;
+    MBEDTLS_MPI_CHK( ( HAL_PKA_Init( &hpka ) != HAL_OK ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
+
+    /* Reset PKA RAM */
+    HAL_PKA_RAMReset(&hpka);
+
+    MBEDTLS_MPI_CHK( ( HAL_PKA_Mul(&hpka, &in, ST_PKA_TIMEOUT) != HAL_OK ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
+
+    HAL_PKA_Arithmetic_GetResult( &hpka, (uint32_t *)AxB );
+
+cleanup:
+    /* De-initialize HW peripheral */
+    HAL_PKA_DeInit( &hpka );
+
+    /* Disable HW peripheral clock */
+    __HAL_RCC_PKA_CLK_DISABLE();
+
+    if (input_A != NULL)
+    {
+        mbedtls_platform_zeroize( input_A, op_len );
+        mbedtls_free( input_A );
+    }
+
+    if (input_B != NULL)
+    {
+        mbedtls_platform_zeroize( input_B, op_len );
+        mbedtls_free( input_B );
+    }
+
+    return ret;
+}
+
+/**
+ * @brief       Call the PKA Arithmetic multiplication : AxB = A x B
+ * @param[out]  AxB       Result in mpi format
+ * @param[in]   A         Operand A in mpi format
+ * @param[in]   B         Operand B in mpi format
+ * @retval      0                                       Ok
+ * @retval      MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED    Error in the HW
+ */
+static int rsa_mpi2pka_mul( mbedtls_mpi *AxB,
+                            const mbedtls_mpi *A,
+                            const mbedtls_mpi *B )
+{
+    int ret = 0;
+
+    size_t A_len,
+           B_len,
+           AxB_len;
+    uint8_t *A_binary = NULL;
+    uint8_t *B_binary = NULL;
+    uint8_t *AxB_binary = NULL;
+
+    A_len = mbedtls_mpi_size( A );
+    A_binary = mbedtls_calloc( 1, A_len );
+    MBEDTLS_MPI_CHK( ( A_binary == NULL ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( A, A_binary, A_len ) );
+
+    B_len = mbedtls_mpi_size( B );
+    B_binary = mbedtls_calloc( 1, B_len );
+    MBEDTLS_MPI_CHK( ( B_binary == NULL ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( B, B_binary, B_len ) );
+
+    AxB_len = A_len + B_len;
+    AxB_binary = mbedtls_calloc( 1, AxB_len );
+    MBEDTLS_MPI_CHK( ( AxB_binary == NULL ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
+
+    MBEDTLS_MPI_CHK( rsa_pka_arithmetic_mul( A_binary,
+                                             A_len,
+                                             B_binary,
+                                             B_len,
+                                             (uint32_t *)AxB_binary ) );
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary_le( AxB, AxB_binary, AxB_len ) );
+
+cleanup:
+    if (A_binary != NULL)
+    {
+        mbedtls_platform_zeroize( A_binary, A_len );
+        mbedtls_free( A_binary );
+    }
+
+    if (B_binary != NULL)
+    {
+        mbedtls_platform_zeroize( B_binary, B_len );
+        mbedtls_free( B_binary );
+    }
+
+    if (AxB_binary != NULL)
+    {
+        mbedtls_platform_zeroize( AxB_binary, AxB_len );
+        mbedtls_free( AxB_binary );
+    }
+
+     return ret;
+}
+
+
 /**
  * @brief       Call the PKA modular exponentiation : output = input^e mod n
  * @param[in]   input        Input of the modexp
- * @param[in]   exponent     Exponent for the modexp
- * @param[in]   modulus      Modulus for the modexp
+ * @param[in]   ctx          RSA context
+ * @param[in]   is_private   public (0) or private (1) exponentiation
  * @param[out]  output       Output of the ModExp (with length of the modulus)
  * @retval      0                                       Ok
  * @retval      MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED    Error in the HW
  */
-int rsa_pka_modexp( const mbedtls_mpi *exponent,
-                    const mbedtls_mpi *modulus,
+int rsa_pka_modexp( mbedtls_rsa_context *ctx,
+                    int is_private,
                     const unsigned char *input,
                     unsigned char *output )
 {
     int ret = 0;
     size_t nlen;
-    size_t elen, elen_padding;
+    size_t elen;
     PKA_HandleTypeDef hpka = {0};
     PKA_ModExpInTypeDef in = {0};
     uint8_t *e_binary = NULL;
     uint8_t *n_binary = NULL;
 
-    elen = mbedtls_mpi_size( exponent );
-    if (elen < 4)
-    {
-      elen = 4;
-    }
+    RSA_VALIDATE_RET( ctx != NULL );
+    RSA_VALIDATE_RET( input != NULL );
+    RSA_VALIDATE_RET( output != NULL );
+
+    if ( is_private )
+        elen = mbedtls_mpi_size( &ctx->D );
     else
-    {
-        elen_padding = (elen % 4);
-        elen += elen_padding;
-    }
+        elen = mbedtls_mpi_size( &ctx->E );
+
+    /* exponent aligned on 4 bytes */
+    elen = ((elen + 3)/4)*4;
+
     e_binary = mbedtls_calloc( 1, elen );
     MBEDTLS_MPI_CHK( ( e_binary == NULL ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( exponent, e_binary, elen ) );
 
-    nlen = mbedtls_mpi_size( modulus );
+    if ( is_private )
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->D, e_binary, elen ) );
+    else
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->E, e_binary, elen ) );
+
+    nlen = ctx->len;
     n_binary = mbedtls_calloc( 1, nlen );
     MBEDTLS_MPI_CHK( ( n_binary == NULL ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( modulus, n_binary, nlen ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->N, n_binary, nlen ) );
 
     in.expSize = elen;           /* Exponent length */
     in.OpSize  = nlen;           /* modulus length */
@@ -139,7 +309,10 @@ int rsa_pka_modexp( const mbedtls_mpi *exponent,
     hpka.Instance = PKA;
     MBEDTLS_MPI_CHK( ( HAL_PKA_Init( &hpka ) != HAL_OK ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
 
-    /* output = input ^ e_binary mod n */
+    /* Reset PKA RAM */
+    HAL_PKA_RAMReset(&hpka);
+
+    /* output = input ^ e_binary mod n (normal mode) */
     MBEDTLS_MPI_CHK( ( HAL_PKA_ModExp( &hpka, &in, ST_PKA_TIMEOUT ) != HAL_OK ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
 
     HAL_PKA_ModExp_GetResult( &hpka, (uint8_t *)output );
@@ -154,18 +327,19 @@ cleanup:
 
     if (e_binary != NULL)
     {
-        mbedtls_platform_zeroize( e_binary, mbedtls_mpi_size( exponent ) );
+        mbedtls_platform_zeroize( e_binary, elen );
         mbedtls_free( e_binary );
     }
 
     if (n_binary != NULL)
     {
-        mbedtls_platform_zeroize( n_binary, mbedtls_mpi_size( modulus ) );
+        mbedtls_platform_zeroize( n_binary, nlen );
         mbedtls_free( n_binary );
     }
 
     return ret;
 }
+
 
 #if !defined(MBEDTLS_RSA_NO_CRT)
 /**
@@ -248,9 +422,12 @@ static int rsa_crt_pka_modexp( const mbedtls_mpi *dp,
     hpka.Instance = PKA;
     MBEDTLS_MPI_CHK( ( HAL_PKA_Init( &hpka ) != HAL_OK ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
 
+    /* Reset PKA RAM */
+    HAL_PKA_RAMReset(&hpka);
+
     MBEDTLS_MPI_CHK( ( HAL_PKA_RSACRTExp( &hpka, &in, ST_PKA_TIMEOUT ) != HAL_OK ) ? MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED : 0 );
 
-    HAL_PKA_ModExp_GetResult( &hpka, (uint8_t *)output );
+    HAL_PKA_RSACRTExp_GetResult( &hpka, (uint8_t *)output );
 
 cleanup:
 
@@ -503,8 +680,8 @@ int mbedtls_rsa_complete( mbedtls_rsa_context *ctx )
 
     if( !have_N && have_P && have_Q )
     {
-        if( ( ret = mbedtls_mpi_mul_mpi( &ctx->N, &ctx->P,
-                                         &ctx->Q ) ) != 0 )
+        if( ( ret = rsa_mpi2pka_mul( &ctx->N, &ctx->P,
+                                     &ctx->Q ) ) != 0 )
         {
             return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA + ret );
         }
@@ -539,7 +716,6 @@ int mbedtls_rsa_complete( mbedtls_rsa_context *ctx )
      * Step 3: Deduce all additional parameters specific
      *         to our current RSA implementation.
      */
-
 #if !defined(MBEDTLS_RSA_NO_CRT)
     if( is_priv )
     {
@@ -793,7 +969,7 @@ int mbedtls_rsa_gen_key( mbedtls_rsa_context *ctx,
         /* Temporarily replace P,Q by P-1, Q-1 */
         MBEDTLS_MPI_CHK( mbedtls_mpi_sub_int( &ctx->P, &ctx->P, 1 ) );
         MBEDTLS_MPI_CHK( mbedtls_mpi_sub_int( &ctx->Q, &ctx->Q, 1 ) );
-        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &H, &ctx->P, &ctx->Q ) );
+        MBEDTLS_MPI_CHK( rsa_mpi2pka_mul( &H, &ctx->P, &ctx->Q ) );
 
         /* check GCD( E, (P-1)*(Q-1) ) == 1 (FIPS 186-4 §B.3.1 criterion 2(a)) */
         MBEDTLS_MPI_CHK( mbedtls_mpi_gcd( &G, &ctx->E, &H  ) );
@@ -816,7 +992,7 @@ int mbedtls_rsa_gen_key( mbedtls_rsa_context *ctx,
     MBEDTLS_MPI_CHK( mbedtls_mpi_add_int( &ctx->P,  &ctx->P, 1 ) );
     MBEDTLS_MPI_CHK( mbedtls_mpi_add_int( &ctx->Q,  &ctx->Q, 1 ) );
 
-    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &ctx->N, &ctx->P, &ctx->Q ) );
+    MBEDTLS_MPI_CHK( rsa_mpi2pka_mul( &ctx->N, &ctx->P, &ctx->Q ) );
 
     ctx->len = mbedtls_mpi_size( &ctx->N );
 
@@ -962,7 +1138,7 @@ int mbedtls_rsa_public( mbedtls_rsa_context *ctx,
     }
 
     /* output = input ^ E mod N */
-    MBEDTLS_MPI_CHK( rsa_pka_modexp( &ctx->E, &ctx->N, input, output ) );
+    MBEDTLS_MPI_CHK( rsa_pka_modexp( ctx, 0 /* public */, input, output ) );
 
 cleanup:
 
@@ -985,10 +1161,10 @@ cleanup:
  * the more bits of the key can be recovered. See [3].
  *
  * Collecting n collisions with m bit long blinding value requires 2^(m-m/n)
- * observations on avarage.
+ * observations on average.
  *
  * For example with 28 byte blinding to achieve 2 collisions the adversary has
- * to make 2^112 observations on avarage.
+ * to make 2^112 observations on average.
  *
  * (With the currently (as of 2017 April) known best algorithms breaking 2048
  * bit RSA requires approximately as much time as trying out 2^112 random keys.
@@ -1014,22 +1190,11 @@ int mbedtls_rsa_private( mbedtls_rsa_context *ctx,
     /* Temporary holding the result */
     mbedtls_mpi T;
 
-    /* Temporaries holding P-1, Q-1 and the
-     * exponent blinding factor, respectively. */
-    mbedtls_mpi P1, Q1, R;
-
 #if !defined(MBEDTLS_RSA_NO_CRT)
-    /* Temporaries holding the results mod p resp. mod q. */
-    mbedtls_mpi TP, TQ;
-
     /* Pointers to actual exponents to be used - either the unblinded
      * or the blinded ones, depending on the presence of a PRNG. */
     mbedtls_mpi *DP = &ctx->DP;
     mbedtls_mpi *DQ = &ctx->DQ;
-#else
-    /* Pointer to actual exponent to be used - either the unblinded
-     * or the blinded one, depending on the presence of a PRNG. */
-    mbedtls_mpi *D = &ctx->D;
 #endif /* MBEDTLS_RSA_NO_CRT */
 
     /* Temporaries holding the initial input and the double
@@ -1053,15 +1218,6 @@ int mbedtls_rsa_private( mbedtls_rsa_context *ctx,
 
     /* MPI Initialization */
     mbedtls_mpi_init( &T );
-
-    mbedtls_mpi_init( &P1 );
-    mbedtls_mpi_init( &Q1 );
-    mbedtls_mpi_init( &R );
-
-#if !defined(MBEDTLS_RSA_NO_CRT)
-    mbedtls_mpi_init( &TP ); mbedtls_mpi_init( &TQ );
-#endif
-
     mbedtls_mpi_init( &I );
     mbedtls_mpi_init( &C );
 
@@ -1077,8 +1233,11 @@ int mbedtls_rsa_private( mbedtls_rsa_context *ctx,
     MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &I, &T ) );
 
 #if defined(MBEDTLS_RSA_NO_CRT)
+    /*
+     * Protected decryption
+     */
     /* T = T ^ D mod N */
-    MBEDTLS_MPI_CHK( rsa_pka_modexp( D, &ctx->N, input, output ) );
+    MBEDTLS_MPI_CHK( rsa_pka_modexp( ctx, 1 /* private */, input, output ) );
 #else
     /*
      * Faster decryption using the CRT
@@ -1092,15 +1251,7 @@ cleanup:
         return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
 #endif
 
-    mbedtls_mpi_free( &P1 );
-    mbedtls_mpi_free( &Q1 );
-    mbedtls_mpi_free( &R );
     mbedtls_mpi_free( &T );
-
-#if !defined(MBEDTLS_RSA_NO_CRT)
-    mbedtls_mpi_free( &TP ); mbedtls_mpi_free( &TQ );
-#endif
-
     mbedtls_mpi_free( &C );
     mbedtls_mpi_free( &I );
 

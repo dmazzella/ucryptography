@@ -47,7 +47,7 @@
 
 #if !defined(MBEDTLS_USER_CONFIG_FILE)
 #define MBEDTLS_USER_CONFIG_FILE "modcryptography_config.h"
-#endif //MBEDTLS_USER_CONFIG_FILE
+#endif // MBEDTLS_USER_CONFIG_FILE
 
 #if defined(__thumb2__) || defined(__thumb__) || defined(__arm__)
 #if MICROPY_HW_ENABLE_RNG
@@ -2008,13 +2008,22 @@ STATIC mp_obj_type_t ec_private_key_type = {
 };
 
 #if !defined(MBEDTLS_RSA_ALT)
-STATIC int rsa_pka_modexp(const mbedtls_mpi *exponent,
-                          const mbedtls_mpi *modulus,
+
+#define RSA_VALIDATE_RET(cond) MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_RSA_BAD_INPUT_DATA)
+#define RSA_VALIDATE(cond) MBEDTLS_INTERNAL_VALIDATE(cond)
+
+STATIC int rsa_pka_modexp(mbedtls_rsa_context *ctx,
+                          int is_private,
                           const unsigned char *input,
                           unsigned char *output)
 {
     int ret = 0;
-    size_t mlen = mbedtls_mpi_size(modulus);
+
+    RSA_VALIDATE_RET(ctx != NULL);
+    RSA_VALIDATE_RET(input != NULL);
+    RSA_VALIDATE_RET(output != NULL);
+
+    size_t mlen = mbedtls_mpi_size(&ctx->N);
 
     mbedtls_mpi A;
     mbedtls_mpi_init(&A);
@@ -2023,7 +2032,7 @@ STATIC int rsa_pka_modexp(const mbedtls_mpi *exponent,
     mbedtls_mpi X;
     mbedtls_mpi_init(&X);
 
-    if ((ret = mbedtls_mpi_exp_mod(&X, &A, exponent, modulus, NULL)) == 0)
+    if ((ret = mbedtls_mpi_exp_mod(&X, &A, (is_private) ? &ctx->D : &ctx->E, &ctx->N, NULL)) == 0)
     {
         mbedtls_mpi_write_binary(&X, (byte *)output, mlen);
     }
@@ -3721,7 +3730,7 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     {
         byte buf[MBEDTLS_MPI_MAX_SIZE];
         memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
-        ret = rsa_pka_modexp(&E, &N, (const byte *)bufinfo_signature.buf, buf);
+        ret = rsa_pka_modexp(rsa, 0, (const byte *)bufinfo_signature.buf, buf);
         if (ret == 0)
         {
             ret = memcmp(buf, (const byte *)vstr_digest.buf, vstr_digest.len);
@@ -4223,7 +4232,7 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
             }
             else
             {
-                if ((ret = rsa_pka_modexp(&D, &N, (const byte *)vstr_digest.buf, buf)) == 0)
+                if ((ret = rsa_pka_modexp(rsa, 1, (const byte *)vstr_digest.buf, buf)) == 0)
                 {
                     olen = mbedtls_mpi_size(&N);
                 }
