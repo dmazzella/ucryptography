@@ -1,6 +1,6 @@
 MOD_UCRYPTOGRAPHY_DIR := $(USERMOD_DIR)
 
-ifeq ($(MICROPY_SSL_MBEDTLS),)
+ifeq ($(MICROPY_SSL_MBEDTLS),$(filter $(MICROPY_SSL_MBEDTLS),0))
     MBEDTLS_DIR := $(MOD_UCRYPTOGRAPHY_DIR)/mbedtls
 else
     MBEDTLS_DIR := $(TOP)/lib/mbedtls
@@ -15,7 +15,7 @@ CFLAGS_USERMOD += -I$(MOD_UCRYPTOGRAPHY_DIR)
 ifeq ($(MCU_SERIES),wb)
     CFLAGS_USERMOD += -I$(MOD_UCRYPTOGRAPHY_DIR)/hw_alts/$(MCU_SERIES)/
 endif
-ifeq ($(MICROPY_SSL_MBEDTLS),)
+ifeq ($(MICROPY_SSL_MBEDTLS),$(filter $(MICROPY_SSL_MBEDTLS),0))
     ifneq ($(wildcard $(MBEDTLS_DIR)/crypto/*),)
         CFLAGS_USERMOD += -I$(MBEDTLS_DIR)/crypto/include
     endif
@@ -45,7 +45,7 @@ SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/c25519/src/fprime.c
 SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/c25519/src/morph25519.c
 SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/c25519/src/sha512.c
 
-ifeq ($(MICROPY_SSL_MBEDTLS),)
+ifeq ($(MICROPY_SSL_MBEDTLS),$(filter $(MICROPY_SSL_MBEDTLS),0))
     $(foreach src, $(wildcard $(MBEDTLS_DIR)/library/*.c), $(eval SRC_USERMOD += $(src)))
     ifneq ($(wildcard $(MBEDTLS_DIR)/crypto/*),)
         $(foreach src, $(wildcard $(MBEDTLS_DIR)/crypto/library/*.c), $(eval SRC_USERMOD += $(src)))
