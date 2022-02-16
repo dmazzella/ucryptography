@@ -60,7 +60,7 @@ ifeq ($(MICROPY_SSL_MBEDTLS),$(filter $(MICROPY_SSL_MBEDTLS),0))
         SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/hw_alts/$(MCU_SERIES)/ecp_alt.c
         SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/hw_alts/$(MCU_SERIES)/rsa_alt.c
         SRC_USERMOD += $(MOD_UCRYPTOGRAPHY_DIR)/hw_alts/$(MCU_SERIES)/ecdsa_alt.c
-        HAL_SRC_C += $(addprefix $(HAL_DIR)/Src/stm32$(MCU_SERIES)xx_,\
+        HAL_SRC_C += $(addprefix $(STM32LIB_HAL_BASE)/Src/stm32$(MCU_SERIES)xx_,\
             hal_cryp.c \
             hal_cryp_ex.c \
             hal_pka.c \
