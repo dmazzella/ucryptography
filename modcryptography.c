@@ -6770,6 +6770,6 @@ const mp_obj_module_t mp_module_ucryptography = {
 };
 
 // Register the module to make it available in Python
-MP_REGISTER_MODULE(MP_QSTR_cryptography, mp_module_ucryptography, MICROPY_PY_UCRYPTOGRAPHY);
+MP_REGISTER_MODULE(MP_QSTR_cryptography, mp_module_ucryptography);
 
 #endif // MICROPY_PY_UCRYPTOGRAPHY
