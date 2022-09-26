@@ -166,11 +166,11 @@ STATIC const mp_rom_map_elem_t version_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(version_locals_dict, version_locals_dict_table);
 
-STATIC mp_obj_type_t version_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_version,
-    .locals_dict = (void *)&version_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    version_type,
+    MP_QSTR_version,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &version_locals_dict);
 #endif
 
 #include "mbedtls/x509.h"
@@ -538,56 +538,56 @@ enum
 #define BLOCKDEV_IOCTL_BLOCK_SIZE (5)
 #define BLOCKDEV_IOCTL_BLOCK_ERASE (6)
 
-STATIC mp_obj_type_t ec_ecdsa_type;
-STATIC mp_obj_type_t ec_ecdh_type;
-STATIC mp_obj_type_t ec_curve_secp256r1_type;
+STATIC const mp_obj_type_t ec_ecdsa_type;
+STATIC const mp_obj_type_t ec_ecdh_type;
+STATIC const mp_obj_type_t ec_curve_secp256r1_type;
 #if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
-STATIC mp_obj_type_t ec_curve_secp384r1_type;
+STATIC const mp_obj_type_t ec_curve_secp384r1_type;
 #endif
 #if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
-STATIC mp_obj_type_t ec_curve_secp521r1_type;
+STATIC const mp_obj_type_t ec_curve_secp521r1_type;
 #endif
-STATIC mp_obj_type_t ec_public_numbers_type;
-STATIC mp_obj_type_t ec_private_numbers_type;
-STATIC mp_obj_type_t ec_public_key_type;
-STATIC mp_obj_type_t ec_private_key_type;
-STATIC mp_obj_type_t ed25519_private_key_type;
-STATIC mp_obj_type_t ed25519_public_key_type;
-STATIC mp_obj_type_t ed25519_type;
-STATIC mp_obj_type_t rsa_public_numbers_type;
-STATIC mp_obj_type_t rsa_private_numbers_type;
-STATIC mp_obj_type_t rsa_public_key_type;
-STATIC mp_obj_type_t rsa_private_key_type;
-STATIC mp_obj_type_t hash_algorithm_sha1_type;
-STATIC mp_obj_type_t hash_algorithm_sha256_type;
+STATIC const mp_obj_type_t ec_public_numbers_type;
+STATIC const mp_obj_type_t ec_private_numbers_type;
+STATIC const mp_obj_type_t ec_public_key_type;
+STATIC const mp_obj_type_t ec_private_key_type;
+STATIC const mp_obj_type_t ed25519_private_key_type;
+STATIC const mp_obj_type_t ed25519_public_key_type;
+STATIC const mp_obj_type_t ed25519_type;
+STATIC const mp_obj_type_t rsa_public_numbers_type;
+STATIC const mp_obj_type_t rsa_private_numbers_type;
+STATIC const mp_obj_type_t rsa_public_key_type;
+STATIC const mp_obj_type_t rsa_private_key_type;
+STATIC const mp_obj_type_t hash_algorithm_sha1_type;
+STATIC const mp_obj_type_t hash_algorithm_sha256_type;
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
-STATIC mp_obj_type_t hash_algorithm_sha384_type;
+STATIC const mp_obj_type_t hash_algorithm_sha384_type;
 #endif
-STATIC mp_obj_type_t hash_algorithm_sha512_type;
-STATIC mp_obj_type_t hash_algorithm_blake2s_type;
-STATIC mp_obj_type_t hash_algorithm_prehashed_type;
-STATIC mp_obj_type_t hash_context_type;
-STATIC mp_obj_type_t hmac_context_type;
-STATIC mp_obj_type_t x509_certificate_type;
-STATIC mp_obj_type_t ciphers_aesgcm_type;
-STATIC mp_obj_type_t ciphers_cipher_type;
-STATIC mp_obj_type_t ciphers_cipher_encryptor_type;
-STATIC mp_obj_type_t ciphers_cipher_decryptor_type;
-STATIC mp_obj_type_t ciphers_algorithms_aes_type;
-STATIC mp_obj_type_t ciphers_algorithms_3des_type;
-STATIC mp_obj_type_t ciphers_modes_cbc_type;
-STATIC mp_obj_type_t ciphers_modes_gcm_type;
-STATIC mp_obj_type_t ciphers_modes_ecb_type;
-STATIC mp_obj_type_t utils_block_device_type;
+STATIC const mp_obj_type_t hash_algorithm_sha512_type;
+STATIC const mp_obj_type_t hash_algorithm_blake2s_type;
+STATIC const mp_obj_type_t hash_algorithm_prehashed_type;
+STATIC const mp_obj_type_t hash_context_type;
+STATIC const mp_obj_type_t hmac_context_type;
+STATIC const mp_obj_type_t x509_certificate_type;
+STATIC const mp_obj_type_t ciphers_aesgcm_type;
+STATIC const mp_obj_type_t ciphers_cipher_type;
+STATIC const mp_obj_type_t ciphers_cipher_encryptor_type;
+STATIC const mp_obj_type_t ciphers_cipher_decryptor_type;
+STATIC const mp_obj_type_t ciphers_algorithms_aes_type;
+STATIC const mp_obj_type_t ciphers_algorithms_3des_type;
+STATIC const mp_obj_type_t ciphers_modes_cbc_type;
+STATIC const mp_obj_type_t ciphers_modes_gcm_type;
+STATIC const mp_obj_type_t ciphers_modes_ecb_type;
+STATIC const mp_obj_type_t utils_block_device_type;
 #if 0
-STATIC mp_obj_type_t utils_rfc6979_type;
+STATIC const mp_obj_type_t utils_rfc6979_type;
 #endif
-STATIC mp_obj_type_t padding_pkcs1v15_type;
-STATIC mp_obj_type_t padding_pss_type;
-STATIC mp_obj_type_t padding_oaep_type;
-STATIC mp_obj_type_t padding_mgf1_type;
-STATIC mp_obj_type_t twofactor_hotp_type;
-STATIC mp_obj_type_t twofactor_totp_type;
+STATIC const mp_obj_type_t padding_pkcs1v15_type;
+STATIC const mp_obj_type_t padding_pss_type;
+STATIC const mp_obj_type_t padding_oaep_type;
+STATIC const mp_obj_type_t padding_mgf1_type;
+STATIC const mp_obj_type_t twofactor_hotp_type;
+STATIC const mp_obj_type_t twofactor_totp_type;
 
 #if defined(MBEDTLS_GCM_ALT) || defined(MBEDTLS_AES_ALT)
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef *hcryp)
@@ -1024,7 +1024,7 @@ STATIC void ec_ecdsa_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -1045,13 +1045,13 @@ STATIC const mp_rom_map_elem_t ec_ecdsa_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_ecdsa_locals_dict, ec_ecdsa_locals_dict_table);
 
-STATIC mp_obj_type_t ec_ecdsa_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_ECDSA,
-    .attr = ec_ecdsa_attr,
-    .make_new = ec_ecdsa_make_new,
-    .locals_dict = (void *)&ec_ecdsa_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_ecdsa_type,
+    MP_QSTR_ECDSA,
+    MP_TYPE_FLAG_NONE,
+    make_new, ec_ecdsa_make_new,
+    attr, ec_ecdsa_attr,
+    locals_dict, &ec_ecdsa_locals_dict);
 
 STATIC mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1061,10 +1061,11 @@ STATIC mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_
     return MP_OBJ_FROM_PTR(ECDH);
 }
 
-STATIC mp_obj_type_t ec_ecdh_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_ECDH,
-    .make_new = ec_ecdh_make_new};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_ecdh_type,
+    MP_QSTR_ECDH,
+    MP_TYPE_FLAG_NONE,
+    make_new, ec_ecdh_make_new);
 
 STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
 {
@@ -1228,7 +1229,7 @@ STATIC void ec_curve_secpXXXr1_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -1267,7 +1268,7 @@ STATIC void ec_curve_secpXXXr1_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC mp_ec_curve_t *ec_curve_secpXXXr1_make_new_helper(mp_obj_t type, mbedtls_ecp_group_id group_id)
+STATIC mp_ec_curve_t *ec_curve_secpXXXr1_make_new_helper(const mp_obj_type_t *type, mbedtls_ecp_group_id group_id)
 {
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
     EllipticCurve->base.type = type;
@@ -1309,13 +1310,13 @@ STATIC const mp_rom_map_elem_t ec_curve_secp256r1_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_curve_secp256r1_locals_dict, ec_curve_secp256r1_locals_dict_table);
 
-STATIC mp_obj_type_t ec_curve_secp256r1_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_SECP256R1,
-    .make_new = ec_curve_secp256r1_make_new,
-    .attr = ec_curve_secpXXXr1_attr,
-    .locals_dict = (void *)&ec_curve_secp256r1_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_curve_secp256r1_type,
+    MP_QSTR_SECP256R1,
+    MP_TYPE_FLAG_NONE,
+    make_new, ec_curve_secp256r1_make_new,
+    attr, ec_curve_secpXXXr1_attr,
+    locals_dict, &ec_curve_secp256r1_locals_dict);
 
 #if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
 STATIC mp_obj_t ec_curve_secp384r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
@@ -1338,13 +1339,14 @@ STATIC const mp_rom_map_elem_t ec_curve_secp384r1_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_curve_secp384r1_locals_dict, ec_curve_secp384r1_locals_dict_table);
 
-STATIC mp_obj_type_t ec_curve_secp384r1_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_SECP384R1,
-    .make_new = ec_curve_secp384r1_make_new,
-    .attr = ec_curve_secpXXXr1_attr,
-    .locals_dict = (void *)&ec_curve_secp384r1_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_curve_secp384r1_type,
+    MP_QSTR_SECP384R1,
+    MP_TYPE_FLAG_NONE,
+    make_new, ec_curve_secp384r1_make_new,
+    attr, ec_curve_secpXXXr1_attr,
+    locals_dict, &ec_curve_secp384r1_locals_dict);
+
 #endif
 
 #if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
@@ -1368,13 +1370,14 @@ STATIC const mp_rom_map_elem_t ec_curve_secp521r1_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_curve_secp521r1_locals_dict, ec_curve_secp521r1_locals_dict_table);
 
-STATIC mp_obj_type_t ec_curve_secp521r1_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_SECP521R1,
-    .make_new = ec_curve_secp521r1_make_new,
-    .attr = ec_curve_secpXXXr1_attr,
-    .locals_dict = (void *)&ec_curve_secp521r1_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_curve_secp521r1_type,
+    MP_QSTR_SECP521R1,
+    MP_TYPE_FLAG_NONE,
+    make_new, ec_curve_secp521r1_make_new,
+    attr, ec_curve_secpXXXr1_attr,
+    locals_dict, &ec_curve_secp521r1_locals_dict);
+
 #endif
 
 STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
@@ -1454,7 +1457,7 @@ STATIC void ec_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -1487,13 +1490,13 @@ STATIC const mp_rom_map_elem_t ec_public_numbers_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_public_numbers_locals_dict, ec_public_numbers_locals_dict_table);
 
-STATIC mp_obj_type_t ec_public_numbers_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_EllipticCurvePublicNumbers,
-    .make_new = ec_public_numbers_make_new,
-    .attr = ec_public_numbers_attr,
-    .locals_dict = (void *)&ec_public_numbers_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_public_numbers_type,
+    MP_QSTR_EllipticCurvePublicNumbers,
+    MP_TYPE_FLAG_NONE,
+    make_new, ec_public_numbers_make_new,
+    attr, ec_public_numbers_attr,
+    locals_dict, &ec_public_numbers_locals_dict);
 
 STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -1551,7 +1554,7 @@ STATIC void ec_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -1578,13 +1581,13 @@ STATIC const mp_rom_map_elem_t ec_private_numbers_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_private_numbers_locals_dict, ec_private_numbers_locals_dict_table);
 
-STATIC mp_obj_type_t ec_private_numbers_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_EllipticCurvePrivateNumbers,
-    .make_new = ec_private_numbers_make_new,
-    .attr = ec_private_numbers_attr,
-    .locals_dict = (void *)&ec_private_numbers_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_private_numbers_type,
+    MP_QSTR_EllipticCurvePrivateNumbers,
+    MP_TYPE_FLAG_NONE,
+    make_new, ec_private_numbers_make_new,
+    attr, ec_private_numbers_attr,
+    locals_dict, &ec_private_numbers_locals_dict);
 
 STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 {
@@ -1698,7 +1701,7 @@ STATIC void ec_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -1778,12 +1781,12 @@ STATIC const mp_rom_map_elem_t ec_public_key_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_public_key_locals_dict, ec_public_key_locals_dict_table);
 
-STATIC mp_obj_type_t ec_public_key_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_EllipticCurvePublicKey,
-    .attr = ec_public_key_attr,
-    .locals_dict = (void *)&ec_public_key_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_public_key_type,
+    MP_QSTR_EllipticCurvePublicKey,
+    MP_TYPE_FLAG_NONE,
+    attr, ec_public_key_attr,
+    locals_dict, &ec_public_key_locals_dict);
 
 STATIC mp_obj_t ec_private_numbers(mp_obj_t obj)
 {
@@ -1965,7 +1968,7 @@ STATIC void ec_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -2000,12 +2003,12 @@ STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_private_key_locals_dict, ec_private_key_locals_dict_table);
 
-STATIC mp_obj_type_t ec_private_key_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_EllipticCurvePrivateKey,
-    .attr = ec_private_key_attr,
-    .locals_dict = (void *)&ec_private_key_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_private_key_type,
+    MP_QSTR_EllipticCurvePrivateKey,
+    MP_TYPE_FLAG_NONE,
+    attr, ec_private_key_attr,
+    locals_dict, &ec_private_key_locals_dict);
 
 #if !defined(MBEDTLS_RSA_ALT)
 
@@ -2200,7 +2203,7 @@ STATIC void hash_algorithm_prehashed_attr(mp_obj_t obj, qstr attr, mp_obj_t *des
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -2227,12 +2230,12 @@ STATIC const mp_rom_map_elem_t hash_algorithm_prehashed_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hash_algorithm_prehashed_locals_dict, hash_algorithm_prehashed_locals_dict_table);
 
-STATIC mp_obj_type_t hash_algorithm_prehashed_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_Prehashed,
-    .attr = hash_algorithm_prehashed_attr,
-    .locals_dict = (void *)&hash_algorithm_prehashed_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hash_algorithm_prehashed_type,
+    MP_QSTR_Prehashed,
+    MP_TYPE_FLAG_NONE,
+    attr, hash_algorithm_prehashed_attr,
+    locals_dict, &hash_algorithm_prehashed_locals_dict);
 
 STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 {
@@ -2271,12 +2274,12 @@ STATIC const mp_rom_map_elem_t hash_algorithm_sha1_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha1_locals_dict, hash_algorithm_sha1_locals_dict_table);
 
-STATIC mp_obj_type_t hash_algorithm_sha1_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_SHA1,
-    .make_new = hash_algorithm_sha1_make_new,
-    .locals_dict = (void *)&hash_algorithm_sha1_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hash_algorithm_sha1_type,
+    MP_QSTR_SHA1,
+    MP_TYPE_FLAG_NONE,
+    make_new, hash_algorithm_sha1_make_new,
+    locals_dict, &hash_algorithm_sha1_locals_dict);
 
 STATIC mp_obj_t hash_algorithm_sha256_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -2294,12 +2297,12 @@ STATIC const mp_rom_map_elem_t hash_algorithm_sha256_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha256_locals_dict, hash_algorithm_sha256_locals_dict_table);
 
-STATIC mp_obj_type_t hash_algorithm_sha256_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_SHA256,
-    .make_new = hash_algorithm_sha256_make_new,
-    .locals_dict = (void *)&hash_algorithm_sha256_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hash_algorithm_sha256_type,
+    MP_QSTR_SHA256,
+    MP_TYPE_FLAG_NONE,
+    make_new, hash_algorithm_sha256_make_new,
+    locals_dict, &hash_algorithm_sha256_locals_dict);
 
 #if !defined(MBEDTLS_SHA512_NO_SHA384)
 STATIC mp_obj_t hash_algorithm_sha384_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
@@ -2318,12 +2321,13 @@ STATIC const mp_rom_map_elem_t hash_algorithm_sha384_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha384_locals_dict, hash_algorithm_sha384_locals_dict_table);
 
-STATIC mp_obj_type_t hash_algorithm_sha384_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_SHA384,
-    .make_new = hash_algorithm_sha384_make_new,
-    .locals_dict = (void *)&hash_algorithm_sha384_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hash_algorithm_sha384_type,
+    MP_QSTR_SHA384,
+    MP_TYPE_FLAG_NONE,
+    make_new, hash_algorithm_sha384_make_new,
+    locals_dict, &hash_algorithm_sha384_locals_dict);
+
 #endif
 
 STATIC mp_obj_t hash_algorithm_sha512_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
@@ -2342,12 +2346,12 @@ STATIC const mp_rom_map_elem_t hash_algorithm_sha512_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha512_locals_dict, hash_algorithm_sha512_locals_dict_table);
 
-STATIC mp_obj_type_t hash_algorithm_sha512_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_SHA512,
-    .make_new = hash_algorithm_sha512_make_new,
-    .locals_dict = (void *)&hash_algorithm_sha512_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hash_algorithm_sha512_type,
+    MP_QSTR_SHA512,
+    MP_TYPE_FLAG_NONE,
+    make_new, hash_algorithm_sha512_make_new,
+    locals_dict, &hash_algorithm_sha512_locals_dict);
 
 STATIC mp_obj_t hash_algorithm_blake2s_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -2377,7 +2381,7 @@ STATIC void hash_algorithm_blake2s_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -2398,13 +2402,13 @@ STATIC const mp_rom_map_elem_t hash_algorithm_blake2s_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hash_algorithm_blake2s_locals_dict, hash_algorithm_blake2s_locals_dict_table);
 
-STATIC mp_obj_type_t hash_algorithm_blake2s_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_BLAKE2s,
-    .make_new = hash_algorithm_blake2s_make_new,
-    .attr = hash_algorithm_blake2s_attr,
-    .locals_dict = (void *)&hash_algorithm_blake2s_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hash_algorithm_blake2s_type,
+    MP_QSTR_BLAKE2s,
+    MP_TYPE_FLAG_NONE,
+    make_new, hash_algorithm_blake2s_make_new,
+    attr, hash_algorithm_blake2s_attr,
+    locals_dict, &hash_algorithm_blake2s_locals_dict);
 
 STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -2502,7 +2506,7 @@ STATIC void hash_context_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -2525,13 +2529,13 @@ STATIC const mp_rom_map_elem_t hash_context_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hash_context_locals_dict, hash_context_locals_dict_table);
 
-STATIC mp_obj_type_t hash_context_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_HashContext,
-    .make_new = hash_context_make_new,
-    .attr = hash_context_attr,
-    .locals_dict = (void *)&hash_context_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hash_context_type,
+    MP_QSTR_HashContext,
+    MP_TYPE_FLAG_NONE,
+    make_new, hash_context_make_new,
+    attr, hash_context_attr,
+    locals_dict, &hash_context_locals_dict);
 
 STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SHA1), MP_ROM_PTR(&hash_algorithm_sha1_type)},
@@ -2546,11 +2550,11 @@ STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hashes_locals_dict, hashes_locals_dict_table);
 
-STATIC mp_obj_type_t hashes_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_hashes,
-    .locals_dict = (void *)&hashes_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hashes_type,
+    MP_QSTR_hashes,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &hashes_locals_dict);
 
 STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -2723,12 +2727,12 @@ STATIC const mp_rom_map_elem_t hmac_context_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hmac_context_locals_dict, hmac_context_locals_dict_table);
 
-STATIC mp_obj_type_t hmac_context_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_HMACContext,
-    .make_new = hmac_context_make_new,
-    .locals_dict = (void *)&hmac_context_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hmac_context_type,
+    MP_QSTR_HMACContext,
+    MP_TYPE_FLAG_NONE,
+    make_new, hmac_context_make_new,
+    locals_dict, &hmac_context_locals_dict);
 
 STATIC const mp_rom_map_elem_t hmac_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_HMAC), MP_ROM_PTR(&hmac_context_type)},
@@ -2736,11 +2740,11 @@ STATIC const mp_rom_map_elem_t hmac_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(hmac_locals_dict, hmac_locals_dict_table);
 
-STATIC mp_obj_type_t hmac_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_hmac,
-    .locals_dict = (void *)&hmac_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    hmac_type,
+    MP_QSTR_hmac,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &hmac_locals_dict);
 
 STATIC mp_obj_t x509_public_key(mp_obj_t obj)
 {
@@ -2787,7 +2791,7 @@ STATIC void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -2869,12 +2873,12 @@ STATIC const mp_rom_map_elem_t x509_certificate_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(x509_certificate_locals_dict, x509_certificate_locals_dict_table);
 
-STATIC mp_obj_type_t x509_certificate_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_Certificate,
-    .attr = x509_certificate_attr,
-    .locals_dict = (void *)&x509_certificate_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    x509_certificate_type,
+    MP_QSTR_Certificate,
+    MP_TYPE_FLAG_NONE,
+    attr, x509_certificate_attr,
+    locals_dict, &x509_certificate_locals_dict);
 
 STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_t *type)
 {
@@ -3128,11 +3132,11 @@ STATIC const mp_rom_map_elem_t x509_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(x509_locals_dict, x509_locals_dict_table);
 
-STATIC mp_obj_type_t x509_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_x509,
-    .locals_dict = (void *)&x509_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    x509_type,
+    MP_QSTR_x509,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &x509_locals_dict);
 
 STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
 {
@@ -3218,11 +3222,11 @@ STATIC const mp_rom_map_elem_t encoding_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(encoding_locals_dict, encoding_locals_dict_table);
 
-STATIC mp_obj_type_t encoding_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_Encoding,
-    .locals_dict = (void *)&encoding_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    encoding_type,
+    MP_QSTR_Encoding,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &encoding_locals_dict);
 
 STATIC const mp_rom_map_elem_t serialization_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_load_der_public_key), MP_ROM_PTR(&mod_static_pk_parse_public_key_obj)},
@@ -3232,11 +3236,11 @@ STATIC const mp_rom_map_elem_t serialization_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(serialization_locals_dict, serialization_locals_dict_table);
 
-STATIC mp_obj_type_t serialization_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_serialization,
-    .locals_dict = (void *)&serialization_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    serialization_type,
+    MP_QSTR_serialization,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &serialization_locals_dict);
 
 STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
 {
@@ -3346,11 +3350,11 @@ STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ec_locals_dict, ec_locals_dict_table);
 
-STATIC mp_obj_type_t ec_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_ec,
-    .locals_dict = (void *)&ec_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ec_type,
+    MP_QSTR_ec,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &ec_locals_dict);
 
 STATIC const mp_rom_map_elem_t padding_pkcs1v15_locals_dict_table[] = {
 
@@ -3358,11 +3362,11 @@ STATIC const mp_rom_map_elem_t padding_pkcs1v15_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(padding_pkcs1v15_locals_dict, padding_pkcs1v15_locals_dict_table);
 
-STATIC mp_obj_type_t padding_pkcs1v15_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_PKCS1V15,
-    .locals_dict = (void *)&padding_pkcs1v15_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    padding_pkcs1v15_type,
+    MP_QSTR_PKCS1V15,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &padding_pkcs1v15_locals_dict);
 
 STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t hash_algorithm)
 {
@@ -3451,7 +3455,7 @@ STATIC void padding_pss_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -3471,13 +3475,13 @@ STATIC const mp_rom_map_elem_t padding_pss_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(padding_pss_locals_dict, padding_pss_locals_dict_table);
 
-STATIC mp_obj_type_t padding_pss_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_PSS,
-    .make_new = padding_pss_make_new,
-    .attr = padding_pss_attr,
-    .locals_dict = (void *)&padding_pss_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    padding_pss_type,
+    MP_QSTR_PSS,
+    MP_TYPE_FLAG_NONE,
+    make_new, padding_pss_make_new,
+    attr, padding_pss_attr,
+    locals_dict, &padding_pss_locals_dict);
 
 STATIC mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
@@ -3546,12 +3550,12 @@ STATIC const mp_rom_map_elem_t padding_oaep_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(padding_oaep_locals_dict, padding_oaep_locals_dict_table);
 
-STATIC mp_obj_type_t padding_oaep_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_OAEP,
-    .make_new = padding_oaep_make_new,
-    .locals_dict = (void *)&padding_oaep_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    padding_oaep_type,
+    MP_QSTR_OAEP,
+    MP_TYPE_FLAG_NONE,
+    make_new, padding_oaep_make_new,
+    locals_dict, &padding_oaep_locals_dict);
 
 STATIC const mp_rom_map_elem_t padding_mgf1_locals_dict_table[] = {
 
@@ -3559,11 +3563,11 @@ STATIC const mp_rom_map_elem_t padding_mgf1_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(padding_mgf1_locals_dict, padding_mgf1_locals_dict_table);
 
-STATIC mp_obj_type_t padding_mgf1_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_MGF1,
-    .locals_dict = (void *)&padding_mgf1_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    padding_mgf1_type,
+    MP_QSTR_MGF1,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &padding_mgf1_locals_dict);
 
 STATIC mp_obj_t padding_pkcs1v15(void)
 {
@@ -3617,11 +3621,11 @@ STATIC const mp_rom_map_elem_t padding_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(padding_locals_dict, padding_locals_dict_table);
 
-STATIC mp_obj_type_t padding_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_padding,
-    .locals_dict = (void *)&padding_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    padding_type,
+    MP_QSTR_padding,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &padding_locals_dict);
 
 STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
 {
@@ -3851,7 +3855,7 @@ STATIC void rsa_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -3875,12 +3879,12 @@ STATIC const mp_rom_map_elem_t rsa_public_key_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(rsa_public_key_locals_dict, rsa_public_key_locals_dict_table);
 
-STATIC mp_obj_type_t rsa_public_key_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_RSAPublicKey,
-    .attr = rsa_public_key_attr,
-    .locals_dict = (void *)&rsa_public_key_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    rsa_public_key_type,
+    MP_QSTR_RSAPublicKey,
+    MP_TYPE_FLAG_NONE,
+    attr, rsa_public_key_attr,
+    locals_dict, &rsa_public_key_locals_dict);
 
 STATIC mp_obj_t rsa_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -3944,7 +3948,7 @@ STATIC void rsa_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -3971,13 +3975,13 @@ STATIC const mp_rom_map_elem_t rsa_public_numbers_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(rsa_public_numbers_locals_dict, rsa_public_numbers_locals_dict_table);
 
-STATIC mp_obj_type_t rsa_public_numbers_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_RSAPublicNumbers,
-    .make_new = rsa_public_numbers_make_new,
-    .attr = rsa_public_numbers_attr,
-    .locals_dict = (void *)&rsa_public_numbers_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    rsa_public_numbers_type,
+    MP_QSTR_RSAPublicNumbers,
+    MP_TYPE_FLAG_NONE,
+    make_new, rsa_public_numbers_make_new,
+    attr, rsa_public_numbers_attr,
+    locals_dict, &rsa_public_numbers_locals_dict);
 
 STATIC mp_obj_t rsa_private_numbers(mp_obj_t obj)
 {
@@ -4290,7 +4294,7 @@ STATIC void rsa_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -4315,12 +4319,12 @@ STATIC const mp_rom_map_elem_t rsa_private_key_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(rsa_private_key_locals_dict, rsa_private_key_locals_dict_table);
 
-STATIC mp_obj_type_t rsa_private_key_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_RSAPrivateKey,
-    .attr = rsa_private_key_attr,
-    .locals_dict = (void *)&rsa_private_key_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    rsa_private_key_type,
+    MP_QSTR_RSAPrivateKey,
+    MP_TYPE_FLAG_NONE,
+    attr, rsa_private_key_attr,
+    locals_dict, &rsa_private_key_locals_dict);
 
 STATIC mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
@@ -4469,7 +4473,7 @@ STATIC void rsa_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -4526,13 +4530,13 @@ STATIC const mp_rom_map_elem_t rsa_private_numbers_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(rsa_private_numbers_locals_dict, rsa_private_numbers_locals_dict_table);
 
-STATIC mp_obj_type_t rsa_private_numbers_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_RSAPrivateNumbers,
-    .make_new = rsa_private_numbers_make_new,
-    .attr = rsa_private_numbers_attr,
-    .locals_dict = (void *)&rsa_private_numbers_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    rsa_private_numbers_type,
+    MP_QSTR_RSAPrivateNumbers,
+    MP_TYPE_FLAG_NONE,
+    make_new, rsa_private_numbers_make_new,
+    attr, rsa_private_numbers_attr,
+    locals_dict, &rsa_private_numbers_locals_dict);
 
 STATIC mp_obj_t rsa_crt_iqmp(mp_obj_t p, mp_obj_t q)
 {
@@ -4734,11 +4738,11 @@ STATIC const mp_rom_map_elem_t rsa_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(rsa_locals_dict, rsa_locals_dict_table);
 
-STATIC mp_obj_type_t rsa_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_rsa,
-    .locals_dict = (void *)&rsa_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    rsa_type,
+    MP_QSTR_rsa,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &rsa_locals_dict);
 
 STATIC mp_obj_t ed25519_private_key_from_private_bytes(mp_obj_t data)
 {
@@ -4853,11 +4857,11 @@ STATIC const mp_rom_map_elem_t ed25519_private_key_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ed25519_private_key_locals_dict, ed25519_private_key_locals_dict_table);
 
-STATIC mp_obj_type_t ed25519_private_key_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_Ed25519PrivateKey,
-    .locals_dict = (void *)&ed25519_private_key_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ed25519_private_key_type,
+    MP_QSTR_Ed25519PrivateKey,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &ed25519_private_key_locals_dict);
 
 STATIC mp_obj_t ed25519_public_key_from_public_bytes(mp_obj_t data)
 {
@@ -4927,11 +4931,11 @@ STATIC const mp_rom_map_elem_t ed25519_public_key_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ed25519_public_key_locals_dict, ed25519_public_key_locals_dict_table);
 
-STATIC mp_obj_type_t ed25519_public_key_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_Ed25519PublicKey,
-    .locals_dict = (void *)&ed25519_public_key_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ed25519_public_key_type,
+    MP_QSTR_Ed25519PublicKey,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &ed25519_public_key_locals_dict);
 
 STATIC const mp_rom_map_elem_t ed25519_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_Ed25519PrivateKey), MP_ROM_PTR(&ed25519_private_key_type)},
@@ -4940,11 +4944,11 @@ STATIC const mp_rom_map_elem_t ed25519_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ed25519_locals_dict, ed25519_locals_dict_table);
 
-STATIC mp_obj_type_t ed25519_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_ed25519,
-    .locals_dict = (void *)&ed25519_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ed25519_type,
+    MP_QSTR_ed25519,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &ed25519_locals_dict);
 
 STATIC const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_InvalidSignature), MP_ROM_PTR(&mp_type_InvalidSignature)},
@@ -4956,11 +4960,11 @@ STATIC const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(exceptions_locals_dict, exceptions_locals_dict_table);
 
-STATIC mp_obj_type_t exceptions_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_exceptions,
-    .locals_dict = (void *)&exceptions_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    exceptions_type,
+    MP_QSTR_exceptions,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &exceptions_locals_dict);
 
 STATIC mp_obj_t aesgcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -5091,12 +5095,12 @@ STATIC const mp_rom_map_elem_t aesgcm_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(aesgcm_locals_dict, aesgcm_locals_dict_table);
 
-STATIC mp_obj_type_t ciphers_aesgcm_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_AESGCM,
-    .make_new = aesgcm_make_new,
-    .locals_dict = (void *)&aesgcm_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_aesgcm_type,
+    MP_QSTR_AESGCM,
+    MP_TYPE_FLAG_NONE,
+    make_new, aesgcm_make_new,
+    locals_dict, &aesgcm_locals_dict);
 
 STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -5328,7 +5332,7 @@ STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -5363,13 +5367,13 @@ STATIC const mp_rom_map_elem_t encryptor_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(encryptor_locals_dict, encryptor_locals_dict_table);
 
-STATIC mp_obj_type_t ciphers_cipher_encryptor_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_encryptor,
-    .call = encryptor_call,
-    .attr = encryptpr_attr,
-    .locals_dict = (void *)&encryptor_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_cipher_encryptor_type,
+    MP_QSTR_encryptor,
+    MP_TYPE_FLAG_NONE,
+    call, encryptor_call,
+    attr, encryptpr_attr,
+    locals_dict, &encryptor_locals_dict);
 
 STATIC mp_obj_t decryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -5546,12 +5550,12 @@ STATIC const mp_rom_map_elem_t decryptor_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(decryptor_locals_dict, decryptor_locals_dict_table);
 
-STATIC mp_obj_type_t ciphers_cipher_decryptor_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_decryptor,
-    .call = decryptor_call,
-    .locals_dict = (void *)&decryptor_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_cipher_decryptor_type,
+    MP_QSTR_decryptor,
+    MP_TYPE_FLAG_NONE,
+    call, decryptor_call,
+    locals_dict, &decryptor_locals_dict);
 
 STATIC void cipher_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
@@ -5559,7 +5563,7 @@ STATIC void cipher_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     if (dest[0] == MP_OBJ_NULL)
     {
         const mp_obj_type_t *type = mp_obj_get_type(obj);
-        mp_map_t *locals_map = &type->locals_dict->map;
+        mp_map_t *locals_map = (mp_map_t *)mp_obj_dict_get_map(MP_OBJ_TYPE_GET_SLOT(type, locals_dict));
         mp_map_elem_t *elem = mp_map_lookup(locals_map, MP_OBJ_NEW_QSTR(attr), MP_MAP_LOOKUP);
         if (elem != NULL)
         {
@@ -5585,13 +5589,13 @@ STATIC const mp_rom_map_elem_t ciphers_cipher_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ciphers_cipher_locals_dict, ciphers_cipher_locals_dict_table);
 
-STATIC mp_obj_type_t ciphers_cipher_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_Cipher,
-    .make_new = cipher_make_new,
-    .attr = cipher_attr,
-    .locals_dict = (void *)&ciphers_cipher_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_cipher_type,
+    MP_QSTR_Cipher,
+    MP_TYPE_FLAG_NONE,
+    make_new, cipher_make_new,
+    attr, cipher_attr,
+    locals_dict, &ciphers_cipher_locals_dict);
 
 STATIC mp_obj_t algorithms_aes_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -5610,11 +5614,11 @@ STATIC mp_obj_t algorithms_aes_make_new(const mp_obj_type_t *type, size_t n_args
     return MP_OBJ_FROM_PTR(CIPHER_ALGORITHM);
 }
 
-STATIC mp_obj_type_t ciphers_algorithms_aes_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_AES,
-    .make_new = algorithms_aes_make_new,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_algorithms_aes_type,
+    MP_QSTR_AES,
+    MP_TYPE_FLAG_NONE,
+    make_new, algorithms_aes_make_new);
 
 STATIC mp_obj_t algorithms_3des_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -5633,11 +5637,11 @@ STATIC mp_obj_t algorithms_3des_make_new(const mp_obj_type_t *type, size_t n_arg
     return MP_OBJ_FROM_PTR(CIPHER_ALGORITHM);
 }
 
-STATIC mp_obj_type_t ciphers_algorithms_3des_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_TripleDES,
-    .make_new = algorithms_3des_make_new,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_algorithms_3des_type,
+    MP_QSTR_TripleDES,
+    MP_TYPE_FLAG_NONE,
+    make_new, algorithms_3des_make_new);
 
 STATIC const mp_rom_map_elem_t ciphers_algorithms_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_AES), MP_ROM_PTR(&ciphers_algorithms_aes_type)},
@@ -5646,11 +5650,11 @@ STATIC const mp_rom_map_elem_t ciphers_algorithms_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ciphers_algorithms_locals_dict, ciphers_algorithms_locals_dict_table);
 
-STATIC mp_obj_type_t ciphers_algorithms_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_algorithms,
-    .locals_dict = (void *)&ciphers_algorithms_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_algorithms_type,
+    MP_QSTR_algorithms,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &ciphers_algorithms_locals_dict);
 
 STATIC mp_obj_t modes_cbc_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -5672,11 +5676,11 @@ STATIC mp_obj_t modes_cbc_make_new(const mp_obj_type_t *type, size_t n_args, siz
     return MP_OBJ_FROM_PTR(CBC);
 }
 
-STATIC mp_obj_type_t ciphers_modes_cbc_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_CBC,
-    .make_new = modes_cbc_make_new,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_modes_cbc_type,
+    MP_QSTR_CBC,
+    MP_TYPE_FLAG_NONE,
+    make_new, modes_cbc_make_new);
 
 STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
@@ -5719,11 +5723,11 @@ STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, siz
     return MP_OBJ_FROM_PTR(GCM);
 }
 
-STATIC mp_obj_type_t ciphers_modes_gcm_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_GCM,
-    .make_new = modes_gcm_make_new,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_modes_gcm_type,
+    MP_QSTR_GCM,
+    MP_TYPE_FLAG_NONE,
+    make_new, modes_gcm_make_new);
 
 STATIC mp_obj_t modes_ecb_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -5735,11 +5739,11 @@ STATIC mp_obj_t modes_ecb_make_new(const mp_obj_type_t *type, size_t n_args, siz
     return MP_OBJ_FROM_PTR(ECB);
 }
 
-STATIC mp_obj_type_t ciphers_modes_ecb_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_ECB,
-    .make_new = modes_ecb_make_new,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_modes_ecb_type,
+    MP_QSTR_ECB,
+    MP_TYPE_FLAG_NONE,
+    make_new, modes_ecb_make_new);
 
 STATIC const mp_rom_map_elem_t ciphers_modes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_CBC), MP_ROM_PTR(&ciphers_modes_cbc_type)},
@@ -5749,11 +5753,11 @@ STATIC const mp_rom_map_elem_t ciphers_modes_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ciphers_modes_locals_dict, ciphers_modes_locals_dict_table);
 
-STATIC mp_obj_type_t ciphers_modes_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_modes,
-    .locals_dict = (void *)&ciphers_modes_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_modes_type,
+    MP_QSTR_modes,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &ciphers_modes_locals_dict);
 
 STATIC const mp_rom_map_elem_t ciphers_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_AESGCM), MP_ROM_PTR(&ciphers_aesgcm_type)},
@@ -5764,11 +5768,11 @@ STATIC const mp_rom_map_elem_t ciphers_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(ciphers_locals_dict, ciphers_locals_dict_table);
 
-STATIC mp_obj_type_t ciphers_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_ciphers,
-    .locals_dict = (void *)&ciphers_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    ciphers_type,
+    MP_QSTR_ciphers,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &ciphers_locals_dict);
 
 STATIC mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
 {
@@ -5946,12 +5950,12 @@ STATIC const mp_rom_map_elem_t twofactor_hotp_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(twofactor_hotp_locals_dict, twofactor_hotp_locals_dict_table);
 
-STATIC mp_obj_type_t twofactor_hotp_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_HOTP,
-    .make_new = twofactor_hotp_make_new,
-    .locals_dict = (void *)&twofactor_hotp_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    twofactor_hotp_type,
+    MP_QSTR_HOTP,
+    MP_TYPE_FLAG_NONE,
+    make_new, twofactor_hotp_make_new,
+    locals_dict, &twofactor_hotp_locals_dict);
 
 STATIC mp_obj_t twofactor_totp_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
@@ -6059,12 +6063,12 @@ STATIC const mp_rom_map_elem_t twofactor_totp_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(twofactor_totp_locals_dict, twofactor_totp_locals_dict_table);
 
-STATIC mp_obj_type_t twofactor_totp_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_TOTP,
-    .make_new = twofactor_totp_make_new,
-    .locals_dict = (void *)&twofactor_totp_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    twofactor_totp_type,
+    MP_QSTR_TOTP,
+    MP_TYPE_FLAG_NONE,
+    make_new, twofactor_totp_make_new,
+    locals_dict, &twofactor_totp_locals_dict);
 
 STATIC const mp_rom_map_elem_t twofactor_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_HOTP), MP_ROM_PTR(&twofactor_hotp_type)},
@@ -6073,11 +6077,11 @@ STATIC const mp_rom_map_elem_t twofactor_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(twofactor_locals_dict, twofactor_locals_dict_table);
 
-STATIC mp_obj_type_t twofactor_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_twofactor,
-    .locals_dict = (void *)&twofactor_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    twofactor_type,
+    MP_QSTR_twofactor,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &twofactor_locals_dict);
 
 STATIC mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *args)
 {
@@ -6369,11 +6373,11 @@ STATIC const mp_rom_map_elem_t utils_block_device_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(utils_block_device_locals_dict, utils_block_device_locals_dict_table);
 
-STATIC mp_obj_type_t utils_block_device_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_CipheredBlockDevice,
-    .locals_dict = (void *)&utils_block_device_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    utils_block_device_type,
+    MP_QSTR_CipheredBlockDevice,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &utils_block_device_locals_dict);
 
 STATIC mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
 {
@@ -6618,11 +6622,11 @@ STATIC const mp_rom_map_elem_t utils_rfc6979_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(utils_rfc6979_locals_dict, utils_rfc6979_locals_dict_table);
 
-STATIC mp_obj_type_t utils_rfc6979_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_RFC6979,
-    .locals_dict = (void *)&utils_rfc6979_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    utils_rfc6979_type,
+    MP_QSTR_RFC6979,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &utils_rfc6979_locals_dict);
 
 STATIC mp_obj_t mod_rfc6979(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
 {
@@ -6737,29 +6741,29 @@ STATIC const mp_rom_map_elem_t utils_locals_dict_table[] = {
 
 STATIC MP_DEFINE_CONST_DICT(utils_locals_dict, utils_locals_dict_table);
 
-STATIC mp_obj_type_t utils_type = {
-    {&mp_type_type},
-    .name = MP_QSTR_utils,
-    .locals_dict = (void *)&utils_locals_dict,
-};
+STATIC MP_DEFINE_CONST_OBJ_TYPE(
+    utils_type,
+    MP_QSTR_utils,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &utils_locals_dict);
 
 STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
-    {MP_ROM_QSTR(MP_QSTR_ciphers), MP_ROM_PTR(&ciphers_type)},
-    {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR(&ec_type)},
-    {MP_ROM_QSTR(MP_QSTR_ed25519), MP_ROM_PTR(&ed25519_type)},
-    {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR(&exceptions_type)},
-    {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR(&hashes_type)},
-    {MP_ROM_QSTR(MP_QSTR_hmac), MP_ROM_PTR(&hmac_type)},
-    {MP_ROM_QSTR(MP_QSTR_padding), MP_ROM_PTR(&padding_type)},
-    {MP_ROM_QSTR(MP_QSTR_rsa), MP_ROM_PTR(&rsa_type)},
-    {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR(&serialization_type)},
-    {MP_ROM_QSTR(MP_QSTR_twofactor), MP_ROM_PTR(&twofactor_type)},
-    {MP_ROM_QSTR(MP_QSTR_utils), MP_ROM_PTR(&utils_type)},
+    {MP_ROM_QSTR(MP_QSTR_ciphers), MP_ROM_PTR((mp_obj_type_t *)&ciphers_type)},
+    {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR((mp_obj_type_t *)&ec_type)},
+    {MP_ROM_QSTR(MP_QSTR_ed25519), MP_ROM_PTR((mp_obj_type_t *)&ed25519_type)},
+    {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR((mp_obj_type_t *)&exceptions_type)},
+    {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR((mp_obj_type_t *)&hashes_type)},
+    {MP_ROM_QSTR(MP_QSTR_hmac), MP_ROM_PTR((mp_obj_type_t *)&hmac_type)},
+    {MP_ROM_QSTR(MP_QSTR_padding), MP_ROM_PTR((mp_obj_type_t *)&padding_type)},
+    {MP_ROM_QSTR(MP_QSTR_rsa), MP_ROM_PTR((mp_obj_type_t *)&rsa_type)},
+    {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR((mp_obj_type_t *)&serialization_type)},
+    {MP_ROM_QSTR(MP_QSTR_twofactor), MP_ROM_PTR((mp_obj_type_t *)&twofactor_type)},
+    {MP_ROM_QSTR(MP_QSTR_utils), MP_ROM_PTR((mp_obj_type_t *)&utils_type)},
 #if defined(MBEDTLS_VERSION_C)
-    {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&version_type)},
+    {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR((mp_obj_type_t *)&version_type)},
 #endif
-    {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR(&x509_type)},
+    {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR((mp_obj_type_t *)&x509_type)},
 };
 
 STATIC MP_DEFINE_CONST_DICT(mp_module_ucryptography_globals, mp_module_ucryptography_globals_table);
