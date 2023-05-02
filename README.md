@@ -12,13 +12,16 @@ To build such a module, compile MicroPython with an extra make flag named ```USE
 ```bash
 $ git clone https://github.com/micropython/micropython.git
 $ cd micropython
-micropython$ git submodule update --init
-micropython$ cd lib/mbedtls
-micropython/lib/mbedtls$ git checkout mbedtls-2.18
-micropython/lib/mbedtls$ cd ../../
+micropython$ git submodule update --init --depth 1
+# micropython$ cd lib/mbedtls
+# micropython/lib/mbedtls$ git checkout mbedtls-2.28.1
+# micropython/lib/mbedtls$ cd ../../
 micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
+micropython$ cd usercmodule/ucryptography
+ucryptography$ git submodule update --init --depth 1
+ucryptography$ cd ../../
 micropython$ make -j2 -C mpy-cross/
-micropython$ make -j2 -C ports/unix/ VARIANT="dev" MICROPY_SSL_AXTLS=0 MICROPY_SSL_MBEDTLS=1 USER_C_MODULES="$(pwd)/usercmodule"
+micropython$ make -j2 -C ports/unix/ MICROPY_SSL_AXTLS=0 MICROPY_SSL_MBEDTLS=1 USER_C_MODULES="$(pwd)/usercmodule"
 ```
 
 ```python
