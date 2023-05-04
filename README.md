@@ -9,11 +9,15 @@ To build such a module, compile MicroPython with an extra make flag named ```USE
 
 ### Compiling the cmodule into unix port
 
+**Warning**
+Currently needs a patch to the file `extmod/mbedtls/mbedtls_config_common.h` to enable all its functionality.
+
 ```bash
 $ git clone https://github.com/micropython/micropython.git
 $ cd micropython
 micropython$ git submodule update --init --depth 1
 micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
+micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
 micropython$ cd usercmodule/ucryptography
 ucryptography$ git submodule update --init --depth 1
 ucryptography$ cd ../../
