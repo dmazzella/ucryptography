@@ -118,10 +118,10 @@ def main():
         )
         print("public_key.curve", public_key_u.curve.name)
         public_numbersu = public_key_u.public_numbers()
-        public_bytesu = public_key_u.public_bytes(serialization.Encoding.DER)
-        print("public_key.public_bytes", public_bytesu)
         print("public_key.public_numbers.x", public_numbersu.x)
         print("public_key.public_numbers.y", public_numbersu.y)
+        public_bytesu = public_key_u.public_bytes(serialization.Encoding.DER)
+        print("public_key.public_bytes", public_bytesu)
 
         private_key = serialization.load_der_private_key(EC_PRIVATE_KEY_DER, None)
         print("curve", private_key.curve.name)

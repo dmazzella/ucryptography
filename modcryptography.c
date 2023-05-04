@@ -1754,13 +1754,11 @@ STATIC mp_obj_t ec_from_encoded_point(mp_obj_t curve, mp_obj_t public_o)
     {
         mp_obj_t pub_key = ec_parse_keypair(mbedtls_pk_ec(pk), false);
         mbedtls_pk_free(&pk);
-        mbedtls_ecp_keypair_free(ecp);
         return pub_key;
     }
     else
     {
         mbedtls_pk_free(&pk);
-        mbedtls_ecp_keypair_free(ecp);
         mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("public key"));
     }
 
