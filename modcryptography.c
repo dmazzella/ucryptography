@@ -589,6 +589,7 @@ STATIC const mp_obj_type_t padding_mgf1_type;
 STATIC const mp_obj_type_t twofactor_hotp_type;
 STATIC const mp_obj_type_t twofactor_totp_type;
 
+#if defined(STM32WB)
 #if defined(MBEDTLS_GCM_ALT) || defined(MBEDTLS_AES_ALT)
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef *hcryp)
 {
@@ -637,6 +638,7 @@ void HAL_PKA_MspDeInit(PKA_HandleTypeDef *hpka)
         __HAL_RCC_PKA_CLK_DISABLE();
     }
 }
+#endif
 #endif
 
 #if 0
