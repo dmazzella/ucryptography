@@ -32,7 +32,6 @@ target_include_directories(usermod_cryptography INTERFACE
 )
 
 target_compile_definitions(usermod_cryptography INTERFACE
-    MICROPY_PY_UCRYPTOGRAPHY=1
     MICROPY_PY_UCRYPTOGRAPHY_ED25519=1
     C25519_USE_MBEDTLS_SHA512=1
 )

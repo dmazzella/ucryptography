@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2019-2021 Damiano Mazzella
+ * Copyright (c) 2019-2023 Damiano Mazzella
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +23,6 @@
  * OUT of OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#if defined(MICROPY_PY_UCRYPTOGRAPHY)
 
 #include <assert.h>
 #include <stdarg.h>
@@ -6775,5 +6773,3 @@ const mp_obj_module_t mp_module_ucryptography = {
 
 // Register the module to make it available in Python
 MP_REGISTER_MODULE(MP_QSTR_cryptography, mp_module_ucryptography);
-
-#endif // MICROPY_PY_UCRYPTOGRAPHY
