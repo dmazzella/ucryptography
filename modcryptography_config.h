@@ -121,15 +121,6 @@
 #if defined(__thumb2__) || defined(__thumb__) || defined(__arm__)
 #define MBEDTLS_NO_PLATFORM_ENTROPY
 
-#if !defined(calloc) && !defined(free)
-#include "py/runtime.h"
-#include "py/gc.h"
-#define gc_calloc(a, b) gc_alloc((a * b), 0)
-#define MBEDTLS_PLATFORM_MEMORY
-#define MBEDTLS_PLATFORM_CALLOC_MACRO gc_calloc
-#define MBEDTLS_PLATFORM_FREE_MACRO gc_free
-#endif // !defined(calloc) && !defined(free)
-
 #if defined(STM32WB)
 #if defined(HAL_PKA_MODULE_ENABLED)
 #undef MBEDTLS_ECP_NIST_OPTIM

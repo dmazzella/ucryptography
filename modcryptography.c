@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2019-2023 Damiano Mazzella
+ * Copyright (c) 2019-2024 Damiano Mazzella
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -183,7 +183,8 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
 #include "mbedtls/des.h"
 #include "mbedtls/ecdh.h"
 #include "mbedtls/asn1write.h"
-#include "mbedtls/rsa_internal.h"
+#include "mbedtls/rsa.h"
+#include "rsa_alt_helpers.h"
 #include "BLAKE2/ref/blake2.h"
 #include "c25519/src/edsign.h"
 
@@ -558,9 +559,7 @@ STATIC const mp_obj_type_t rsa_public_key_type;
 STATIC const mp_obj_type_t rsa_private_key_type;
 STATIC const mp_obj_type_t hash_algorithm_sha1_type;
 STATIC const mp_obj_type_t hash_algorithm_sha256_type;
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
 STATIC const mp_obj_type_t hash_algorithm_sha384_type;
-#endif
 STATIC const mp_obj_type_t hash_algorithm_sha512_type;
 STATIC const mp_obj_type_t hash_algorithm_blake2s_type;
 STATIC const mp_obj_type_t hash_algorithm_prehashed_type;
@@ -942,12 +941,12 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_decode_dss_signature_obj, MP_
 STATIC int util_encode_dss_signature(const mbedtls_mpi *r, const mbedtls_mpi *s, unsigned char *sig, size_t *slen)
 {
     int ret;
-    unsigned char buf[MBEDTLS_ECDSA_MAX_LEN];
+    unsigned char buf[MBEDTLS_ECDSA_MAX_LEN] = {0};
     unsigned char *p = buf + sizeof(buf);
     size_t len = 0;
 
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, s));
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, (const byte *)buf, s));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, (const byte *)buf, r));
 
     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, buf, len));
     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
@@ -1003,11 +1002,7 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
     mp_arg_parse_all_kw_array(n_args, n_kw, all_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     mp_obj_t hash_algorithm = args[ARG_hash_algorithm].u_obj;
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(hash_algorithm) == &mp_type_NoneType))
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(hash_algorithm) == &mp_type_NoneType))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
     }
@@ -1070,7 +1065,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
 STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
 {
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
-    switch (ecp_keypair->grp.id)
+    switch (ecp_keypair->private_grp.id)
     {
     case MBEDTLS_ECP_DP_SECP256R1:
     {
@@ -1097,7 +1092,7 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
     }
 
-    EllipticCurve->ecp_group_id = ecp_keypair->grp.id;
+    EllipticCurve->ecp_group_id = ecp_keypair->private_grp.id;
 
     mp_ec_public_key_t *EllipticCurvePublicKey = m_new_obj(mp_ec_public_key_t);
     EllipticCurvePublicKey->base.type = &ec_public_key_type;
@@ -1105,8 +1100,8 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     mp_ec_public_numbers_t *EllipticCurvePublicNumbers = m_new_obj(mp_ec_public_numbers_t);
     EllipticCurvePublicNumbers->base.type = &ec_public_numbers_type;
     EllipticCurvePublicNumbers->curve = EllipticCurve;
-    EllipticCurvePublicNumbers->x = mbedtls_mpi_write_binary_to_mp_obj(&ecp_keypair->Q.X, true);
-    EllipticCurvePublicNumbers->y = mbedtls_mpi_write_binary_to_mp_obj(&ecp_keypair->Q.Y, true);
+    EllipticCurvePublicNumbers->x = mbedtls_mpi_write_binary_to_mp_obj(&ecp_keypair->private_Q.private_X, true);
+    EllipticCurvePublicNumbers->y = mbedtls_mpi_write_binary_to_mp_obj(&ecp_keypair->private_Q.private_Y, true);
     EllipticCurvePublicNumbers->public_key = EllipticCurvePublicKey;
 
     mp_obj_t s2b_x = EllipticCurvePublicNumbers->x;
@@ -1115,7 +1110,7 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     mp_obj_t s2b_y = EllipticCurvePublicNumbers->y;
     int y_len = (mp_obj_get_int(int_bit_length(s2b_y)) + 7) / 8;
 
-    int n_size = mbedtls_mpi_size(&ecp_keypair->grp.N);
+    int n_size = mbedtls_mpi_size(&ecp_keypair->private_grp.N);
     int pksize = (n_size * 2);
     vstr_t vstr_public_bytes;
     vstr_init_len(&vstr_public_bytes, pksize);
@@ -1128,8 +1123,8 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     vstr_clear(&vstr_public_bytes);
 
     vstr_t vstr_private_bytes;
-    vstr_init_len(&vstr_private_bytes, mbedtls_mpi_size(&ecp_keypair->d));
-    mbedtls_mpi_write_binary(&ecp_keypair->d, (byte *)vstr_private_bytes.buf, vstr_private_bytes.len);
+    vstr_init_len(&vstr_private_bytes, mbedtls_mpi_size(&ecp_keypair->private_d));
+    mbedtls_mpi_write_binary(&ecp_keypair->private_d, (byte *)vstr_private_bytes.buf, vstr_private_bytes.len);
 
     mp_ec_private_numbers_t *EllipticCurvePrivateNumbers = m_new_obj(mp_ec_private_numbers_t);
     EllipticCurvePrivateNumbers->base.type = &ec_private_numbers_type;
@@ -1184,12 +1179,12 @@ STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t enc
     mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
     mbedtls_ecp_keypair *ecp = mbedtls_pk_ec(pk);
     mbedtls_ecp_keypair_init(ecp);
-    mbedtls_ecp_group_load(&ecp->grp, ecp_group_id);
-    mbedtls_ecp_point_read_binary(&ecp->grp, &ecp->Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+    mbedtls_ecp_group_load(&ecp->private_grp, ecp_group_id);
+    mbedtls_ecp_point_read_binary(&ecp->private_grp, &ecp->private_Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
 
     if (dump_private_key)
     {
-        mbedtls_mpi_read_binary(&ecp->d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
+        mbedtls_mpi_read_binary(&ecp->private_d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
         if (encoding == SERIALIZATION_ENCODING_DER && (ret = mbedtls_pk_write_key_der(&pk, (byte *)vstr_out.buf, vstr_out.len)) > 0)
         {
             mbedtls_pk_free(&pk);
@@ -1282,8 +1277,8 @@ STATIC mp_ec_curve_t *ec_curve_secpXXXr1_make_new_helper(const mp_obj_type_t *ty
     EllipticCurve->a = mp_obj_new_int(-3);
     EllipticCurve->b = mbedtls_mpi_write_binary_to_mp_obj(&grp.B, true);
     EllipticCurve->n = mbedtls_mpi_write_binary_to_mp_obj(&grp.N, true);
-    EllipticCurve->G_x = mbedtls_mpi_write_binary_to_mp_obj(&grp.G.X, true);
-    EllipticCurve->G_y = mbedtls_mpi_write_binary_to_mp_obj(&grp.G.Y, true);
+    EllipticCurve->G_x = mbedtls_mpi_write_binary_to_mp_obj(&grp.G.private_X, true);
+    EllipticCurve->G_y = mbedtls_mpi_write_binary_to_mp_obj(&grp.G.private_Y, true);
 
     mbedtls_ecp_group_free(&grp);
 
@@ -1609,11 +1604,7 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -1643,8 +1634,8 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, self->public_numbers->curve->ecp_group_id);
-    mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+    mbedtls_ecp_group_load(&ecp.private_grp, self->public_numbers->curve->ecp_group_id);
+    mbedtls_ecp_point_read_binary(&ecp.private_grp, &ecp.private_Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
 
     mbedtls_mpi r;
     mbedtls_mpi_init(&r);
@@ -1654,7 +1645,7 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 
     util_decode_dss_signature(bufinfo_signature.buf, bufinfo_signature.len, &r, &s);
 
-    int ecdsa_verify = mbedtls_ecdsa_verify(&ecp.grp, (const byte *)vstr_digest.buf, vstr_digest.len, &ecp.Q, &r, &s);
+    int ecdsa_verify = mbedtls_ecdsa_verify(&ecp.private_grp, (const byte *)vstr_digest.buf, vstr_digest.len, &ecp.private_Q, &r, &s);
 
     mbedtls_ecp_keypair_free(&ecp);
     mbedtls_mpi_free(&r);
@@ -1747,8 +1738,8 @@ STATIC mp_obj_t ec_from_encoded_point(mp_obj_t curve, mp_obj_t public_o)
     mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
     mbedtls_ecp_keypair *ecp = mbedtls_pk_ec(pk);
     mbedtls_ecp_keypair_init(ecp);
-    mbedtls_ecp_group_load(&ecp->grp, EllipticCurve->ecp_group_id);
-    mbedtls_ecp_point_read_binary(&ecp->grp, &ecp->Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+    mbedtls_ecp_group_load(&ecp->private_grp, EllipticCurve->ecp_group_id);
+    mbedtls_ecp_point_read_binary(&ecp->private_grp, &ecp->private_Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
 
     if (mbedtls_pk_get_type(&pk) == MBEDTLS_PK_ECKEY)
     {
@@ -1811,11 +1802,7 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
+    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
     }
@@ -1848,9 +1835,9 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
 
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, self->curve->ecp_group_id);
-    mbedtls_ecp_point_read_binary(&ecp.grp, &ecp.Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
-    mbedtls_mpi_read_binary(&ecp.d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
+    mbedtls_ecp_group_load(&ecp.private_grp, self->curve->ecp_group_id);
+    mbedtls_ecp_point_read_binary(&ecp.private_grp, &ecp.private_Q, (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len);
+    mbedtls_mpi_read_binary(&ecp.private_d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
 
     mbedtls_mpi r;
     mbedtls_mpi_init(&r);
@@ -1861,7 +1848,7 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
     vstr_t vstr_signature;
     vstr_init_len(&vstr_signature, MBEDTLS_ECDSA_MAX_LEN);
     int ecdsa_sign = 1;
-    if ((ecdsa_sign = mbedtls_ecdsa_sign(&ecp.grp, &r, &s, &ecp.d, (const byte *)vstr_digest.buf, vstr_digest.len, mp_random, NULL) != 0))
+    if ((ecdsa_sign = mbedtls_ecdsa_sign(&ecp.private_grp, &r, &s, &ecp.private_d, (const byte *)vstr_digest.buf, vstr_digest.len, mp_random, NULL) != 0))
     {
         mbedtls_ecp_keypair_free(&ecp);
         vstr_clear(&vstr_digest);
@@ -1935,16 +1922,16 @@ STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
 
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, self->public_key->public_numbers->curve->ecp_group_id);
-    mbedtls_mpi_read_binary(&ecp.d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
+    mbedtls_ecp_group_load(&ecp.private_grp, self->public_key->public_numbers->curve->ecp_group_id);
+    mbedtls_mpi_read_binary(&ecp.private_d, (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len);
 
     mbedtls_ecp_point peer_Q;
     mbedtls_ecp_point_init(&peer_Q);
-    mbedtls_ecp_point_read_binary(&ecp.grp, &peer_Q, (const byte *)bufinfo_peer_public_bytes.buf, bufinfo_peer_public_bytes.len);
+    mbedtls_ecp_point_read_binary(&ecp.private_grp, &peer_Q, (const byte *)bufinfo_peer_public_bytes.buf, bufinfo_peer_public_bytes.len);
 
     mbedtls_mpi z;
     mbedtls_mpi_init(&z);
-    mbedtls_ecdh_compute_shared(&ecp.grp, &z, &peer_Q, &ecp.d, mp_random, NULL);
+    mbedtls_ecdh_compute_shared(&ecp.private_grp, &z, &peer_Q, &ecp.private_d, mp_random, NULL);
 
     vstr_t vstr_z_bytes;
     vstr_init_len(&vstr_z_bytes, mbedtls_mpi_size(&z));
@@ -2024,7 +2011,7 @@ STATIC int rsa_pka_modexp(mbedtls_rsa_context *ctx,
     RSA_VALIDATE_RET(input != NULL);
     RSA_VALIDATE_RET(output != NULL);
 
-    size_t mlen = mbedtls_mpi_size(&ctx->N);
+    size_t mlen = mbedtls_mpi_size(&ctx->private_N);
 
     mbedtls_mpi A;
     mbedtls_mpi_init(&A);
@@ -2033,7 +2020,7 @@ STATIC int rsa_pka_modexp(mbedtls_rsa_context *ctx,
     mbedtls_mpi X;
     mbedtls_mpi_init(&X);
 
-    if ((ret = mbedtls_mpi_exp_mod(&X, &A, (is_private) ? &ctx->D : &ctx->E, &ctx->N, NULL)) == 0)
+    if ((ret = mbedtls_mpi_exp_mod(&X, &A, (is_private) ? &ctx->private_D : &ctx->private_E, &ctx->private_N, NULL)) == 0)
     {
         mbedtls_mpi_write_binary(&X, (byte *)output, mlen);
     }
@@ -2155,8 +2142,8 @@ STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
 {
     mp_rsa_public_numbers_t *RSAPublicNumbers = m_new_obj(mp_rsa_public_numbers_t);
     RSAPublicNumbers->base.type = &rsa_public_numbers_type;
-    RSAPublicNumbers->e = mbedtls_mpi_write_binary_to_mp_obj(&rsa->E, true);
-    RSAPublicNumbers->n = mbedtls_mpi_write_binary_to_mp_obj(&rsa->N, true);
+    RSAPublicNumbers->e = mbedtls_mpi_write_binary_to_mp_obj(&rsa->private_E, true);
+    RSAPublicNumbers->n = mbedtls_mpi_write_binary_to_mp_obj(&rsa->private_N, true);
 
     mp_rsa_public_key_t *RSAPublicKey = m_new_obj(mp_rsa_public_key_t);
     RSAPublicKey->base.type = &rsa_public_key_type;
@@ -2170,12 +2157,12 @@ STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
         mp_rsa_private_numbers_t *RSAPrivateNumbers = m_new_obj(mp_rsa_private_numbers_t);
         RSAPrivateNumbers->base.type = &rsa_private_numbers_type;
         RSAPrivateNumbers->public_numbers = RSAPublicNumbers;
-        RSAPrivateNumbers->p = mbedtls_mpi_write_binary_to_mp_obj(&rsa->P, true);
-        RSAPrivateNumbers->q = mbedtls_mpi_write_binary_to_mp_obj(&rsa->Q, true);
-        RSAPrivateNumbers->d = mbedtls_mpi_write_binary_to_mp_obj(&rsa->D, true);
-        RSAPrivateNumbers->dmp1 = mbedtls_mpi_write_binary_to_mp_obj(&rsa->DP, true);
-        RSAPrivateNumbers->dmq1 = mbedtls_mpi_write_binary_to_mp_obj(&rsa->DQ, true);
-        RSAPrivateNumbers->iqmp = mbedtls_mpi_write_binary_to_mp_obj(&rsa->QP, true);
+        RSAPrivateNumbers->p = mbedtls_mpi_write_binary_to_mp_obj(&rsa->private_P, true);
+        RSAPrivateNumbers->q = mbedtls_mpi_write_binary_to_mp_obj(&rsa->private_Q, true);
+        RSAPrivateNumbers->d = mbedtls_mpi_write_binary_to_mp_obj(&rsa->private_D, true);
+        RSAPrivateNumbers->dmp1 = mbedtls_mpi_write_binary_to_mp_obj(&rsa->private_DP, true);
+        RSAPrivateNumbers->dmq1 = mbedtls_mpi_write_binary_to_mp_obj(&rsa->private_DQ, true);
+        RSAPrivateNumbers->iqmp = mbedtls_mpi_write_binary_to_mp_obj(&rsa->private_QP, true);
 
         mp_rsa_private_key_t *RSAPrivateKey = m_new_obj(mp_rsa_private_key_t);
         RSAPrivateKey->base.type = &rsa_private_key_type;
@@ -2237,11 +2224,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
 
 STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 {
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_blake2s_type))
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_blake2s_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -2302,7 +2285,6 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     make_new, hash_algorithm_sha256_make_new,
     locals_dict, &hash_algorithm_sha256_locals_dict);
 
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
 STATIC mp_obj_t hash_algorithm_sha384_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
@@ -2325,8 +2307,6 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     MP_TYPE_FLAG_NONE,
     make_new, hash_algorithm_sha384_make_new,
     locals_dict, &hash_algorithm_sha384_locals_dict);
-
-#endif
 
 STATIC mp_obj_t hash_algorithm_sha512_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
@@ -2411,11 +2391,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
 STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
-    if (!mp_obj_is_type(args[0], &hash_algorithm_sha1_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(args[0], &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(args[0], &hash_algorithm_sha512_type) && !mp_obj_is_type(args[0], &hash_algorithm_blake2s_type))
+    if (!mp_obj_is_type(args[0], &hash_algorithm_sha1_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha256_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha384_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha512_type) && !mp_obj_is_type(args[0], &hash_algorithm_blake2s_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -2538,9 +2514,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
 STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SHA1), MP_ROM_PTR(&hash_algorithm_sha1_type)},
     {MP_ROM_QSTR(MP_QSTR_SHA256), MP_ROM_PTR(&hash_algorithm_sha256_type)},
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
     {MP_ROM_QSTR(MP_QSTR_SHA384), MP_ROM_PTR(&hash_algorithm_sha384_type)},
-#endif
     {MP_ROM_QSTR(MP_QSTR_SHA512), MP_ROM_PTR(&hash_algorithm_sha512_type)},
     {MP_ROM_QSTR(MP_QSTR_BLAKE2s), MP_ROM_PTR(&hash_algorithm_blake2s_type)},
     {MP_ROM_QSTR(MP_QSTR_Hash), MP_ROM_PTR(&hash_context_type)},
@@ -2561,11 +2535,7 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     {
         mp_raise_TypeError(MP_ERROR_TEXT("Expected key bytes"));
     }
-    if (!mp_obj_is_type(args[1], &hash_algorithm_sha1_type) && !mp_obj_is_type(args[1], &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(args[1], &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(args[1], &hash_algorithm_sha512_type) && !mp_obj_is_type(args[1], &hash_algorithm_blake2s_type))
+    if (!mp_obj_is_type(args[1], &hash_algorithm_sha1_type) && !mp_obj_is_type(args[1], &hash_algorithm_sha256_type) && !mp_obj_is_type(args[1], &hash_algorithm_sha384_type) && !mp_obj_is_type(args[1], &hash_algorithm_sha512_type) && !mp_obj_is_type(args[1], &hash_algorithm_blake2s_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -3014,18 +2984,14 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         mp_raise_ValueError(MP_ERROR_TEXT("Certificate format"));
     }
 
-    if ((crt.sig_md != MBEDTLS_MD_SHA1) && (crt.sig_md != MBEDTLS_MD_SHA256)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && (crt.sig_md != MBEDTLS_MD_SHA384)
-#endif
-        && (crt.sig_md != MBEDTLS_MD_SHA512))
+    if ((crt.private_sig_md != MBEDTLS_MD_SHA1) && (crt.private_sig_md != MBEDTLS_MD_SHA256) && (crt.private_sig_md != MBEDTLS_MD_SHA384) && (crt.private_sig_md != MBEDTLS_MD_SHA512))
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("only SHA1, SHA256, SHA384 or SHA512 are supported"));
     }
 
-    if (crt.sig_pk != MBEDTLS_PK_ECDSA && crt.sig_pk != MBEDTLS_PK_RSA)
+    if (crt.private_sig_pk != MBEDTLS_PK_ECDSA && crt.private_sig_pk != MBEDTLS_PK_RSA)
     {
         x509_crt_dump(&crt);
         mbedtls_x509_crt_free(&crt);
@@ -3034,7 +3000,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
 
     mp_obj_t extensions = mp_obj_new_dict(0);
     mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_extended_key_usage), x509_crt_parse_ext_key_usage(&crt.ext_key_usage));
-    mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_key_usage), x509_crt_parse_key_usage(crt.key_usage));
+    mp_obj_dict_store(extensions, MP_ROM_QSTR(MP_QSTR_key_usage), x509_crt_parse_key_usage(crt.private_key_usage));
 
     const char *signature_algorithm_oid_desc = NULL;
     mbedtls_oid_get_sig_alg_desc(&crt.sig_oid, &signature_algorithm_oid_desc);
@@ -3042,7 +3008,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     mp_obj_dict_store(signature_algorithm_oid, x509_crt_parse_oid(&crt.sig_oid, &mp_type_str), mp_obj_new_str(signature_algorithm_oid_desc, strlen(signature_algorithm_oid_desc)));
 
     mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
-    HashAlgorithm->md_type = crt.sig_md;
+    HashAlgorithm->md_type = crt.private_sig_md;
     switch (HashAlgorithm->md_type)
     {
     case MBEDTLS_MD_SHA1:
@@ -3055,13 +3021,11 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
         HashAlgorithm->base.type = &hash_algorithm_sha256_type;
         break;
     }
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
     case MBEDTLS_MD_SHA384:
     {
         HashAlgorithm->base.type = &hash_algorithm_sha384_type;
         break;
     }
-#endif
     case MBEDTLS_MD_SHA512:
     {
         HashAlgorithm->base.type = &hash_algorithm_sha512_type;
@@ -3081,7 +3045,7 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     Certificate->not_valid_after = x509_crt_parse_time(&crt.valid_to);
     Certificate->subject = x509_crt_parse_name(&crt.subject);
     Certificate->issuer = x509_crt_parse_name(&crt.issuer);
-    Certificate->signature = mp_obj_new_bytes(crt.sig.p, crt.sig.len);
+    Certificate->signature = mp_obj_new_bytes(crt.private_sig.p, crt.private_sig.len);
     Certificate->signature_algorithm_oid = signature_algorithm_oid;
     Certificate->signature_hash_algorithm = HashAlgorithm;
     Certificate->extensions = extensions;
@@ -3183,7 +3147,7 @@ STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
-    if (mbedtls_pk_parse_key(&pk, (const byte *)bufinfo.buf, bufinfo.len, (use_password ? (const byte *)bufinfo1.buf : NULL), bufinfo1.len) != 0)
+    if (mbedtls_pk_parse_key(&pk, (const byte *)bufinfo.buf, bufinfo.len, (use_password ? (const byte *)bufinfo1.buf : NULL), bufinfo1.len, mp_random, NULL) != 0)
     {
         mbedtls_pk_free(&pk);
         mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("private key"));
@@ -3260,8 +3224,8 @@ STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
     }
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, EllipticCurve->ecp_group_id);
-    if (mbedtls_ecp_gen_keypair(&ecp.grp, &ecp.d, &ecp.Q, mp_random, NULL) != 0)
+    mbedtls_ecp_group_load(&ecp.private_grp, EllipticCurve->ecp_group_id);
+    if (mbedtls_ecp_gen_keypair(&ecp.private_grp, &ecp.private_d, &ecp.private_Q, mp_random, NULL) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
         return mp_const_none;
@@ -3301,19 +3265,19 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
 
     mbedtls_ecp_keypair ecp;
     mbedtls_ecp_keypair_init(&ecp);
-    mbedtls_ecp_group_load(&ecp.grp, EllipticCurve->ecp_group_id);
-    int pksize = mbedtls_mpi_size(&ecp.grp.N);
+    mbedtls_ecp_group_load(&ecp.private_grp, EllipticCurve->ecp_group_id);
+    int pksize = mbedtls_mpi_size(&ecp.private_grp.N);
     vstr_t vstr_private_bytes;
     vstr_init_len(&vstr_private_bytes, pksize);
     mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(private_value), true, pksize, (byte *)vstr_private_bytes.buf);
 
-    if (mbedtls_ecp_read_key(ecp.grp.id, &ecp, (const byte *)vstr_private_bytes.buf, vstr_private_bytes.len) != 0)
+    if (mbedtls_ecp_read_key(ecp.private_grp.id, &ecp, (const byte *)vstr_private_bytes.buf, vstr_private_bytes.len) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
         vstr_clear(&vstr_private_bytes);
         return mp_const_none;
     }
-    if (mbedtls_ecp_mul(&ecp.grp, &ecp.Q, &ecp.d, &ecp.grp.G, mp_random, NULL) != 0)
+    if (mbedtls_ecp_mul(&ecp.private_grp, &ecp.private_Q, &ecp.private_d, &ecp.private_grp.G, mp_random, NULL) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
         vstr_clear(&vstr_private_bytes);
@@ -3373,11 +3337,7 @@ STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t has
         mp_raise_TypeError(MP_ERROR_TEXT("Expected Instance of rsa.RSAPublicKey or rsa.RSAPrivateKey"));
     }
 
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -3507,11 +3467,7 @@ STATIC mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, 
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.MGF1"));
     }
 
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -3581,11 +3537,7 @@ STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_pkcs1v15_obj, MP_ROM_
 
 STATIC mp_obj_t padding_mgf1(mp_obj_t algorithm)
 {
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
@@ -3642,11 +3594,7 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_obj_t algorithm = args[4];
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
     }
@@ -4115,11 +4063,7 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     }
 
     mp_obj_t algorithm = args[3];
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
     }
@@ -4230,7 +4174,7 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
             if (mp_obj_is_type(padding, &padding_pkcs1v15_type) || mp_obj_is_type(padding, &padding_pss_type))
             {
                 mp_int_t md_type = (HashAlgorithm != NULL ? HashAlgorithm->md_type : MBEDTLS_MD_NONE);
-                ret = mbedtls_pk_sign(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, buf, &olen, mp_random, NULL);
+                ret = mbedtls_pk_sign(&pk, md_type, (const byte *)vstr_digest.buf, salt_length, buf, MBEDTLS_MPI_MAX_SIZE, &olen, mp_random, NULL);
             }
             else
             {
@@ -5029,13 +4973,15 @@ STATIC mp_obj_t aesgcm_encrypt(size_t n_args, const mp_obj_t *args)
 
     vstr_t vstr_output;
     vstr_init_len(&vstr_output, bufinfo_data.len);
+    size_t olen = 0;
 
     mbedtls_gcm_context ctx;
     mbedtls_gcm_init(&ctx);
     mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, (byte *)AESGCM->key->buf, (AESGCM->key->len * 8));
-    mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_ENCRYPT, bufinfo_nonce.buf, bufinfo_nonce.len, (use_associated_data ? bufinfo_associated_data.buf : NULL), (use_associated_data ? bufinfo_associated_data.len : 0));
-    mbedtls_gcm_update(&ctx, vstr_output.len, bufinfo_data.buf, (byte *)vstr_output.buf);
-    mbedtls_gcm_finish(&ctx, (byte *)vstr_tag.buf, vstr_tag.len);
+    mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_ENCRYPT, bufinfo_nonce.buf, bufinfo_nonce.len);
+    mbedtls_gcm_update_ad(&ctx, (use_associated_data ? bufinfo_associated_data.buf : NULL), (use_associated_data ? bufinfo_associated_data.len : 0));
+    mbedtls_gcm_update(&ctx, bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_output.buf, vstr_output.len, &olen);
+    mbedtls_gcm_finish(&ctx, (byte *)vstr_output.buf, vstr_output.len, &olen, (byte *)vstr_tag.buf, vstr_tag.len);
     mbedtls_gcm_free(&ctx);
 
     vstr_add_strn(&vstr_output, vstr_tag.buf, vstr_tag.len);
@@ -5068,13 +5014,15 @@ STATIC mp_obj_t aesgcm_decrypt(size_t n_args, const mp_obj_t *args)
 
     vstr_t vstr_output;
     vstr_init_len(&vstr_output, bufinfo_data.len - vstr_tag.len);
+    size_t olen = 0;
 
     mbedtls_gcm_context ctx;
     mbedtls_gcm_init(&ctx);
     mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, (byte *)AESGCM->key->buf, (AESGCM->key->len * 8));
-    mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_DECRYPT, bufinfo_nonce.buf, bufinfo_nonce.len, (use_associated_data ? bufinfo_associated_data.buf : NULL), (use_associated_data ? bufinfo_associated_data.len : 0));
-    mbedtls_gcm_update(&ctx, vstr_output.len, bufinfo_data.buf, (byte *)vstr_output.buf);
-    mbedtls_gcm_finish(&ctx, (byte *)vstr_tag.buf, vstr_tag.len);
+    mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_DECRYPT, bufinfo_nonce.buf, bufinfo_nonce.len);
+    mbedtls_gcm_update_ad(&ctx, (use_associated_data ? bufinfo_associated_data.buf : NULL), (use_associated_data ? bufinfo_associated_data.len : 0));
+    mbedtls_gcm_update(&ctx, bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_output.buf, vstr_output.len, &olen);
+    mbedtls_gcm_finish(&ctx, (byte *)vstr_output.buf, vstr_output.len, &olen, (byte *)vstr_tag.buf, vstr_tag.len);
     mbedtls_gcm_free(&ctx);
 
     mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
@@ -5233,13 +5181,15 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
 
         vstr_t vstr_output;
         vstr_init_len(&vstr_output, self->data->len);
+        size_t olen = 0;
 
         mbedtls_gcm_context ctx;
         mbedtls_gcm_init(&ctx);
         mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, (byte *)self->cipher->algorithm->key->buf, (self->cipher->algorithm->key->len * 8));
-        mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_ENCRYPT, (const byte *)vstr_iv.buf, vstr_iv.len, (use_associated_data ? (byte *)self->aadata->buf : NULL), (use_associated_data ? self->aadata->len : 0));
-        mbedtls_gcm_update(&ctx, vstr_output.len, (const byte *)self->data->buf, (byte *)vstr_output.buf);
-        mbedtls_gcm_finish(&ctx, (byte *)mode->tag->buf, mode->tag->len);
+        mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_ENCRYPT, (const byte *)vstr_iv.buf, vstr_iv.len);
+        mbedtls_gcm_update_ad(&ctx, (use_associated_data ? (byte *)self->aadata->buf : NULL), (use_associated_data ? self->aadata->len : 0));
+        mbedtls_gcm_update(&ctx, (const byte *)self->data->buf, self->data->len, (byte *)vstr_output.buf, vstr_output.len, &olen);
+        mbedtls_gcm_finish(&ctx, (byte *)vstr_output.buf, vstr_output.len, &olen, (byte *)mode->tag->buf, mode->tag->len);
         mbedtls_gcm_free(&ctx);
 
         mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf + self_data_len, vstr_output.len - self_data_len);
@@ -5449,13 +5399,15 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
 
         vstr_t vstr_output;
         vstr_init_len(&vstr_output, self->data->len);
+        size_t olen = 0;
 
         mbedtls_gcm_context ctx;
         mbedtls_gcm_init(&ctx);
         mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, (byte *)self->cipher->algorithm->key->buf, (self->cipher->algorithm->key->len * 8));
-        mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_DECRYPT, (const byte *)vstr_iv.buf, vstr_iv.len, (use_associated_data ? (byte *)self->aadata->buf : NULL), (use_associated_data ? self->aadata->len : 0));
-        mbedtls_gcm_update(&ctx, vstr_output.len, (const byte *)self->data->buf, (byte *)vstr_output.buf);
-        mbedtls_gcm_finish(&ctx, (byte *)mode->tag->buf, mode->tag->len);
+        mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_DECRYPT, (const byte *)vstr_iv.buf, vstr_iv.len);
+        mbedtls_gcm_update_ad(&ctx, (use_associated_data ? (byte *)self->aadata->buf : NULL), (use_associated_data ? self->aadata->len : 0));
+        mbedtls_gcm_update(&ctx, (const byte *)self->data->buf, self->data->len, (byte *)vstr_output.buf, vstr_output.len, &olen);
+        mbedtls_gcm_finish(&ctx, (byte *)vstr_output.buf, vstr_output.len, &olen, (byte *)mode->tag->buf, mode->tag->len);
         mbedtls_gcm_free(&ctx);
 
         mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf + self_data_len, vstr_output.len - self_data_len);
@@ -6662,11 +6614,7 @@ STATIC mp_obj_t mod_rfc6979(size_t n_args, const mp_obj_t *args, mp_map_t *kw_ar
     }
 
     mp_obj_t hash_algorithm = vals[ARG_hashfunc].u_obj;
-    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type)
-#if !defined(MBEDTLS_SHA512_NO_SHA384)
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type)
-#endif
-        && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
+    if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_prehashed_type))
     {
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
