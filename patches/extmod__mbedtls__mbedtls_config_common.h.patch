@@ -1,18 +1,20 @@
 diff --git a/extmod/mbedtls/mbedtls_config_common.h b/extmod/mbedtls/mbedtls_config_common.h
-index bfbc6f7ba..f81f00bf8 100644
+index db1562f27..d938c829a 100644
 --- a/extmod/mbedtls/mbedtls_config_common.h
 +++ b/extmod/mbedtls/mbedtls_config_common.h
-@@ -46,7 +46,9 @@
- // #define MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED // enabling this currently breaks ssl_data.py test
+@@ -46,9 +46,11 @@
+ #define MBEDTLS_ECP_DP_SECP256K1_ENABLED
+ #define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
  #define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
- #define MBEDTLS_NO_PLATFORM_ENTROPY
 +#define MBEDTLS_BASE64_C
+ #define MBEDTLS_CAN_ECDH
+ #define MBEDTLS_PK_CAN_ECDSA_SIGN
  #define MBEDTLS_PKCS1_V15
 +#define MBEDTLS_PKCS1_V21
  #define MBEDTLS_SHA256_SMALLER
  #define MBEDTLS_SSL_PROTO_TLS1
  #define MBEDTLS_SSL_PROTO_TLS1_1
-@@ -65,17 +67,23 @@
+@@ -67,17 +69,23 @@
  #define MBEDTLS_BIGNUM_C
  #define MBEDTLS_CIPHER_C
  #define MBEDTLS_CTR_DRBG_C
