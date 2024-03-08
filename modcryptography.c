@@ -36,14 +36,14 @@
 #include "py/objtype.h"
 #include "py/objstr.h"
 #include "py/objint.h"
-#if defined(MICROPY_HW_LED1)
+#ifdef MICROPY_HW_LED1
 #include "led.h"
 #endif
 #if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
 #include "py/mpz.h"
 #endif
 
-#if !defined(MBEDTLS_USER_CONFIG_FILE)
+#ifndef MBEDTLS_USER_CONFIG_FILE
 #define MBEDTLS_USER_CONFIG_FILE "modcryptography_config.h"
 #endif // MBEDTLS_USER_CONFIG_FILE
 
@@ -80,7 +80,7 @@ MP_DEFINE_EXCEPTION(InvalidToken, Exception);
         goto LABEL;                 \
     }
 
-STATIC int mp_random(void *rng_state, byte *output, size_t len)
+static int mp_random(void *rng_state, byte *output, size_t len)
 {
     size_t use_len;
     int rnd;
@@ -103,73 +103,6 @@ STATIC int mp_random(void *rng_state, byte *output, size_t len)
 
     return 0;
 }
-
-#if defined(MBEDTLS_VERSION_C)
-#include "mbedtls/version.h"
-
-STATIC mp_obj_t version_get_number(void)
-{
-    return mp_obj_new_int(mbedtls_version_get_number());
-}
-
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_version_get_number_obj, version_get_number);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_version_get_number_obj, MP_ROM_PTR(&mod_version_get_number_obj));
-
-STATIC mp_obj_t version_get_string(void)
-{
-    vstr_t vstr_out;
-    vstr_init_len(&vstr_out, sizeof(MBEDTLS_VERSION_STRING));
-    mbedtls_version_get_string((char *)vstr_out.buf);
-    mp_obj_t oo = mp_obj_new_str(vstr_out.buf, vstr_out.len);
-    vstr_clear(&vstr_out);
-    return oo;
-}
-
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_version_get_string_obj, version_get_string);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_version_get_string_obj, MP_ROM_PTR(&mod_version_get_string_obj));
-
-STATIC mp_obj_t version_get_string_full(void)
-{
-    vstr_t vstr_out;
-    vstr_init_len(&vstr_out, sizeof(MBEDTLS_VERSION_STRING_FULL));
-    mbedtls_version_get_string_full((char *)vstr_out.buf);
-    mp_obj_t oo = mp_obj_new_str(vstr_out.buf, vstr_out.len);
-    vstr_clear(&vstr_out);
-    return oo;
-}
-
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_version_get_string_full_obj, version_get_string_full);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_version_get_string_full_obj, MP_ROM_PTR(&mod_version_get_string_full_obj));
-
-#if defined(MBEDTLS_VERSION_FEATURES)
-STATIC mp_obj_t version_check_feature(mp_obj_t feature)
-{
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(feature, &bufinfo, MP_BUFFER_READ);
-    return mp_obj_new_bool(mbedtls_version_check_feature(bufinfo.buf) == 0);
-}
-
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_version_check_feature_obj, version_check_feature);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_version_check_feature_obj, MP_ROM_PTR(&mod_version_check_feature_obj));
-#endif // MBEDTLS_VERSION_FEATURES
-
-STATIC const mp_rom_map_elem_t version_locals_dict_table[] = {
-    {MP_ROM_QSTR(MP_QSTR_get_number), MP_ROM_PTR(&mod_static_version_get_number_obj)},
-    {MP_ROM_QSTR(MP_QSTR_get_string), MP_ROM_PTR(&mod_static_version_get_string_obj)},
-    {MP_ROM_QSTR(MP_QSTR_get_string_full), MP_ROM_PTR(&mod_static_version_get_string_full_obj)},
-#if defined(MBEDTLS_VERSION_FEATURES)
-    {MP_ROM_QSTR(MP_QSTR_check_feature), MP_ROM_PTR(&mod_static_version_check_feature_obj)},
-#endif // MBEDTLS_VERSION_FEATURES
-};
-
-STATIC MP_DEFINE_CONST_DICT(version_locals_dict, version_locals_dict_table);
-
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
-    version_type,
-    MP_QSTR_version,
-    MP_TYPE_FLAG_NONE,
-    locals_dict, &version_locals_dict);
-#endif
 
 #include "mbedtls/x509.h"
 #include "mbedtls/x509_crt.h"
@@ -508,7 +441,9 @@ typedef struct _mp_twofactor_totp_t
 enum
 {
     CIPHER_ALGORITHM_AES = 1,
+#ifdef MBEDTLS_DES_C
     CIPHER_ALGORITHM_3DES = 2,
+#endif
 };
 
 enum
@@ -537,57 +472,57 @@ enum
 #define BLOCKDEV_IOCTL_BLOCK_SIZE (5)
 #define BLOCKDEV_IOCTL_BLOCK_ERASE (6)
 
-STATIC const mp_obj_type_t ec_ecdsa_type;
-STATIC const mp_obj_type_t ec_ecdh_type;
-STATIC const mp_obj_type_t ec_curve_secp256r1_type;
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
-STATIC const mp_obj_type_t ec_curve_secp384r1_type;
+static const mp_obj_type_t ec_ecdsa_type;
+static const mp_obj_type_t ec_ecdh_type;
+static const mp_obj_type_t ec_curve_secp256r1_type;
+#ifdef MBEDTLS_ECP_DP_SECP384R1_ENABLED
+static const mp_obj_type_t ec_curve_secp384r1_type;
 #endif
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
-STATIC const mp_obj_type_t ec_curve_secp521r1_type;
+#ifdef MBEDTLS_ECP_DP_SECP521R1_ENABLED
+static const mp_obj_type_t ec_curve_secp521r1_type;
 #endif
-STATIC const mp_obj_type_t ec_public_numbers_type;
-STATIC const mp_obj_type_t ec_private_numbers_type;
-STATIC const mp_obj_type_t ec_public_key_type;
-STATIC const mp_obj_type_t ec_private_key_type;
-STATIC const mp_obj_type_t ed25519_private_key_type;
-STATIC const mp_obj_type_t ed25519_public_key_type;
-STATIC const mp_obj_type_t ed25519_type;
-STATIC const mp_obj_type_t rsa_public_numbers_type;
-STATIC const mp_obj_type_t rsa_private_numbers_type;
-STATIC const mp_obj_type_t rsa_public_key_type;
-STATIC const mp_obj_type_t rsa_private_key_type;
-STATIC const mp_obj_type_t hash_algorithm_sha1_type;
-STATIC const mp_obj_type_t hash_algorithm_sha256_type;
-STATIC const mp_obj_type_t hash_algorithm_sha384_type;
-STATIC const mp_obj_type_t hash_algorithm_sha512_type;
-STATIC const mp_obj_type_t hash_algorithm_blake2s_type;
-STATIC const mp_obj_type_t hash_algorithm_prehashed_type;
-STATIC const mp_obj_type_t hash_context_type;
-STATIC const mp_obj_type_t hmac_context_type;
-STATIC const mp_obj_type_t x509_certificate_type;
-STATIC const mp_obj_type_t ciphers_aesgcm_type;
-STATIC const mp_obj_type_t ciphers_cipher_type;
-STATIC const mp_obj_type_t ciphers_cipher_encryptor_type;
-STATIC const mp_obj_type_t ciphers_cipher_decryptor_type;
-STATIC const mp_obj_type_t ciphers_algorithms_aes_type;
-STATIC const mp_obj_type_t ciphers_algorithms_3des_type;
-STATIC const mp_obj_type_t ciphers_modes_cbc_type;
-STATIC const mp_obj_type_t ciphers_modes_gcm_type;
-STATIC const mp_obj_type_t ciphers_modes_ecb_type;
-STATIC const mp_obj_type_t utils_block_device_type;
+static const mp_obj_type_t ec_public_numbers_type;
+static const mp_obj_type_t ec_private_numbers_type;
+static const mp_obj_type_t ec_public_key_type;
+static const mp_obj_type_t ec_private_key_type;
+static const mp_obj_type_t ed25519_private_key_type;
+static const mp_obj_type_t ed25519_public_key_type;
+static const mp_obj_type_t ed25519_type;
+static const mp_obj_type_t rsa_public_numbers_type;
+static const mp_obj_type_t rsa_private_numbers_type;
+static const mp_obj_type_t rsa_public_key_type;
+static const mp_obj_type_t rsa_private_key_type;
+static const mp_obj_type_t hash_algorithm_sha1_type;
+static const mp_obj_type_t hash_algorithm_sha256_type;
+static const mp_obj_type_t hash_algorithm_sha384_type;
+static const mp_obj_type_t hash_algorithm_sha512_type;
+static const mp_obj_type_t hash_algorithm_blake2s_type;
+static const mp_obj_type_t hash_algorithm_prehashed_type;
+static const mp_obj_type_t hash_context_type;
+static const mp_obj_type_t hmac_context_type;
+static const mp_obj_type_t x509_certificate_type;
+static const mp_obj_type_t ciphers_aesgcm_type;
+static const mp_obj_type_t ciphers_cipher_type;
+static const mp_obj_type_t ciphers_cipher_encryptor_type;
+static const mp_obj_type_t ciphers_cipher_decryptor_type;
+static const mp_obj_type_t ciphers_algorithms_aes_type;
+static const mp_obj_type_t ciphers_algorithms_3des_type;
+static const mp_obj_type_t ciphers_modes_cbc_type;
+static const mp_obj_type_t ciphers_modes_gcm_type;
+static const mp_obj_type_t ciphers_modes_ecb_type;
+static const mp_obj_type_t utils_block_device_type;
 #if 0
-STATIC const mp_obj_type_t utils_rfc6979_type;
+static const mp_obj_type_t utils_rfc6979_type;
 #endif
-STATIC const mp_obj_type_t padding_pkcs1v15_type;
-STATIC const mp_obj_type_t padding_pss_type;
-STATIC const mp_obj_type_t padding_oaep_type;
-STATIC const mp_obj_type_t padding_mgf1_type;
-STATIC const mp_obj_type_t twofactor_hotp_type;
-STATIC const mp_obj_type_t twofactor_totp_type;
+static const mp_obj_type_t padding_pkcs1v15_type;
+static const mp_obj_type_t padding_pss_type;
+static const mp_obj_type_t padding_oaep_type;
+static const mp_obj_type_t padding_mgf1_type;
+static const mp_obj_type_t twofactor_hotp_type;
+static const mp_obj_type_t twofactor_totp_type;
 
-#if defined(STM32WB)
-#if defined(MBEDTLS_GCM_ALT) || defined(MBEDTLS_AES_ALT)
+#ifdef STM32WB
+#ifdef MBEDTLS_GCM_ALT || MBEDTLS_AES_ALT
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef *hcryp)
 {
     if (hcryp->Instance == AES1)
@@ -617,7 +552,7 @@ void HAL_CRYP_MspDeInit(CRYP_HandleTypeDef *hcryp)
 }
 #endif
 
-#if defined(MBEDTLS_ECP_ALT)
+#ifdef MBEDTLS_ECP_ALT
 void HAL_PKA_MspInit(PKA_HandleTypeDef *hpka)
 {
     if (hpka->Instance == PKA)
@@ -640,7 +575,7 @@ void HAL_PKA_MspDeInit(PKA_HandleTypeDef *hpka)
 
 #if 0
 #define DEBUG_MICROPYTHON_NEXTCHR "\n:"
-STATIC inline void micropython_printh(const uint8_t *b, size_t l)
+static inline void micropython_printh(const uint8_t *b, size_t l)
 {
     for (size_t i = 0; i < l; i++)
     {
@@ -648,7 +583,7 @@ STATIC inline void micropython_printh(const uint8_t *b, size_t l)
     }
 }
 
-STATIC vstr_t *vstr_hexlify(vstr_t *vstr_out, const byte *in, size_t in_len)
+static vstr_t *vstr_hexlify(vstr_t *vstr_out, const byte *in, size_t in_len)
 {
     vstr_init(vstr_out, in_len);
 
@@ -675,7 +610,7 @@ STATIC vstr_t *vstr_hexlify(vstr_t *vstr_out, const byte *in, size_t in_len)
 }
 #endif
 
-STATIC void print_exception(vstr_t *vstr_print, mp_obj_t exc)
+static void print_exception(vstr_t *vstr_print, mp_obj_t exc)
 {
     mp_print_t print;
     vstr_clear(vstr_print);
@@ -712,7 +647,7 @@ STATIC void print_exception(vstr_t *vstr_print, mp_obj_t exc)
     mp_print_str(&print, "\n");
 }
 
-STATIC mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
+static mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
 {
     if (mp_obj_is_small_int(arg))
     {
@@ -726,7 +661,7 @@ STATIC mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
     }
 }
 
-STATIC mp_obj_t int_bit_length(mp_obj_t x)
+static mp_obj_t int_bit_length(mp_obj_t x)
 {
     mpz_t n_temp;
     mpz_t *n = mp_mpz_for_int(x, &n_temp);
@@ -760,10 +695,10 @@ STATIC mp_obj_t int_bit_length(mp_obj_t x)
     return mp_obj_new_int_from_ull(num_bits);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_int_bit_length_obj, int_bit_length);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_int_bit_length_obj, MP_ROM_PTR(&mod_int_bit_length_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_int_bit_length_obj, int_bit_length);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_int_bit_length_obj, MP_ROM_PTR(&mod_int_bit_length_obj));
 
-STATIC mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
+static mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
 {
     if (!mp_obj_is_int(arg))
     {
@@ -780,7 +715,7 @@ STATIC mp_obj_t cryptography_small_to_big_int(mp_obj_t arg)
     return arg;
 }
 
-STATIC void cryptography_get_buffer(const mp_obj_t o, bool big_endian, mp_buffer_info_t *bufinfo)
+static void cryptography_get_buffer(const mp_obj_t o, bool big_endian, mp_buffer_info_t *bufinfo)
 {
     mp_obj_t oo = o;
     if (mp_obj_is_int(oo))
@@ -814,7 +749,7 @@ STATIC void cryptography_get_buffer(const mp_obj_t o, bool big_endian, mp_buffer
     }
 }
 
-STATIC void mbedtls_mpi_read_binary_from_mp_obj(mbedtls_mpi *mpi, const mp_obj_t o, bool big_endian)
+static void mbedtls_mpi_read_binary_from_mp_obj(mbedtls_mpi *mpi, const mp_obj_t o, bool big_endian)
 {
     mp_buffer_info_t bufinfo_o;
     cryptography_get_buffer(o, big_endian, &bufinfo_o);
@@ -829,7 +764,7 @@ STATIC void mbedtls_mpi_read_binary_from_mp_obj(mbedtls_mpi *mpi, const mp_obj_t
     }
 }
 
-STATIC mp_obj_t mbedtls_mpi_write_binary_to_mp_obj(const mbedtls_mpi *mpi, bool big_endian)
+static mp_obj_t mbedtls_mpi_write_binary_to_mp_obj(const mbedtls_mpi *mpi, bool big_endian)
 {
     vstr_t vstr_mpi;
     vstr_init_len(&vstr_mpi, mbedtls_mpi_size(mpi));
@@ -846,7 +781,7 @@ STATIC mp_obj_t mbedtls_mpi_write_binary_to_mp_obj(const mbedtls_mpi *mpi, bool 
     return oo;
 }
 
-STATIC uint8_t constant_time_bytes_eq(uint8_t *a, size_t len_a, uint8_t *b, size_t len_b)
+static uint8_t constant_time_bytes_eq(uint8_t *a, size_t len_a, uint8_t *b, size_t len_b)
 {
     size_t i = 0;
     uint8_t mismatch = 0;
@@ -864,7 +799,7 @@ STATIC uint8_t constant_time_bytes_eq(uint8_t *a, size_t len_a, uint8_t *b, size
     return (mismatch & 1) == 0;
 }
 
-STATIC mp_obj_t mod_constant_time_bytes_eq(mp_obj_t a, mp_obj_t b)
+static mp_obj_t mod_constant_time_bytes_eq(mp_obj_t a, mp_obj_t b)
 {
     mp_buffer_info_t bufinfo_a;
     mp_get_buffer_raise(a, &bufinfo_a, MP_BUFFER_READ);
@@ -875,10 +810,10 @@ STATIC mp_obj_t mod_constant_time_bytes_eq(mp_obj_t a, mp_obj_t b)
     return mp_obj_new_bool(constant_time_bytes_eq(bufinfo_a.buf, bufinfo_a.len, bufinfo_b.buf, bufinfo_b.len));
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_constant_time_bytes_eq_obj, mod_constant_time_bytes_eq);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_constant_time_bytes_eq_obj, MP_ROM_PTR(&mod_constant_time_bytes_eq_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_constant_time_bytes_eq_obj, mod_constant_time_bytes_eq);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_constant_time_bytes_eq_obj, MP_ROM_PTR(&mod_constant_time_bytes_eq_obj));
 
-STATIC int util_decode_dss_signature(const unsigned char *sig, size_t slen, mbedtls_mpi *r, mbedtls_mpi *s)
+static int util_decode_dss_signature(const unsigned char *sig, size_t slen, mbedtls_mpi *r, mbedtls_mpi *s)
 {
     int ret;
     unsigned char *p = (unsigned char *)sig;
@@ -914,7 +849,7 @@ cleanup:
     return (ret);
 }
 
-STATIC mp_obj_t mod_decode_dss_signature(mp_obj_t signature_obj)
+static mp_obj_t mod_decode_dss_signature(mp_obj_t signature_obj)
 {
     mp_buffer_info_t bufinfo_signature;
     mp_get_buffer_raise(signature_obj, &bufinfo_signature, MP_BUFFER_READ);
@@ -935,10 +870,10 @@ STATIC mp_obj_t mod_decode_dss_signature(mp_obj_t signature_obj)
     return mp_obj_new_tuple(2, rs);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_decode_dss_signature_obj, mod_decode_dss_signature);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_decode_dss_signature_obj, MP_ROM_PTR(&mod_decode_dss_signature_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_decode_dss_signature_obj, mod_decode_dss_signature);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_decode_dss_signature_obj, MP_ROM_PTR(&mod_decode_dss_signature_obj));
 
-STATIC int util_encode_dss_signature(const mbedtls_mpi *r, const mbedtls_mpi *s, unsigned char *sig, size_t *slen)
+static int util_encode_dss_signature(const mbedtls_mpi *r, const mbedtls_mpi *s, unsigned char *sig, size_t *slen)
 {
     int ret;
     unsigned char buf[MBEDTLS_ECDSA_MAX_LEN] = {0};
@@ -957,7 +892,7 @@ STATIC int util_encode_dss_signature(const mbedtls_mpi *r, const mbedtls_mpi *s,
     return (0);
 }
 
-STATIC mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
+static mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
 {
     mbedtls_mpi r;
     mbedtls_mpi_init(&r);
@@ -986,10 +921,10 @@ STATIC mp_obj_t mod_encode_dss_signature(mp_obj_t r_obj, mp_obj_t s_obj)
     return oo;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encode_dss_signature_obj, mod_encode_dss_signature);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_encode_dss_signature_obj, MP_ROM_PTR(&mod_encode_dss_signature_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_encode_dss_signature_obj, mod_encode_dss_signature);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_encode_dss_signature_obj, MP_ROM_PTR(&mod_encode_dss_signature_obj));
 
-STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+static mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, true);
     enum
@@ -1013,7 +948,7 @@ STATIC mp_obj_t ec_ecdsa_make_new(const mp_obj_type_t *type, size_t n_args, size
     return MP_OBJ_FROM_PTR(ECDSA);
 }
 
-STATIC void ec_ecdsa_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void ec_ecdsa_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_ec_ecdsa_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -1033,14 +968,14 @@ STATIC void ec_ecdsa_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t ec_ecdsa_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_ecdsa_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_algorithm), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR__algorithm), MP_ROM_PTR(mp_const_none)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_ecdsa_locals_dict, ec_ecdsa_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_ecdsa_locals_dict, ec_ecdsa_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_ecdsa_type,
     MP_QSTR_ECDSA,
     MP_TYPE_FLAG_NONE,
@@ -1048,7 +983,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, ec_ecdsa_attr,
     locals_dict, &ec_ecdsa_locals_dict);
 
-STATIC mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
     mp_ec_ecdh_t *ECDH = m_new_obj(mp_ec_ecdh_t);
@@ -1056,13 +991,13 @@ STATIC mp_obj_t ec_ecdh_make_new(const mp_obj_type_t *type, size_t n_args, size_
     return MP_OBJ_FROM_PTR(ECDH);
 }
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_ecdh_type,
     MP_QSTR_ECDH,
     MP_TYPE_FLAG_NONE,
     make_new, ec_ecdh_make_new);
 
-STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
+static mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool private)
 {
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
     switch (ecp_keypair->private_grp.id)
@@ -1072,14 +1007,14 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
         EllipticCurve->base.type = &ec_curve_secp256r1_type;
         break;
     }
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP384R1_ENABLED
     case MBEDTLS_ECP_DP_SECP384R1:
     {
         EllipticCurve->base.type = &ec_curve_secp384r1_type;
         break;
     }
 #endif
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP521R1_ENABLED
     case MBEDTLS_ECP_DP_SECP521R1:
     {
         EllipticCurve->base.type = &ec_curve_secp521r1_type;
@@ -1151,7 +1086,7 @@ STATIC mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     }
 }
 
-STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t encoding_o, int ecp_group_id)
+static mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t encoding_o, int ecp_group_id)
 {
     if (!mp_obj_is_int(encoding_o))
     {
@@ -1218,7 +1153,7 @@ STATIC mp_obj_t ec_key_dumps(mp_obj_t public_o, mp_obj_t private_o, mp_obj_t enc
     return oo;
 }
 
-STATIC void ec_curve_secpXXXr1_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void ec_curve_secpXXXr1_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_ec_curve_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -1263,7 +1198,7 @@ STATIC void ec_curve_secpXXXr1_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC mp_ec_curve_t *ec_curve_secpXXXr1_make_new_helper(const mp_obj_type_t *type, mbedtls_ecp_group_id group_id)
+static mp_ec_curve_t *ec_curve_secpXXXr1_make_new_helper(const mp_obj_type_t *type, mbedtls_ecp_group_id group_id)
 {
     mp_ec_curve_t *EllipticCurve = m_new_obj(mp_ec_curve_t);
     EllipticCurve->base.type = type;
@@ -1285,14 +1220,14 @@ STATIC mp_ec_curve_t *ec_curve_secpXXXr1_make_new_helper(const mp_obj_type_t *ty
     return EllipticCurve;
 }
 
-STATIC mp_obj_t ec_curve_secp256r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t ec_curve_secp256r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
     mp_ec_curve_t *EllipticCurve = ec_curve_secpXXXr1_make_new_helper(&ec_curve_secp256r1_type, MBEDTLS_ECP_DP_SECP256R1);
     return MP_OBJ_FROM_PTR(EllipticCurve);
 }
 
-STATIC const mp_rom_map_elem_t ec_curve_secp256r1_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_curve_secp256r1_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_secp256r1)},
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(256)},
     {MP_ROM_QSTR(MP_QSTR_p), MP_ROM_INT(0)},
@@ -1303,9 +1238,9 @@ STATIC const mp_rom_map_elem_t ec_curve_secp256r1_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_G_y), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_curve_secp256r1_locals_dict, ec_curve_secp256r1_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_curve_secp256r1_locals_dict, ec_curve_secp256r1_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_curve_secp256r1_type,
     MP_QSTR_SECP256R1,
     MP_TYPE_FLAG_NONE,
@@ -1313,15 +1248,15 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, ec_curve_secpXXXr1_attr,
     locals_dict, &ec_curve_secp256r1_locals_dict);
 
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
-STATIC mp_obj_t ec_curve_secp384r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+#ifdef MBEDTLS_ECP_DP_SECP384R1_ENABLED
+static mp_obj_t ec_curve_secp384r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
     mp_ec_curve_t *EllipticCurve = ec_curve_secpXXXr1_make_new_helper(&ec_curve_secp384r1_type, MBEDTLS_ECP_DP_SECP384R1);
     return MP_OBJ_FROM_PTR(EllipticCurve);
 }
 
-STATIC const mp_rom_map_elem_t ec_curve_secp384r1_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_curve_secp384r1_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_secp384r1)},
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(384)},
     {MP_ROM_QSTR(MP_QSTR_p), MP_ROM_INT(0)},
@@ -1332,9 +1267,9 @@ STATIC const mp_rom_map_elem_t ec_curve_secp384r1_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_G_y), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_curve_secp384r1_locals_dict, ec_curve_secp384r1_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_curve_secp384r1_locals_dict, ec_curve_secp384r1_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_curve_secp384r1_type,
     MP_QSTR_SECP384R1,
     MP_TYPE_FLAG_NONE,
@@ -1344,15 +1279,15 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
 
 #endif
 
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
-STATIC mp_obj_t ec_curve_secp521r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+#ifdef MBEDTLS_ECP_DP_SECP521R1_ENABLED
+static mp_obj_t ec_curve_secp521r1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 1, true);
     mp_ec_curve_t *EllipticCurve = ec_curve_secpXXXr1_make_new_helper(&ec_curve_secp521r1_type, MBEDTLS_ECP_DP_SECP521R1);
     return MP_OBJ_FROM_PTR(EllipticCurve);
 }
 
-STATIC const mp_rom_map_elem_t ec_curve_secp521r1_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_curve_secp521r1_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_secp521r1)},
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(521)},
     {MP_ROM_QSTR(MP_QSTR_p), MP_ROM_INT(0)},
@@ -1363,9 +1298,9 @@ STATIC const mp_rom_map_elem_t ec_curve_secp521r1_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_G_y), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_curve_secp521r1_locals_dict, ec_curve_secp521r1_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_curve_secp521r1_locals_dict, ec_curve_secp521r1_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_curve_secp521r1_type,
     MP_QSTR_SECP521R1,
     MP_TYPE_FLAG_NONE,
@@ -1375,7 +1310,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
 
 #endif
 
-STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 3, 3, true);
     mp_obj_t x = args[0];
@@ -1391,10 +1326,10 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
     }
     if (
         !mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP384R1_ENABLED
         && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type)
 #endif
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP521R1_ENABLED
         && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type)
 #endif
     )
@@ -1438,15 +1373,15 @@ STATIC mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
     return MP_OBJ_FROM_PTR(EllipticCurvePublicNumbers);
 }
 
-STATIC mp_obj_t ec_public_numbers_public_key(mp_obj_t obj)
+static mp_obj_t ec_public_numbers_public_key(mp_obj_t obj)
 {
     mp_ec_public_numbers_t *self = MP_OBJ_TO_PTR(obj);
     return self->public_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_numbers_public_key_obj, ec_public_numbers_public_key);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_numbers_public_key_obj, ec_public_numbers_public_key);
 
-STATIC void ec_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void ec_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_ec_public_numbers_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -1476,16 +1411,16 @@ STATIC void ec_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t ec_public_numbers_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_public_numbers_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_x), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_y), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_ec_public_numbers_public_key_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_public_numbers_locals_dict, ec_public_numbers_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_public_numbers_locals_dict, ec_public_numbers_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_public_numbers_type,
     MP_QSTR_EllipticCurvePublicNumbers,
     MP_TYPE_FLAG_NONE,
@@ -1493,7 +1428,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, ec_public_numbers_attr,
     locals_dict, &ec_public_numbers_locals_dict);
 
-STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 2, 2, true);
     mp_obj_t private_value = args[0];
@@ -1535,15 +1470,15 @@ STATIC mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_
     return MP_OBJ_FROM_PTR(EllipticCurvePrivateNumbers);
 }
 
-STATIC mp_obj_t ec_private_numbers_private_key(mp_obj_t obj)
+static mp_obj_t ec_private_numbers_private_key(mp_obj_t obj)
 {
     mp_ec_private_numbers_t *self = MP_OBJ_TO_PTR(obj);
     return self->private_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_numbers_private_key_obj, ec_private_numbers_private_key);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_numbers_private_key_obj, ec_private_numbers_private_key);
 
-STATIC void ec_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void ec_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_ec_private_numbers_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -1568,15 +1503,15 @@ STATIC void ec_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t ec_private_numbers_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_private_numbers_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_private_value), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_private_key), MP_ROM_PTR(&mod_ec_private_numbers_private_key_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_private_numbers_locals_dict, ec_private_numbers_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_private_numbers_locals_dict, ec_private_numbers_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_private_numbers_type,
     MP_QSTR_EllipticCurvePrivateNumbers,
     MP_TYPE_FLAG_NONE,
@@ -1584,7 +1519,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, ec_private_numbers_attr,
     locals_dict, &ec_private_numbers_locals_dict);
 
-STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
+static mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
 {
     mp_obj_t obj = args[0];
     mp_obj_t signature = args[1];
@@ -1660,17 +1595,17 @@ STATIC mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_verify_obj, 4, 4, ec_verify);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_verify_obj, 4, 4, ec_verify);
 
-STATIC mp_obj_t ec_public_numbers(mp_obj_t obj)
+static mp_obj_t ec_public_numbers(mp_obj_t obj)
 {
     mp_ec_public_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->public_numbers;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_numbers_obj, ec_public_numbers);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_numbers_obj, ec_public_numbers);
 
-STATIC mp_obj_t ec_public_bytes(size_t n_args, const mp_obj_t *args)
+static mp_obj_t ec_public_bytes(size_t n_args, const mp_obj_t *args)
 {
     mp_ec_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
     if (n_args == 1)
@@ -1684,9 +1619,9 @@ STATIC mp_obj_t ec_public_bytes(size_t n_args, const mp_obj_t *args)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_public_bytes_obj, 1, 2, ec_public_bytes);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_public_bytes_obj, 1, 2, ec_public_bytes);
 
-STATIC void ec_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void ec_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_ec_public_key_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -1715,17 +1650,17 @@ STATIC void ec_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC mp_obj_t ec_from_encoded_point(mp_obj_t curve, mp_obj_t public_o)
+static mp_obj_t ec_from_encoded_point(mp_obj_t curve, mp_obj_t public_o)
 {
     mp_buffer_info_t bufinfo_public_bytes;
     mp_get_buffer_raise(public_o, &bufinfo_public_bytes, MP_BUFFER_READ);
 
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
     if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP384R1_ENABLED
         && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type)
 #endif
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP521R1_ENABLED
         && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type)
 #endif
     )
@@ -1756,10 +1691,10 @@ STATIC mp_obj_t ec_from_encoded_point(mp_obj_t curve, mp_obj_t public_o)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_from_encoded_point_obj, ec_from_encoded_point);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_from_encoded_point_obj, MP_ROM_PTR(&mod_ec_from_encoded_point_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_from_encoded_point_obj, ec_from_encoded_point);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_from_encoded_point_obj, MP_ROM_PTR(&mod_ec_from_encoded_point_obj));
 
-STATIC const mp_rom_map_elem_t ec_public_key_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_public_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_from_encoded_point), MP_OBJ_FROM_PTR(&mod_static_ec_from_encoded_point_obj)},
     {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(&mod_ec_public_numbers_obj)},
@@ -1768,24 +1703,24 @@ STATIC const mp_rom_map_elem_t ec_public_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_public_key_locals_dict, ec_public_key_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_public_key_locals_dict, ec_public_key_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_public_key_type,
     MP_QSTR_EllipticCurvePublicKey,
     MP_TYPE_FLAG_NONE,
     attr, ec_public_key_attr,
     locals_dict, &ec_public_key_locals_dict);
 
-STATIC mp_obj_t ec_private_numbers(mp_obj_t obj)
+static mp_obj_t ec_private_numbers(mp_obj_t obj)
 {
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->private_numbers;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_numbers_obj, ec_private_numbers);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_private_numbers_obj, ec_private_numbers);
 
-STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
+static mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -1866,17 +1801,17 @@ STATIC mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
     return mp_obj_new_bytes((const byte *)vstr_signature.buf, vstr_signature.len);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_ec_sign_obj, ec_sign);
+static MP_DEFINE_CONST_FUN_OBJ_3(mod_ec_sign_obj, ec_sign);
 
-STATIC mp_obj_t ec_public_key(mp_obj_t obj)
+static mp_obj_t ec_public_key(mp_obj_t obj)
 {
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->public_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_key_obj, ec_public_key);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_public_key_obj, ec_public_key);
 
-STATIC mp_obj_t ec_private_bytes(size_t n_args, const mp_obj_t *args)
+static mp_obj_t ec_private_bytes(size_t n_args, const mp_obj_t *args)
 {
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
     if (n_args == 1)
@@ -1890,9 +1825,9 @@ STATIC mp_obj_t ec_private_bytes(size_t n_args, const mp_obj_t *args)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_private_bytes_obj, 1, 2, ec_private_bytes);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_private_bytes_obj, 1, 2, ec_private_bytes);
 
-STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
+static mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -1945,9 +1880,9 @@ STATIC mp_obj_t ec_exchange(size_t n_args, const mp_obj_t *args)
     return oo;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_exchange_obj, 2, 3, ec_exchange);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_ec_exchange_obj, 2, 3, ec_exchange);
 
-STATIC void ec_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void ec_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_ec_private_key_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -1976,7 +1911,7 @@ STATIC void ec_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_curve), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_private_numbers), MP_ROM_PTR(&mod_ec_private_numbers_obj)},
     {MP_ROM_QSTR(MP_QSTR_sign), MP_ROM_PTR(&mod_ec_sign_obj)},
@@ -1986,9 +1921,9 @@ STATIC const mp_rom_map_elem_t ec_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_private_key_locals_dict, ec_private_key_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_private_key_locals_dict, ec_private_key_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_private_key_type,
     MP_QSTR_EllipticCurvePrivateKey,
     MP_TYPE_FLAG_NONE,
@@ -2000,7 +1935,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
 #define RSA_VALIDATE_RET(cond) MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_RSA_BAD_INPUT_DATA)
 #define RSA_VALIDATE(cond) MBEDTLS_INTERNAL_VALIDATE(cond)
 
-STATIC int rsa_pka_modexp(mbedtls_rsa_context *ctx,
+static int rsa_pka_modexp(mbedtls_rsa_context *ctx,
                           int is_private,
                           const unsigned char *input,
                           unsigned char *output)
@@ -2032,7 +1967,7 @@ STATIC int rsa_pka_modexp(mbedtls_rsa_context *ctx,
 
 #endif /* MBEDTLS_RSA_ALT */
 
-STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_private_numbers_t *private_numbers, mp_obj_t encoding_o)
+static mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_private_numbers_t *private_numbers, mp_obj_t encoding_o)
 {
     if (!mp_obj_is_int(encoding_o))
     {
@@ -2138,7 +2073,7 @@ STATIC mp_obj_t rsa_key_dumps(mp_rsa_public_numbers_t *public_numbers, mp_rsa_pr
     return oo;
 }
 
-STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
+static mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
 {
     mp_rsa_public_numbers_t *RSAPublicNumbers = m_new_obj(mp_rsa_public_numbers_t);
     RSAPublicNumbers->base.type = &rsa_public_numbers_type;
@@ -2182,7 +2117,7 @@ STATIC mp_obj_t rsa_parse_keypair(const mbedtls_rsa_context *rsa, bool private)
     return mp_const_none;
 }
 
-STATIC void hash_algorithm_prehashed_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void hash_algorithm_prehashed_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_util_prehashed_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -2207,22 +2142,22 @@ STATIC void hash_algorithm_prehashed_attr(mp_obj_t obj, qstr attr, mp_obj_t *des
     }
 }
 
-STATIC const mp_rom_map_elem_t hash_algorithm_prehashed_locals_dict_table[] = {
+static const mp_rom_map_elem_t hash_algorithm_prehashed_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR__algorithm), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR__digest_size), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hash_algorithm_prehashed_locals_dict, hash_algorithm_prehashed_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hash_algorithm_prehashed_locals_dict, hash_algorithm_prehashed_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hash_algorithm_prehashed_type,
     MP_QSTR_Prehashed,
     MP_TYPE_FLAG_NONE,
     attr, hash_algorithm_prehashed_attr,
     locals_dict, &hash_algorithm_prehashed_locals_dict);
 
-STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
+static mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
 {
     if (!mp_obj_is_type(hash_algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(hash_algorithm, &hash_algorithm_blake2s_type))
     {
@@ -2236,10 +2171,10 @@ STATIC mp_obj_t mod_hash_algorithm_prehashed(mp_obj_t hash_algorithm)
     return MP_OBJ_FROM_PTR(Prehashed);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_prehashed_obj, mod_hash_algorithm_prehashed);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_hash_algorithm_prehashed_obj, MP_ROM_PTR(&mod_hash_algorithm_prehashed_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_prehashed_obj, mod_hash_algorithm_prehashed);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_hash_algorithm_prehashed_obj, MP_ROM_PTR(&mod_hash_algorithm_prehashed_obj));
 
-STATIC mp_obj_t hash_algorithm_sha1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t hash_algorithm_sha1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
     mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
@@ -2248,21 +2183,21 @@ STATIC mp_obj_t hash_algorithm_sha1_make_new(const mp_obj_type_t *type, size_t n
     return MP_OBJ_FROM_PTR(HashAlgorithm);
 }
 
-STATIC const mp_rom_map_elem_t hash_algorithm_sha1_locals_dict_table[] = {
+static const mp_rom_map_elem_t hash_algorithm_sha1_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_sha1)},
     {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(20)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha1_locals_dict, hash_algorithm_sha1_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hash_algorithm_sha1_locals_dict, hash_algorithm_sha1_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hash_algorithm_sha1_type,
     MP_QSTR_SHA1,
     MP_TYPE_FLAG_NONE,
     make_new, hash_algorithm_sha1_make_new,
     locals_dict, &hash_algorithm_sha1_locals_dict);
 
-STATIC mp_obj_t hash_algorithm_sha256_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t hash_algorithm_sha256_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
     mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
@@ -2271,21 +2206,21 @@ STATIC mp_obj_t hash_algorithm_sha256_make_new(const mp_obj_type_t *type, size_t
     return MP_OBJ_FROM_PTR(HashAlgorithm);
 }
 
-STATIC const mp_rom_map_elem_t hash_algorithm_sha256_locals_dict_table[] = {
+static const mp_rom_map_elem_t hash_algorithm_sha256_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_sha256)},
     {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(32)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha256_locals_dict, hash_algorithm_sha256_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hash_algorithm_sha256_locals_dict, hash_algorithm_sha256_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hash_algorithm_sha256_type,
     MP_QSTR_SHA256,
     MP_TYPE_FLAG_NONE,
     make_new, hash_algorithm_sha256_make_new,
     locals_dict, &hash_algorithm_sha256_locals_dict);
 
-STATIC mp_obj_t hash_algorithm_sha384_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t hash_algorithm_sha384_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
     mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
@@ -2294,21 +2229,21 @@ STATIC mp_obj_t hash_algorithm_sha384_make_new(const mp_obj_type_t *type, size_t
     return MP_OBJ_FROM_PTR(HashAlgorithm);
 }
 
-STATIC const mp_rom_map_elem_t hash_algorithm_sha384_locals_dict_table[] = {
+static const mp_rom_map_elem_t hash_algorithm_sha384_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_sha384)},
     {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(48)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha384_locals_dict, hash_algorithm_sha384_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hash_algorithm_sha384_locals_dict, hash_algorithm_sha384_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hash_algorithm_sha384_type,
     MP_QSTR_SHA384,
     MP_TYPE_FLAG_NONE,
     make_new, hash_algorithm_sha384_make_new,
     locals_dict, &hash_algorithm_sha384_locals_dict);
 
-STATIC mp_obj_t hash_algorithm_sha512_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t hash_algorithm_sha512_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
     mp_hash_algorithm_t *HashAlgorithm = m_new_obj(mp_hash_algorithm_t);
@@ -2317,21 +2252,21 @@ STATIC mp_obj_t hash_algorithm_sha512_make_new(const mp_obj_type_t *type, size_t
     return MP_OBJ_FROM_PTR(HashAlgorithm);
 }
 
-STATIC const mp_rom_map_elem_t hash_algorithm_sha512_locals_dict_table[] = {
+static const mp_rom_map_elem_t hash_algorithm_sha512_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_sha512)},
     {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(64)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hash_algorithm_sha512_locals_dict, hash_algorithm_sha512_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hash_algorithm_sha512_locals_dict, hash_algorithm_sha512_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hash_algorithm_sha512_type,
     MP_QSTR_SHA512,
     MP_TYPE_FLAG_NONE,
     make_new, hash_algorithm_sha512_make_new,
     locals_dict, &hash_algorithm_sha512_locals_dict);
 
-STATIC mp_obj_t hash_algorithm_blake2s_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t hash_algorithm_blake2s_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     mp_int_t digest_size = 32;
@@ -2351,7 +2286,7 @@ STATIC mp_obj_t hash_algorithm_blake2s_make_new(const mp_obj_type_t *type, size_
     return MP_OBJ_FROM_PTR(HashAlgorithm);
 }
 
-STATIC void hash_algorithm_blake2s_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void hash_algorithm_blake2s_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_hash_algorithm_t *self = MP_OBJ_TO_PTR(obj);
     (void)self;
@@ -2373,14 +2308,14 @@ STATIC void hash_algorithm_blake2s_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t hash_algorithm_blake2s_locals_dict_table[] = {
+static const mp_rom_map_elem_t hash_algorithm_blake2s_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_name), MP_ROM_QSTR(MP_QSTR_blake2s)},
     {MP_ROM_QSTR(MP_QSTR_digest_size), MP_ROM_INT(32)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hash_algorithm_blake2s_locals_dict, hash_algorithm_blake2s_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hash_algorithm_blake2s_locals_dict, hash_algorithm_blake2s_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hash_algorithm_blake2s_type,
     MP_QSTR_BLAKE2s,
     MP_TYPE_FLAG_NONE,
@@ -2388,7 +2323,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, hash_algorithm_blake2s_attr,
     locals_dict, &hash_algorithm_blake2s_locals_dict);
 
-STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     if (!mp_obj_is_type(args[0], &hash_algorithm_sha1_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha256_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha384_type) && !mp_obj_is_type(args[0], &hash_algorithm_sha512_type) && !mp_obj_is_type(args[0], &hash_algorithm_blake2s_type))
@@ -2403,7 +2338,7 @@ STATIC mp_obj_t hash_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     return MP_OBJ_FROM_PTR(HashContext);
 }
 
-STATIC mp_obj_t hash_algorithm_update(mp_obj_t obj, mp_obj_t data)
+static mp_obj_t hash_algorithm_update(mp_obj_t obj, mp_obj_t data)
 {
     mp_hash_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
@@ -2419,9 +2354,9 @@ STATIC mp_obj_t hash_algorithm_update(mp_obj_t obj, mp_obj_t data)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_hash_algorithm_update_obj, hash_algorithm_update);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_hash_algorithm_update_obj, hash_algorithm_update);
 
-STATIC mp_obj_t hash_algorithm_copy(mp_obj_t obj)
+static mp_obj_t hash_algorithm_copy(mp_obj_t obj)
 {
     mp_hash_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
@@ -2441,9 +2376,9 @@ STATIC mp_obj_t hash_algorithm_copy(mp_obj_t obj)
     return MP_OBJ_FROM_PTR(HashContext);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_copy_obj, hash_algorithm_copy);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_copy_obj, hash_algorithm_copy);
 
-STATIC mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
+static mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
 {
     mp_hash_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
@@ -2472,9 +2407,9 @@ STATIC mp_obj_t hash_algorithm_finalize(mp_obj_t obj)
     return oo;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_finalize_obj, hash_algorithm_finalize);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_hash_algorithm_finalize_obj, hash_algorithm_finalize);
 
-STATIC void hash_context_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void hash_context_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_hash_context_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -2494,16 +2429,16 @@ STATIC void hash_context_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t hash_context_locals_dict_table[] = {
+static const mp_rom_map_elem_t hash_context_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_algorithm), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mod_hash_algorithm_update_obj)},
     {MP_ROM_QSTR(MP_QSTR_copy), MP_ROM_PTR(&mod_hash_algorithm_copy_obj)},
     {MP_ROM_QSTR(MP_QSTR_finalize), MP_ROM_PTR(&mod_hash_algorithm_finalize_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hash_context_locals_dict, hash_context_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hash_context_locals_dict, hash_context_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hash_context_type,
     MP_QSTR_HashContext,
     MP_TYPE_FLAG_NONE,
@@ -2511,7 +2446,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, hash_context_attr,
     locals_dict, &hash_context_locals_dict);
 
-STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
+static const mp_rom_map_elem_t hashes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_SHA1), MP_ROM_PTR(&hash_algorithm_sha1_type)},
     {MP_ROM_QSTR(MP_QSTR_SHA256), MP_ROM_PTR(&hash_algorithm_sha256_type)},
     {MP_ROM_QSTR(MP_QSTR_SHA384), MP_ROM_PTR(&hash_algorithm_sha384_type)},
@@ -2520,15 +2455,15 @@ STATIC const mp_rom_map_elem_t hashes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_Hash), MP_ROM_PTR(&hash_context_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hashes_locals_dict, hashes_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hashes_locals_dict, hashes_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hashes_type,
     MP_QSTR_hashes,
     MP_TYPE_FLAG_NONE,
     locals_dict, &hashes_locals_dict);
 
-STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 2, 2, false);
     if (!mp_obj_is_type(args[0], &mp_type_bytes))
@@ -2560,7 +2495,7 @@ STATIC mp_obj_t hmac_context_make_new(const mp_obj_type_t *type, size_t n_args, 
     return MP_OBJ_FROM_PTR(HMACContext);
 }
 
-STATIC mp_obj_t hmac_algorithm_update(mp_obj_t obj, mp_obj_t data)
+static mp_obj_t hmac_algorithm_update(mp_obj_t obj, mp_obj_t data)
 {
     mp_hmac_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
@@ -2576,9 +2511,9 @@ STATIC mp_obj_t hmac_algorithm_update(mp_obj_t obj, mp_obj_t data)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_hmac_algorithm_update_obj, hmac_algorithm_update);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_hmac_algorithm_update_obj, hmac_algorithm_update);
 
-STATIC mp_obj_t hmac_algorithm_copy(mp_obj_t obj)
+static mp_obj_t hmac_algorithm_copy(mp_obj_t obj)
 {
     mp_hmac_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
@@ -2597,9 +2532,9 @@ STATIC mp_obj_t hmac_algorithm_copy(mp_obj_t obj)
     return MP_OBJ_FROM_PTR(HMACContext);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hmac_algorithm_copy_obj, hmac_algorithm_copy);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_hmac_algorithm_copy_obj, hmac_algorithm_copy);
 
-STATIC mp_obj_t hmac_algorithm_verify(mp_obj_t obj, mp_obj_t data)
+static mp_obj_t hmac_algorithm_verify(mp_obj_t obj, mp_obj_t data)
 {
     mp_hmac_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
@@ -2613,9 +2548,9 @@ STATIC mp_obj_t hmac_algorithm_verify(mp_obj_t obj, mp_obj_t data)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_hmac_algorithm_verify_obj, hmac_algorithm_verify);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_hmac_algorithm_verify_obj, hmac_algorithm_verify);
 
-STATIC mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
+static mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
 {
     mp_hmac_context_t *self = MP_OBJ_TO_PTR(obj);
     if (self->finalized)
@@ -2684,37 +2619,37 @@ STATIC mp_obj_t hmac_algorithm_finalize(mp_obj_t obj)
     return oo;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_hmac_algorithm_finalize_obj, hmac_algorithm_finalize);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_hmac_algorithm_finalize_obj, hmac_algorithm_finalize);
 
-STATIC const mp_rom_map_elem_t hmac_context_locals_dict_table[] = {
+static const mp_rom_map_elem_t hmac_context_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mod_hmac_algorithm_update_obj)},
     {MP_ROM_QSTR(MP_QSTR_copy), MP_ROM_PTR(&mod_hmac_algorithm_copy_obj)},
     {MP_ROM_QSTR(MP_QSTR_verify), MP_ROM_PTR(&mod_hmac_algorithm_verify_obj)},
     {MP_ROM_QSTR(MP_QSTR_finalize), MP_ROM_PTR(&mod_hmac_algorithm_finalize_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hmac_context_locals_dict, hmac_context_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hmac_context_locals_dict, hmac_context_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hmac_context_type,
     MP_QSTR_HMACContext,
     MP_TYPE_FLAG_NONE,
     make_new, hmac_context_make_new,
     locals_dict, &hmac_context_locals_dict);
 
-STATIC const mp_rom_map_elem_t hmac_locals_dict_table[] = {
+static const mp_rom_map_elem_t hmac_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_HMAC), MP_ROM_PTR(&hmac_context_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(hmac_locals_dict, hmac_locals_dict_table);
+static MP_DEFINE_CONST_DICT(hmac_locals_dict, hmac_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     hmac_type,
     MP_QSTR_hmac,
     MP_TYPE_FLAG_NONE,
     locals_dict, &hmac_locals_dict);
 
-STATIC mp_obj_t x509_public_key(mp_obj_t obj)
+static mp_obj_t x509_public_key(mp_obj_t obj)
 {
     mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
     if (self->ec_public_key != NULL)
@@ -2728,9 +2663,9 @@ STATIC mp_obj_t x509_public_key(mp_obj_t obj)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_public_key_obj, x509_public_key);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_public_key_obj, x509_public_key);
 
-STATIC mp_obj_t x509_public_bytes(size_t n_args, const mp_obj_t *args)
+static mp_obj_t x509_public_bytes(size_t n_args, const mp_obj_t *args)
 {
     mp_x509_certificate_t *self = MP_OBJ_TO_PTR(args[0]);
     if (n_args == 1)
@@ -2751,9 +2686,9 @@ STATIC mp_obj_t x509_public_bytes(size_t n_args, const mp_obj_t *args)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_x509_public_bytes_obj, 1, 2, x509_public_bytes);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_x509_public_bytes_obj, 1, 2, x509_public_bytes);
 
-STATIC void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_x509_certificate_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -2823,7 +2758,7 @@ STATIC void x509_certificate_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t x509_certificate_locals_dict_table[] = {
+static const mp_rom_map_elem_t x509_certificate_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_x509_public_key_obj)},
     {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_INT(0)},
     {MP_ROM_QSTR(MP_QSTR_serial_number), MP_ROM_INT(0)},
@@ -2839,16 +2774,16 @@ STATIC const mp_rom_map_elem_t x509_certificate_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_public_bytes), MP_ROM_PTR(&mod_x509_public_bytes_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(x509_certificate_locals_dict, x509_certificate_locals_dict_table);
+static MP_DEFINE_CONST_DICT(x509_certificate_locals_dict, x509_certificate_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     x509_certificate_type,
     MP_QSTR_Certificate,
     MP_TYPE_FLAG_NONE,
     attr, x509_certificate_attr,
     locals_dict, &x509_certificate_locals_dict);
 
-STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_t *type)
+static mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_t *type)
 {
     vstr_t vstr_oid;
     vstr_init(&vstr_oid, 0);
@@ -2890,7 +2825,7 @@ STATIC mp_obj_t x509_crt_parse_oid(const mbedtls_asn1_buf *o, const mp_obj_type_
     return oo;
 }
 
-STATIC mp_obj_t x509_crt_parse_time(const mbedtls_x509_time *t)
+static mp_obj_t x509_crt_parse_time(const mbedtls_x509_time *t)
 {
     vstr_t vstr_time;
     vstr_init(&vstr_time, 0);
@@ -2900,7 +2835,7 @@ STATIC mp_obj_t x509_crt_parse_time(const mbedtls_x509_time *t)
     return oo;
 }
 
-STATIC mp_obj_t x509_crt_parse_name(const mbedtls_x509_name *dn)
+static mp_obj_t x509_crt_parse_name(const mbedtls_x509_name *dn)
 {
     mp_obj_t rdn_dict = mp_obj_new_dict(0);
     const char *short_name = NULL;
@@ -2928,7 +2863,7 @@ STATIC mp_obj_t x509_crt_parse_name(const mbedtls_x509_name *dn)
     return rdn_dict;
 }
 
-STATIC mp_obj_t x509_crt_parse_ext_key_usage(const mbedtls_x509_sequence *extended_key_usage)
+static mp_obj_t x509_crt_parse_ext_key_usage(const mbedtls_x509_sequence *extended_key_usage)
 {
     const mbedtls_x509_sequence *cur = extended_key_usage;
     const char *desc = NULL;
@@ -2946,7 +2881,7 @@ STATIC mp_obj_t x509_crt_parse_ext_key_usage(const mbedtls_x509_sequence *extend
     return ext_key_usage;
 }
 
-STATIC mp_obj_t x509_crt_parse_key_usage(const unsigned int ku)
+static mp_obj_t x509_crt_parse_key_usage(const unsigned int ku)
 {
     mp_obj_t key_usage = mp_obj_new_dict(0);
     mp_obj_dict_store(key_usage, MP_ROM_QSTR(MP_QSTR_digital_signature), mp_obj_new_bool(ku & MBEDTLS_X509_KU_DIGITAL_SIGNATURE));
@@ -2961,7 +2896,7 @@ STATIC mp_obj_t x509_crt_parse_key_usage(const unsigned int ku)
     return key_usage;
 }
 
-STATIC void x509_crt_dump(const mbedtls_x509_crt *crt)
+static void x509_crt_dump(const mbedtls_x509_crt *crt)
 {
     vstr_t vstr_crt;
     vstr_init_len(&vstr_crt, crt->raw.len);
@@ -2970,7 +2905,7 @@ STATIC void x509_crt_dump(const mbedtls_x509_crt *crt)
     vstr_clear(&vstr_crt);
 }
 
-STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
+static mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
 {
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(certificate, &bufinfo, MP_BUFFER_READ);
@@ -3084,23 +3019,23 @@ STATIC mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
     return Certificate;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_crt_parse_der_obj, x509_crt_parse_der);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_x509_crt_parse_der_obj, MP_ROM_PTR(&mod_x509_crt_parse_der_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_crt_parse_der_obj, x509_crt_parse_der);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_x509_crt_parse_der_obj, MP_ROM_PTR(&mod_x509_crt_parse_der_obj));
 
-STATIC const mp_rom_map_elem_t x509_locals_dict_table[] = {
+static const mp_rom_map_elem_t x509_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_load_der_x509_certificate), MP_ROM_PTR(&mod_static_x509_crt_parse_der_obj)},
     {MP_ROM_QSTR(MP_QSTR_Certificate), MP_ROM_PTR(&x509_certificate_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(x509_locals_dict, x509_locals_dict_table);
+static MP_DEFINE_CONST_DICT(x509_locals_dict, x509_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     x509_type,
     MP_QSTR_x509,
     MP_TYPE_FLAG_NONE,
     locals_dict, &x509_locals_dict);
 
-STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
+static mp_obj_t pk_parse_public_key(mp_obj_t public_key)
 {
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(public_key, &bufinfo, MP_BUFFER_READ);
@@ -3134,10 +3069,10 @@ STATIC mp_obj_t pk_parse_public_key(mp_obj_t public_key)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_pk_parse_public_key_obj, pk_parse_public_key);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_pk_parse_public_key_obj, MP_ROM_PTR(&mod_pk_parse_public_key_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_pk_parse_public_key_obj, pk_parse_public_key);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_pk_parse_public_key_obj, MP_ROM_PTR(&mod_pk_parse_public_key_obj));
 
-STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
+static mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
 {
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(private_key, &bufinfo, MP_BUFFER_READ);
@@ -3174,37 +3109,37 @@ STATIC mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_pk_parse_key_obj, pk_parse_key);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_pk_parse_key_obj, MP_ROM_PTR(&mod_pk_parse_key_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_pk_parse_key_obj, pk_parse_key);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_pk_parse_key_obj, MP_ROM_PTR(&mod_pk_parse_key_obj));
 
-STATIC const mp_rom_map_elem_t encoding_locals_dict_table[] = {
+static const mp_rom_map_elem_t encoding_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_DER), MP_ROM_INT(1)},
     {MP_ROM_QSTR(MP_QSTR_PEM), MP_ROM_INT(2)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(encoding_locals_dict, encoding_locals_dict_table);
+static MP_DEFINE_CONST_DICT(encoding_locals_dict, encoding_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     encoding_type,
     MP_QSTR_Encoding,
     MP_TYPE_FLAG_NONE,
     locals_dict, &encoding_locals_dict);
 
-STATIC const mp_rom_map_elem_t serialization_locals_dict_table[] = {
+static const mp_rom_map_elem_t serialization_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_load_der_public_key), MP_ROM_PTR(&mod_static_pk_parse_public_key_obj)},
     {MP_ROM_QSTR(MP_QSTR_load_der_private_key), MP_ROM_PTR(&mod_static_pk_parse_key_obj)},
     {MP_ROM_QSTR(MP_QSTR_Encoding), MP_ROM_PTR(&encoding_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(serialization_locals_dict, serialization_locals_dict_table);
+static MP_DEFINE_CONST_DICT(serialization_locals_dict, serialization_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     serialization_type,
     MP_QSTR_serialization,
     MP_TYPE_FLAG_NONE,
     locals_dict, &serialization_locals_dict);
 
-STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
+static mp_obj_t ec_generate_private_key(mp_obj_t curve)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -3212,10 +3147,10 @@ STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
 #endif
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
     if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP384R1_ENABLED
         && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type)
 #endif
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP521R1_ENABLED
         && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type)
 #endif
     )
@@ -3236,10 +3171,10 @@ STATIC mp_obj_t ec_generate_private_key(mp_obj_t curve)
     return priv_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_generate_private_key_obj, ec_generate_private_key);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_generate_private_key_obj, MP_ROM_PTR(&mod_ec_generate_private_key_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ec_generate_private_key_obj, ec_generate_private_key);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_generate_private_key_obj, MP_ROM_PTR(&mod_ec_generate_private_key_obj));
 
-STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
+static mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -3252,10 +3187,10 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
 
     mp_ec_curve_t *EllipticCurve = MP_OBJ_TO_PTR(curve);
     if (!mp_obj_is_type(EllipticCurve, &ec_curve_secp256r1_type)
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP384R1_ENABLED
         && !mp_obj_is_type(EllipticCurve, &ec_curve_secp384r1_type)
 #endif
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP521R1_ENABLED
         && !mp_obj_is_type(EllipticCurve, &ec_curve_secp521r1_type)
 #endif
     )
@@ -3289,17 +3224,17 @@ STATIC mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
     return priv_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_derive_private_key_obj, ec_derive_private_key);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_derive_private_key_obj, MP_ROM_PTR(&mod_ec_derive_private_key_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_ec_derive_private_key_obj, ec_derive_private_key);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ec_derive_private_key_obj, MP_ROM_PTR(&mod_ec_derive_private_key_obj));
 
-STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
+static const mp_rom_map_elem_t ec_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_ECDH), MP_ROM_PTR(&ec_ecdh_type)},
     {MP_ROM_QSTR(MP_QSTR_ECDSA), MP_ROM_PTR(&ec_ecdsa_type)},
     {MP_ROM_QSTR(MP_QSTR_SECP256R1), MP_ROM_PTR(&ec_curve_secp256r1_type)},
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP384R1_ENABLED
     {MP_ROM_QSTR(MP_QSTR_SECP384R1), MP_ROM_PTR(&ec_curve_secp384r1_type)},
 #endif
-#if defined(MBEDTLS_ECP_DP_SECP521R1_ENABLED)
+#ifdef MBEDTLS_ECP_DP_SECP521R1_ENABLED
     {MP_ROM_QSTR(MP_QSTR_SECP521R1), MP_ROM_PTR(&ec_curve_secp521r1_type)},
 #endif
     {MP_ROM_QSTR(MP_QSTR_EllipticCurvePublicKey), MP_ROM_PTR(&ec_public_key_type)},
@@ -3310,27 +3245,27 @@ STATIC const mp_rom_map_elem_t ec_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_derive_private_key), MP_ROM_PTR(&mod_static_ec_derive_private_key_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ec_locals_dict, ec_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ec_locals_dict, ec_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ec_type,
     MP_QSTR_ec,
     MP_TYPE_FLAG_NONE,
     locals_dict, &ec_locals_dict);
 
-STATIC const mp_rom_map_elem_t padding_pkcs1v15_locals_dict_table[] = {
+static const mp_rom_map_elem_t padding_pkcs1v15_locals_dict_table[] = {
 
 };
 
-STATIC MP_DEFINE_CONST_DICT(padding_pkcs1v15_locals_dict, padding_pkcs1v15_locals_dict_table);
+static MP_DEFINE_CONST_DICT(padding_pkcs1v15_locals_dict, padding_pkcs1v15_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     padding_pkcs1v15_type,
     MP_QSTR_PKCS1V15,
     MP_TYPE_FLAG_NONE,
     locals_dict, &padding_pkcs1v15_locals_dict);
 
-STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t hash_algorithm)
+static mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t hash_algorithm)
 {
     if (!mp_obj_is_type(key, &rsa_public_key_type) && !mp_obj_is_type(key, &rsa_private_key_type))
     {
@@ -3365,10 +3300,10 @@ STATIC mp_obj_t padding_calculate_max_pss_salt_length(mp_obj_t key, mp_obj_t has
     return mp_obj_new_int(salt_length);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_padding_calculate_max_pss_salt_length_obj, padding_calculate_max_pss_salt_length);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_calculate_max_pss_salt_length_obj, MP_ROM_PTR(&mod_padding_calculate_max_pss_salt_length_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_padding_calculate_max_pss_salt_length_obj, padding_calculate_max_pss_salt_length);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_calculate_max_pss_salt_length_obj, MP_ROM_PTR(&mod_padding_calculate_max_pss_salt_length_obj));
 
-STATIC mp_obj_t padding_pss_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+static mp_obj_t padding_pss_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 2, true);
     enum
@@ -3405,7 +3340,7 @@ STATIC mp_obj_t padding_pss_make_new(const mp_obj_type_t *type, size_t n_args, s
     return MP_OBJ_FROM_PTR(PADDING_PSS);
 }
 
-STATIC void padding_pss_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void padding_pss_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_padding_pss_t *self = MP_OBJ_TO_PTR(obj);
     (void)self;
@@ -3427,13 +3362,13 @@ STATIC void padding_pss_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t padding_pss_locals_dict_table[] = {
+static const mp_rom_map_elem_t padding_pss_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_MAX_LENGTH), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(padding_pss_locals_dict, padding_pss_locals_dict_table);
+static MP_DEFINE_CONST_DICT(padding_pss_locals_dict, padding_pss_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     padding_pss_type,
     MP_QSTR_PSS,
     MP_TYPE_FLAG_NONE,
@@ -3441,7 +3376,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, padding_pss_attr,
     locals_dict, &padding_pss_locals_dict);
 
-STATIC mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+static mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 3, true);
     enum
@@ -3498,32 +3433,32 @@ STATIC mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, 
     return MP_OBJ_FROM_PTR(PADDING_OAEP);
 }
 
-STATIC const mp_rom_map_elem_t padding_oaep_locals_dict_table[] = {
+static const mp_rom_map_elem_t padding_oaep_locals_dict_table[] = {
 
 };
 
-STATIC MP_DEFINE_CONST_DICT(padding_oaep_locals_dict, padding_oaep_locals_dict_table);
+static MP_DEFINE_CONST_DICT(padding_oaep_locals_dict, padding_oaep_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     padding_oaep_type,
     MP_QSTR_OAEP,
     MP_TYPE_FLAG_NONE,
     make_new, padding_oaep_make_new,
     locals_dict, &padding_oaep_locals_dict);
 
-STATIC const mp_rom_map_elem_t padding_mgf1_locals_dict_table[] = {
+static const mp_rom_map_elem_t padding_mgf1_locals_dict_table[] = {
 
 };
 
-STATIC MP_DEFINE_CONST_DICT(padding_mgf1_locals_dict, padding_mgf1_locals_dict_table);
+static MP_DEFINE_CONST_DICT(padding_mgf1_locals_dict, padding_mgf1_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     padding_mgf1_type,
     MP_QSTR_MGF1,
     MP_TYPE_FLAG_NONE,
     locals_dict, &padding_mgf1_locals_dict);
 
-STATIC mp_obj_t padding_pkcs1v15(void)
+static mp_obj_t padding_pkcs1v15(void)
 {
     mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = m_new_obj(mp_padding_pkcs1v15_t);
     PADDING_PKCS1V15->base.type = &padding_pkcs1v15_type;
@@ -3532,10 +3467,10 @@ STATIC mp_obj_t padding_pkcs1v15(void)
     return MP_OBJ_FROM_PTR(PADDING_PKCS1V15);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_padding_pkcs1v15_obj, padding_pkcs1v15);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_pkcs1v15_obj, MP_ROM_PTR(&mod_padding_pkcs1v15_obj));
+static MP_DEFINE_CONST_FUN_OBJ_0(mod_padding_pkcs1v15_obj, padding_pkcs1v15);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_pkcs1v15_obj, MP_ROM_PTR(&mod_padding_pkcs1v15_obj));
 
-STATIC mp_obj_t padding_mgf1(mp_obj_t algorithm)
+static mp_obj_t padding_mgf1(mp_obj_t algorithm)
 {
     if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
     {
@@ -3558,10 +3493,10 @@ STATIC mp_obj_t padding_mgf1(mp_obj_t algorithm)
     return MP_OBJ_FROM_PTR(PADDING_MGF1);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_padding_mgf1_obj, padding_mgf1);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_mgf1_obj, MP_ROM_PTR(&mod_padding_mgf1_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_padding_mgf1_obj, padding_mgf1);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_padding_mgf1_obj, MP_ROM_PTR(&mod_padding_mgf1_obj));
 
-STATIC const mp_rom_map_elem_t padding_locals_dict_table[] = {
+static const mp_rom_map_elem_t padding_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_PKCS1v15), MP_ROM_PTR(&mod_static_padding_pkcs1v15_obj)},
     {MP_ROM_QSTR(MP_QSTR_PSS), MP_ROM_PTR(&padding_pss_type)},
     {MP_ROM_QSTR(MP_QSTR_OAEP), MP_ROM_PTR(&padding_oaep_type)},
@@ -3569,15 +3504,15 @@ STATIC const mp_rom_map_elem_t padding_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_calculate_max_pss_salt_length), MP_ROM_PTR(&mod_static_padding_calculate_max_pss_salt_length_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(padding_locals_dict, padding_locals_dict_table);
+static MP_DEFINE_CONST_DICT(padding_locals_dict, padding_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     padding_type,
     MP_QSTR_padding,
     MP_TYPE_FLAG_NONE,
     locals_dict, &padding_locals_dict);
 
-STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
+static mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
 {
     mp_obj_t signature = args[1];
     mp_buffer_info_t bufinfo_signature;
@@ -3700,9 +3635,9 @@ STATIC mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_verify_obj, 5, 5, rsa_verify);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_verify_obj, 5, 5, rsa_verify);
 
-STATIC mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
+static mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -3771,17 +3706,17 @@ STATIC mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
     return enc;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_encrypt_obj, 3, 3, rsa_encrypt);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_encrypt_obj, 3, 3, rsa_encrypt);
 
-STATIC mp_obj_t rsa_public_numbers(mp_obj_t obj)
+static mp_obj_t rsa_public_numbers(mp_obj_t obj)
 {
     mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->public_numbers;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_numbers_obj, rsa_public_numbers);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_numbers_obj, rsa_public_numbers);
 
-STATIC mp_obj_t rsa_public_bytes(size_t n_args, const mp_obj_t *args)
+static mp_obj_t rsa_public_bytes(size_t n_args, const mp_obj_t *args)
 {
     mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
     if (n_args == 2 && mp_obj_get_int(args[1]) == SERIALIZATION_ENCODING_PEM)
@@ -3791,9 +3726,9 @@ STATIC mp_obj_t rsa_public_bytes(size_t n_args, const mp_obj_t *args)
     return self->public_bytes;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_public_bytes_obj, 1, 2, rsa_public_bytes);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_public_bytes_obj, 1, 2, rsa_public_bytes);
 
-STATIC void rsa_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void rsa_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(obj);
     (void)self;
@@ -3815,7 +3750,7 @@ STATIC void rsa_public_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t rsa_public_key_locals_dict_table[] = {
+static const mp_rom_map_elem_t rsa_public_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(&mod_rsa_public_numbers_obj)},
     {MP_ROM_QSTR(MP_QSTR_public_bytes), MP_ROM_PTR(&mod_rsa_public_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_verify), MP_OBJ_FROM_PTR(&mod_rsa_verify_obj)},
@@ -3823,16 +3758,16 @@ STATIC const mp_rom_map_elem_t rsa_public_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(rsa_public_key_locals_dict, rsa_public_key_locals_dict_table);
+static MP_DEFINE_CONST_DICT(rsa_public_key_locals_dict, rsa_public_key_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     rsa_public_key_type,
     MP_QSTR_RSAPublicKey,
     MP_TYPE_FLAG_NONE,
     attr, rsa_public_key_attr,
     locals_dict, &rsa_public_key_locals_dict);
 
-STATIC mp_obj_t rsa_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t rsa_public_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 2, 2, true);
     mp_obj_t e = args[0];
@@ -3880,15 +3815,15 @@ STATIC mp_obj_t rsa_public_numbers_make_new(const mp_obj_type_t *type, size_t n_
     return public_numbers;
 }
 
-STATIC mp_obj_t rsa_public_numbers_public_key(mp_obj_t obj)
+static mp_obj_t rsa_public_numbers_public_key(mp_obj_t obj)
 {
     mp_rsa_public_numbers_t *self = MP_OBJ_TO_PTR(obj);
     return self->public_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_numbers_public_key_obj, rsa_public_numbers_public_key);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_numbers_public_key_obj, rsa_public_numbers_public_key);
 
-STATIC void rsa_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void rsa_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_rsa_public_numbers_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -3913,15 +3848,15 @@ STATIC void rsa_public_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t rsa_public_numbers_locals_dict_table[] = {
+static const mp_rom_map_elem_t rsa_public_numbers_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_n), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_e), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_rsa_public_numbers_public_key_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(rsa_public_numbers_locals_dict, rsa_public_numbers_locals_dict_table);
+static MP_DEFINE_CONST_DICT(rsa_public_numbers_locals_dict, rsa_public_numbers_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     rsa_public_numbers_type,
     MP_QSTR_RSAPublicNumbers,
     MP_TYPE_FLAG_NONE,
@@ -3929,15 +3864,15 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, rsa_public_numbers_attr,
     locals_dict, &rsa_public_numbers_locals_dict);
 
-STATIC mp_obj_t rsa_private_numbers(mp_obj_t obj)
+static mp_obj_t rsa_private_numbers(mp_obj_t obj)
 {
     mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->private_numbers;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_private_numbers_obj, rsa_private_numbers);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_private_numbers_obj, rsa_private_numbers);
 
-STATIC mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
+static mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -4043,9 +3978,9 @@ STATIC mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
     return decrypt;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_decrypt_obj, 3, 3, rsa_decrypt);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_decrypt_obj, 3, 3, rsa_decrypt);
 
-STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
+static mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -4207,9 +4142,9 @@ STATIC mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     return sign;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_sign_obj, 4, 4, rsa_sign);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_sign_obj, 4, 4, rsa_sign);
 
-STATIC mp_obj_t rsa_private_bytes(size_t n_args, const mp_obj_t *args)
+static mp_obj_t rsa_private_bytes(size_t n_args, const mp_obj_t *args)
 {
     mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
     if (n_args == 2 && mp_obj_get_int(args[1]) == SERIALIZATION_ENCODING_PEM)
@@ -4219,17 +4154,17 @@ STATIC mp_obj_t rsa_private_bytes(size_t n_args, const mp_obj_t *args)
     return self->private_bytes;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_private_bytes_obj, 1, 2, rsa_private_bytes);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_rsa_private_bytes_obj, 1, 2, rsa_private_bytes);
 
-STATIC mp_obj_t rsa_public_key(mp_obj_t obj)
+static mp_obj_t rsa_public_key(mp_obj_t obj)
 {
     mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->public_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_key_obj, rsa_public_key);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_public_key_obj, rsa_public_key);
 
-STATIC void rsa_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void rsa_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(obj);
     (void)self;
@@ -4250,7 +4185,7 @@ STATIC void rsa_private_key_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t rsa_private_key_locals_dict_table[] = {
+static const mp_rom_map_elem_t rsa_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_private_numbers), MP_ROM_PTR(&mod_rsa_private_numbers_obj)},
     {MP_ROM_QSTR(MP_QSTR_decrypt), MP_ROM_PTR(&mod_rsa_decrypt_obj)},
     {MP_ROM_QSTR(MP_QSTR_sign), MP_ROM_PTR(&mod_rsa_sign_obj)},
@@ -4259,16 +4194,16 @@ STATIC const mp_rom_map_elem_t rsa_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_key_size), MP_ROM_INT(0)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(rsa_private_key_locals_dict, rsa_private_key_locals_dict_table);
+static MP_DEFINE_CONST_DICT(rsa_private_key_locals_dict, rsa_private_key_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     rsa_private_key_type,
     MP_QSTR_RSAPrivateKey,
     MP_TYPE_FLAG_NONE,
     attr, rsa_private_key_attr,
     locals_dict, &rsa_private_key_locals_dict);
 
-STATIC mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+static mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
     mp_arg_check_num(n_args, n_kw, 7, 7, true);
     enum
@@ -4401,15 +4336,15 @@ STATIC mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n
     return private_numbers;
 }
 
-STATIC mp_obj_t rsa_private_numbers_private_key(mp_obj_t obj)
+static mp_obj_t rsa_private_numbers_private_key(mp_obj_t obj)
 {
     mp_rsa_private_numbers_t *self = MP_OBJ_TO_PTR(obj);
     return self->private_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_private_numbers_private_key_obj, rsa_private_numbers_private_key);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_rsa_private_numbers_private_key_obj, rsa_private_numbers_private_key);
 
-STATIC void rsa_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void rsa_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_rsa_private_numbers_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -4459,7 +4394,7 @@ STATIC void rsa_private_numbers_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t rsa_private_numbers_locals_dict_table[] = {
+static const mp_rom_map_elem_t rsa_private_numbers_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_public_numbers), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_p), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_q), MP_ROM_PTR(mp_const_none)},
@@ -4470,9 +4405,9 @@ STATIC const mp_rom_map_elem_t rsa_private_numbers_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_private_key), MP_ROM_PTR(&mod_rsa_private_numbers_private_key_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(rsa_private_numbers_locals_dict, rsa_private_numbers_locals_dict_table);
+static MP_DEFINE_CONST_DICT(rsa_private_numbers_locals_dict, rsa_private_numbers_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     rsa_private_numbers_type,
     MP_QSTR_RSAPrivateNumbers,
     MP_TYPE_FLAG_NONE,
@@ -4480,7 +4415,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, rsa_private_numbers_attr,
     locals_dict, &rsa_private_numbers_locals_dict);
 
-STATIC mp_obj_t rsa_crt_iqmp(mp_obj_t p, mp_obj_t q)
+static mp_obj_t rsa_crt_iqmp(mp_obj_t p, mp_obj_t q)
 {
     mbedtls_mpi P;
     mbedtls_mpi_init(&P);
@@ -4510,10 +4445,10 @@ STATIC mp_obj_t rsa_crt_iqmp(mp_obj_t p, mp_obj_t q)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_iqmp_obj, rsa_crt_iqmp);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_iqmp_obj, MP_ROM_PTR(&mod_rsa_crt_iqmp_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_iqmp_obj, rsa_crt_iqmp);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_iqmp_obj, MP_ROM_PTR(&mod_rsa_crt_iqmp_obj));
 
-STATIC mp_obj_t rsa_crt_dmp1(mp_obj_t d, mp_obj_t p)
+static mp_obj_t rsa_crt_dmp1(mp_obj_t d, mp_obj_t p)
 {
     mbedtls_mpi D;
     mbedtls_mpi_init(&D);
@@ -4547,10 +4482,10 @@ STATIC mp_obj_t rsa_crt_dmp1(mp_obj_t d, mp_obj_t p)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_dmp1_obj, rsa_crt_dmp1);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_dmp1_obj, MP_ROM_PTR(&mod_rsa_crt_dmp1_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_dmp1_obj, rsa_crt_dmp1);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_dmp1_obj, MP_ROM_PTR(&mod_rsa_crt_dmp1_obj));
 
-STATIC mp_obj_t rsa_crt_dmq1(mp_obj_t d, mp_obj_t q)
+static mp_obj_t rsa_crt_dmq1(mp_obj_t d, mp_obj_t q)
 {
     mbedtls_mpi D;
     mbedtls_mpi_init(&D);
@@ -4584,10 +4519,10 @@ STATIC mp_obj_t rsa_crt_dmq1(mp_obj_t d, mp_obj_t q)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_dmq1_obj, rsa_crt_dmq1);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_dmq1_obj, MP_ROM_PTR(&mod_rsa_crt_dmq1_obj));
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_rsa_crt_dmq1_obj, rsa_crt_dmq1);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_crt_dmq1_obj, MP_ROM_PTR(&mod_rsa_crt_dmq1_obj));
 
-STATIC mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
+static mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
 {
     mbedtls_mpi N;
     mbedtls_mpi_init(&N);
@@ -4624,10 +4559,10 @@ STATIC mp_obj_t rsa_recover_prime_factors(mp_obj_t n, mp_obj_t e, mp_obj_t d)
     return recover_prime_factor;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_rsa_recover_prime_factors_obj, rsa_recover_prime_factors);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_recover_prime_factors_obj, MP_ROM_PTR(&mod_rsa_recover_prime_factors_obj));
+static MP_DEFINE_CONST_FUN_OBJ_3(mod_rsa_recover_prime_factors_obj, rsa_recover_prime_factors);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_recover_prime_factors_obj, MP_ROM_PTR(&mod_rsa_recover_prime_factors_obj));
 
-STATIC mp_obj_t rsa_generate_private_key(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
+static mp_obj_t rsa_generate_private_key(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -4663,10 +4598,10 @@ STATIC mp_obj_t rsa_generate_private_key(size_t n_args, const mp_obj_t *args, mp
     return priv_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_rsa_generate_private_key_obj, 0, rsa_generate_private_key);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_generate_private_key_obj, MP_ROM_PTR(&mod_rsa_generate_private_key_obj));
+static MP_DEFINE_CONST_FUN_OBJ_KW(mod_rsa_generate_private_key_obj, 0, rsa_generate_private_key);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_generate_private_key_obj, MP_ROM_PTR(&mod_rsa_generate_private_key_obj));
 
-STATIC const mp_rom_map_elem_t rsa_locals_dict_table[] = {
+static const mp_rom_map_elem_t rsa_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_RSAPublicKey), MP_ROM_PTR(&rsa_public_key_type)},
     {MP_ROM_QSTR(MP_QSTR_RSAPublicNumbers), MP_ROM_PTR(&rsa_public_numbers_type)},
     {MP_ROM_QSTR(MP_QSTR_RSAPrivateKey), MP_ROM_PTR(&rsa_private_key_type)},
@@ -4678,15 +4613,15 @@ STATIC const mp_rom_map_elem_t rsa_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_generate_private_key), MP_ROM_PTR(&mod_static_rsa_generate_private_key_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(rsa_locals_dict, rsa_locals_dict_table);
+static MP_DEFINE_CONST_DICT(rsa_locals_dict, rsa_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     rsa_type,
     MP_QSTR_rsa,
     MP_TYPE_FLAG_NONE,
     locals_dict, &rsa_locals_dict);
 
-STATIC mp_obj_t ed25519_private_key_from_private_bytes(mp_obj_t data)
+static mp_obj_t ed25519_private_key_from_private_bytes(mp_obj_t data)
 {
 #if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
     mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
@@ -4719,10 +4654,10 @@ STATIC mp_obj_t ed25519_private_key_from_private_bytes(mp_obj_t data)
 #endif
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_private_key_from_private_bytes_obj, ed25519_private_key_from_private_bytes);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_private_key_from_private_bytes_obj, MP_ROM_PTR(&mod_ed25519_private_key_from_private_bytes_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_private_key_from_private_bytes_obj, ed25519_private_key_from_private_bytes);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_private_key_from_private_bytes_obj, MP_ROM_PTR(&mod_ed25519_private_key_from_private_bytes_obj));
 
-STATIC mp_obj_t ed25519_private_key_generate(void)
+static mp_obj_t ed25519_private_key_generate(void)
 {
 #if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
     mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
@@ -4740,26 +4675,26 @@ STATIC mp_obj_t ed25519_private_key_generate(void)
 #endif
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(mod_ed25519_private_key_generate_obj, ed25519_private_key_generate);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_private_key_generate_obj, MP_ROM_PTR(&mod_ed25519_private_key_generate_obj));
+static MP_DEFINE_CONST_FUN_OBJ_0(mod_ed25519_private_key_generate_obj, ed25519_private_key_generate);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_private_key_generate_obj, MP_ROM_PTR(&mod_ed25519_private_key_generate_obj));
 
-STATIC mp_obj_t ed25519_private_key_public_key(mp_obj_t obj)
+static mp_obj_t ed25519_private_key_public_key(mp_obj_t obj)
 {
     mp_ed25519_private_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->public_key;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_private_key_public_key_obj, ed25519_private_key_public_key);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_private_key_public_key_obj, ed25519_private_key_public_key);
 
-STATIC mp_obj_t ed25519_private_key_private_bytes(mp_obj_t obj)
+static mp_obj_t ed25519_private_key_private_bytes(mp_obj_t obj)
 {
     mp_ed25519_private_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->private_bytes;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_private_key_private_bytes_obj, ed25519_private_key_private_bytes);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_private_key_private_bytes_obj, ed25519_private_key_private_bytes);
 
-STATIC mp_obj_t ed25519_private_key_sign(mp_obj_t obj, mp_obj_t data)
+static mp_obj_t ed25519_private_key_sign(mp_obj_t obj, mp_obj_t data)
 {
 #if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
     mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
@@ -4787,9 +4722,9 @@ STATIC mp_obj_t ed25519_private_key_sign(mp_obj_t obj, mp_obj_t data)
 #endif
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_ed25519_private_key_sign_obj, ed25519_private_key_sign);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_ed25519_private_key_sign_obj, ed25519_private_key_sign);
 
-STATIC const mp_rom_map_elem_t ed25519_private_key_locals_dict_table[] = {
+static const mp_rom_map_elem_t ed25519_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_generate), MP_ROM_PTR(&mod_static_ed25519_private_key_generate_obj)},
     {MP_ROM_QSTR(MP_QSTR_from_private_bytes), MP_ROM_PTR(&mod_static_ed25519_private_key_from_private_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_public_key), MP_ROM_PTR(&mod_ed25519_private_key_public_key_obj)},
@@ -4797,15 +4732,15 @@ STATIC const mp_rom_map_elem_t ed25519_private_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_sign), MP_ROM_PTR(&mod_ed25519_private_key_sign_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ed25519_private_key_locals_dict, ed25519_private_key_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ed25519_private_key_locals_dict, ed25519_private_key_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ed25519_private_key_type,
     MP_QSTR_Ed25519PrivateKey,
     MP_TYPE_FLAG_NONE,
     locals_dict, &ed25519_private_key_locals_dict);
 
-STATIC mp_obj_t ed25519_public_key_from_public_bytes(mp_obj_t data)
+static mp_obj_t ed25519_public_key_from_public_bytes(mp_obj_t data)
 {
 #if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
     mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
@@ -4826,18 +4761,18 @@ STATIC mp_obj_t ed25519_public_key_from_public_bytes(mp_obj_t data)
 #endif
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_public_key_from_public_bytes_obj, ed25519_public_key_from_public_bytes);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_public_key_from_public_bytes_obj, MP_ROM_PTR(&mod_ed25519_public_key_from_public_bytes_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_public_key_from_public_bytes_obj, ed25519_public_key_from_public_bytes);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_ed25519_public_key_from_public_bytes_obj, MP_ROM_PTR(&mod_ed25519_public_key_from_public_bytes_obj));
 
-STATIC mp_obj_t ed25519_public_key_public_bytes(mp_obj_t obj)
+static mp_obj_t ed25519_public_key_public_bytes(mp_obj_t obj)
 {
     mp_ed25519_public_key_t *self = MP_OBJ_TO_PTR(obj);
     return self->public_bytes;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_public_key_public_bytes_obj, ed25519_public_key_public_bytes);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_ed25519_public_key_public_bytes_obj, ed25519_public_key_public_bytes);
 
-STATIC mp_obj_t ed25519_public_key_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t data)
+static mp_obj_t ed25519_public_key_verify(mp_obj_t obj, mp_obj_t signature, mp_obj_t data)
 {
 #if !defined(MICROPY_PY_UCRYPTOGRAPHY_ED25519)
     mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("ed25519 is not supported"));
@@ -4863,36 +4798,36 @@ STATIC mp_obj_t ed25519_public_key_verify(mp_obj_t obj, mp_obj_t signature, mp_o
 #endif
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_ed25519_public_key_verify_obj, ed25519_public_key_verify);
+static MP_DEFINE_CONST_FUN_OBJ_3(mod_ed25519_public_key_verify_obj, ed25519_public_key_verify);
 
-STATIC const mp_rom_map_elem_t ed25519_public_key_locals_dict_table[] = {
+static const mp_rom_map_elem_t ed25519_public_key_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_from_public_bytes), MP_ROM_PTR(&mod_static_ed25519_public_key_from_public_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_public_bytes), MP_ROM_PTR(&mod_ed25519_public_key_public_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_verify), MP_ROM_PTR(&mod_ed25519_public_key_verify_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ed25519_public_key_locals_dict, ed25519_public_key_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ed25519_public_key_locals_dict, ed25519_public_key_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ed25519_public_key_type,
     MP_QSTR_Ed25519PublicKey,
     MP_TYPE_FLAG_NONE,
     locals_dict, &ed25519_public_key_locals_dict);
 
-STATIC const mp_rom_map_elem_t ed25519_locals_dict_table[] = {
+static const mp_rom_map_elem_t ed25519_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_Ed25519PrivateKey), MP_ROM_PTR(&ed25519_private_key_type)},
     {MP_ROM_QSTR(MP_QSTR_Ed25519PublicKey), MP_ROM_PTR(&ed25519_public_key_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ed25519_locals_dict, ed25519_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ed25519_locals_dict, ed25519_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ed25519_type,
     MP_QSTR_ed25519,
     MP_TYPE_FLAG_NONE,
     locals_dict, &ed25519_locals_dict);
 
-STATIC const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
+static const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_InvalidSignature), MP_ROM_PTR(&mp_type_InvalidSignature)},
     {MP_ROM_QSTR(MP_QSTR_AlreadyFinalized), MP_ROM_PTR(&mp_type_AlreadyFinalized)},
     {MP_ROM_QSTR(MP_QSTR_UnsupportedAlgorithm), MP_ROM_PTR(&mp_type_UnsupportedAlgorithm)},
@@ -4900,15 +4835,15 @@ STATIC const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_InvalidToken), MP_ROM_PTR(&mp_type_InvalidToken)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(exceptions_locals_dict, exceptions_locals_dict_table);
+static MP_DEFINE_CONST_DICT(exceptions_locals_dict, exceptions_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     exceptions_type,
     MP_QSTR_exceptions,
     MP_TYPE_FLAG_NONE,
     locals_dict, &exceptions_locals_dict);
 
-STATIC mp_obj_t aesgcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t aesgcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     mp_obj_t key = args[0];
@@ -4924,7 +4859,7 @@ STATIC mp_obj_t aesgcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t
     return MP_OBJ_FROM_PTR(AESGCM);
 }
 
-STATIC mp_obj_t aesgcm_generate_key(mp_obj_t bit_length)
+static mp_obj_t aesgcm_generate_key(mp_obj_t bit_length)
 {
 #if !defined(__thumb2__) && !defined(__thumb__) && !defined(__arm__)
     time_t t;
@@ -4950,10 +4885,10 @@ STATIC mp_obj_t aesgcm_generate_key(mp_obj_t bit_length)
     return oo;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_aesgcm_generate_key_obj, aesgcm_generate_key);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_aesgcm_generate_key_obj, MP_ROM_PTR(&mod_aesgcm_generate_key_obj));
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_aesgcm_generate_key_obj, aesgcm_generate_key);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_aesgcm_generate_key_obj, MP_ROM_PTR(&mod_aesgcm_generate_key_obj));
 
-STATIC mp_obj_t aesgcm_encrypt(size_t n_args, const mp_obj_t *args)
+static mp_obj_t aesgcm_encrypt(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
 
@@ -4992,9 +4927,9 @@ STATIC mp_obj_t aesgcm_encrypt(size_t n_args, const mp_obj_t *args)
     return oo;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_aesgcm_encrypt_obj, 4, 4, aesgcm_encrypt);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_aesgcm_encrypt_obj, 4, 4, aesgcm_encrypt);
 
-STATIC mp_obj_t aesgcm_decrypt(size_t n_args, const mp_obj_t *args)
+static mp_obj_t aesgcm_decrypt(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
 
@@ -5031,24 +4966,24 @@ STATIC mp_obj_t aesgcm_decrypt(size_t n_args, const mp_obj_t *args)
     return oo;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_aesgcm_decrypt_obj, 4, 4, aesgcm_decrypt);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_aesgcm_decrypt_obj, 4, 4, aesgcm_decrypt);
 
-STATIC const mp_rom_map_elem_t aesgcm_locals_dict_table[] = {
+static const mp_rom_map_elem_t aesgcm_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_generate_key), MP_ROM_PTR(&mod_static_aesgcm_generate_key_obj)},
     {MP_ROM_QSTR(MP_QSTR_encrypt), MP_ROM_PTR(&mod_aesgcm_encrypt_obj)},
     {MP_ROM_QSTR(MP_QSTR_decrypt), MP_ROM_PTR(&mod_aesgcm_decrypt_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(aesgcm_locals_dict, aesgcm_locals_dict_table);
+static MP_DEFINE_CONST_DICT(aesgcm_locals_dict, aesgcm_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_aesgcm_type,
     MP_QSTR_AESGCM,
     MP_TYPE_FLAG_NONE,
     make_new, aesgcm_make_new,
     locals_dict, &aesgcm_locals_dict);
 
-STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 2, 2, false);
     if (!mp_obj_is_type(args[0], &ciphers_algorithms_aes_type) && !mp_obj_is_type(args[0], &ciphers_algorithms_3des_type))
@@ -5104,7 +5039,7 @@ STATIC mp_obj_t cipher_make_new(const mp_obj_type_t *type, size_t n_args, size_t
     return MP_OBJ_FROM_PTR(cipher);
 }
 
-STATIC mp_obj_t encryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t encryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_ciphers_cipher_encryptor_t *encryptor = MP_OBJ_TO_PTR(self_in);
     vstr_clear(encryptor->data);
@@ -5113,7 +5048,7 @@ STATIC mp_obj_t encryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, con
     return MP_OBJ_FROM_PTR(encryptor);
 }
 
-STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
+static mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
 {
     mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->finalized)
@@ -5155,6 +5090,7 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
             mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_ENCRYPT, self->data->len, (byte *)vstr_iv.buf, (const byte *)self->data->buf, (byte *)vstr_output.buf);
             mbedtls_aes_free(&ctx);
         }
+#ifdef MBEDTLS_DES_C
         else if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
         {
             mbedtls_des3_context ctx;
@@ -5163,6 +5099,7 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
             mbedtls_des3_crypt_cbc(&ctx, MBEDTLS_DES_ENCRYPT, self->data->len, (byte *)vstr_iv.buf, (const byte *)self->data->buf, (byte *)vstr_output.buf);
             mbedtls_des3_free(&ctx);
         }
+#endif
 
         mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf + self_data_len, vstr_output.len - self_data_len);
         vstr_clear(&vstr_iv);
@@ -5213,6 +5150,7 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
             }
             mbedtls_aes_free(&ctx);
         }
+#ifdef MBEDTLS_DES_C
         else if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
         {
             mbedtls_des3_context ctx;
@@ -5224,6 +5162,7 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
             }
             mbedtls_des3_free(&ctx);
         }
+#endif
 
         mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf + self_data_len, vstr_output.len - self_data_len);
         vstr_clear(&vstr_output);
@@ -5235,9 +5174,9 @@ STATIC mp_obj_t encryptor_update(mp_obj_t self_o, mp_obj_t data)
     }
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encryptor_update_obj, encryptor_update);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_encryptor_update_obj, encryptor_update);
 
-STATIC mp_obj_t encryptor_finalize(mp_obj_t self_o)
+static mp_obj_t encryptor_finalize(mp_obj_t self_o)
 {
     mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->finalized)
@@ -5248,9 +5187,9 @@ STATIC mp_obj_t encryptor_finalize(mp_obj_t self_o)
     return mp_const_empty_bytes;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_encryptor_finalize_obj, encryptor_finalize);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_encryptor_finalize_obj, encryptor_finalize);
 
-STATIC mp_obj_t encryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t aadata)
+static mp_obj_t encryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t aadata)
 {
     mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->cipher->mode_type == CIPHER_MODE_CBC || self->cipher->mode_type == CIPHER_MODE_ECB)
@@ -5272,9 +5211,9 @@ STATIC mp_obj_t encryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_encryptor_authenticate_additional_data_obj, encryptor_authenticate_additional_data);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_encryptor_authenticate_additional_data_obj, encryptor_authenticate_additional_data);
 
-STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_ciphers_cipher_encryptor_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -5306,16 +5245,16 @@ STATIC void encryptpr_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t encryptor_locals_dict_table[] = {
+static const mp_rom_map_elem_t encryptor_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mod_encryptor_update_obj)},
     {MP_ROM_QSTR(MP_QSTR_finalize), MP_ROM_PTR(&mod_encryptor_finalize_obj)},
     {MP_ROM_QSTR(MP_QSTR_authenticate_additional_data), MP_ROM_PTR(&mod_encryptor_authenticate_additional_data_obj)},
     {MP_ROM_QSTR(MP_QSTR_tag), MP_ROM_PTR(mp_const_none)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(encryptor_locals_dict, encryptor_locals_dict_table);
+static MP_DEFINE_CONST_DICT(encryptor_locals_dict, encryptor_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_cipher_encryptor_type,
     MP_QSTR_encryptor,
     MP_TYPE_FLAG_NONE,
@@ -5323,7 +5262,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, encryptpr_attr,
     locals_dict, &encryptor_locals_dict);
 
-STATIC mp_obj_t decryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t decryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_ciphers_cipher_decryptor_t *decryptor = MP_OBJ_TO_PTR(self_in);
     vstr_clear(decryptor->data);
@@ -5332,7 +5271,7 @@ STATIC mp_obj_t decryptor_call(mp_obj_t self_in, size_t n_args, size_t n_kw, con
     return MP_OBJ_FROM_PTR(decryptor);
 }
 
-STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
+static mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
 {
     mp_ciphers_cipher_decryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->finalized)
@@ -5373,6 +5312,7 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
             mbedtls_aes_crypt_cbc(&ctx, MBEDTLS_AES_DECRYPT, self->data->len, (byte *)vstr_iv.buf, (const byte *)self->data->buf, (byte *)vstr_output.buf);
             mbedtls_aes_free(&ctx);
         }
+#ifdef MBEDTLS_DES_C
         else if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
         {
             mbedtls_des3_context ctx;
@@ -5381,6 +5321,7 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
             mbedtls_des3_crypt_cbc(&ctx, MBEDTLS_DES_DECRYPT, self->data->len, (byte *)vstr_iv.buf, (const byte *)self->data->buf, (byte *)vstr_output.buf);
             mbedtls_des3_free(&ctx);
         }
+#endif
 
         mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf + self_data_len, vstr_output.len - self_data_len);
         vstr_clear(&vstr_iv);
@@ -5431,6 +5372,7 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
             }
             mbedtls_aes_free(&ctx);
         }
+#ifdef MBEDTLS_DES_C
         else if (self->cipher->algorithm->type == CIPHER_ALGORITHM_3DES)
         {
             mbedtls_des3_context ctx;
@@ -5442,6 +5384,7 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
             }
             mbedtls_des3_free(&ctx);
         }
+#endif
 
         mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf + self_data_len, vstr_output.len - self_data_len);
         vstr_clear(&vstr_output);
@@ -5453,9 +5396,9 @@ STATIC mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
     }
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_decryptor_update_obj, decryptor_update);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_decryptor_update_obj, decryptor_update);
 
-STATIC mp_obj_t decryptor_finalize(mp_obj_t self_o)
+static mp_obj_t decryptor_finalize(mp_obj_t self_o)
 {
     mp_ciphers_cipher_decryptor_t *self = MP_OBJ_TO_PTR(self_o);
     if (self->finalized)
@@ -5466,9 +5409,9 @@ STATIC mp_obj_t decryptor_finalize(mp_obj_t self_o)
     return mp_const_empty_bytes;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_decryptor_finalize_obj, decryptor_finalize);
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_decryptor_finalize_obj, decryptor_finalize);
 
-STATIC mp_obj_t decryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t aadata)
+static mp_obj_t decryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t aadata)
 {
     mp_ciphers_cipher_decryptor_t *self = MP_OBJ_TO_PTR(self_o);
 
@@ -5490,24 +5433,24 @@ STATIC mp_obj_t decryptor_authenticate_additional_data(mp_obj_t self_o, mp_obj_t
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_decryptor_authenticate_additional_data_obj, decryptor_authenticate_additional_data);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_decryptor_authenticate_additional_data_obj, decryptor_authenticate_additional_data);
 
-STATIC const mp_rom_map_elem_t decryptor_locals_dict_table[] = {
+static const mp_rom_map_elem_t decryptor_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_update), MP_ROM_PTR(&mod_decryptor_update_obj)},
     {MP_ROM_QSTR(MP_QSTR_finalize), MP_ROM_PTR(&mod_decryptor_finalize_obj)},
     {MP_ROM_QSTR(MP_QSTR_authenticate_additional_data), MP_ROM_PTR(&mod_decryptor_authenticate_additional_data_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(decryptor_locals_dict, decryptor_locals_dict_table);
+static MP_DEFINE_CONST_DICT(decryptor_locals_dict, decryptor_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_cipher_decryptor_type,
     MP_QSTR_decryptor,
     MP_TYPE_FLAG_NONE,
     call, decryptor_call,
     locals_dict, &decryptor_locals_dict);
 
-STATIC void cipher_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
+static void cipher_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
 {
     mp_ciphers_cipher_t *self = MP_OBJ_TO_PTR(obj);
     if (dest[0] == MP_OBJ_NULL)
@@ -5532,14 +5475,14 @@ STATIC void cipher_attr(mp_obj_t obj, qstr attr, mp_obj_t *dest)
     }
 }
 
-STATIC const mp_rom_map_elem_t ciphers_cipher_locals_dict_table[] = {
+static const mp_rom_map_elem_t ciphers_cipher_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_encryptor), MP_ROM_PTR(mp_const_none)},
     {MP_ROM_QSTR(MP_QSTR_decryptor), MP_ROM_PTR(mp_const_none)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ciphers_cipher_locals_dict, ciphers_cipher_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ciphers_cipher_locals_dict, ciphers_cipher_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_cipher_type,
     MP_QSTR_Cipher,
     MP_TYPE_FLAG_NONE,
@@ -5547,7 +5490,7 @@ STATIC MP_DEFINE_CONST_OBJ_TYPE(
     attr, cipher_attr,
     locals_dict, &ciphers_cipher_locals_dict);
 
-STATIC mp_obj_t algorithms_aes_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t algorithms_aes_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     mp_obj_t key = args[0];
@@ -5564,13 +5507,14 @@ STATIC mp_obj_t algorithms_aes_make_new(const mp_obj_type_t *type, size_t n_args
     return MP_OBJ_FROM_PTR(CIPHER_ALGORITHM);
 }
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_algorithms_aes_type,
     MP_QSTR_AES,
     MP_TYPE_FLAG_NONE,
     make_new, algorithms_aes_make_new);
 
-STATIC mp_obj_t algorithms_3des_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+#ifdef MBEDTLS_DES_C
+static mp_obj_t algorithms_3des_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     mp_obj_t key = args[0];
@@ -5587,26 +5531,30 @@ STATIC mp_obj_t algorithms_3des_make_new(const mp_obj_type_t *type, size_t n_arg
     return MP_OBJ_FROM_PTR(CIPHER_ALGORITHM);
 }
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_algorithms_3des_type,
     MP_QSTR_TripleDES,
     MP_TYPE_FLAG_NONE,
     make_new, algorithms_3des_make_new);
+#endif
 
-STATIC const mp_rom_map_elem_t ciphers_algorithms_locals_dict_table[] = {
+static const mp_rom_map_elem_t ciphers_algorithms_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_AES), MP_ROM_PTR(&ciphers_algorithms_aes_type)},
+#ifdef MBEDTLS_DES_C
     {MP_ROM_QSTR(MP_QSTR_TripleDES), MP_ROM_PTR(&ciphers_algorithms_3des_type)},
+#endif
+
 };
 
-STATIC MP_DEFINE_CONST_DICT(ciphers_algorithms_locals_dict, ciphers_algorithms_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ciphers_algorithms_locals_dict, ciphers_algorithms_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_algorithms_type,
     MP_QSTR_algorithms,
     MP_TYPE_FLAG_NONE,
     locals_dict, &ciphers_algorithms_locals_dict);
 
-STATIC mp_obj_t modes_cbc_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t modes_cbc_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
 
@@ -5626,13 +5574,13 @@ STATIC mp_obj_t modes_cbc_make_new(const mp_obj_type_t *type, size_t n_args, siz
     return MP_OBJ_FROM_PTR(CBC);
 }
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_modes_cbc_type,
     MP_QSTR_CBC,
     MP_TYPE_FLAG_NONE,
     make_new, modes_cbc_make_new);
 
-STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+static mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
     mp_arg_check_num(n_args, n_kw, 1, 3, true);
     enum
@@ -5673,13 +5621,13 @@ STATIC mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, siz
     return MP_OBJ_FROM_PTR(GCM);
 }
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_modes_gcm_type,
     MP_QSTR_GCM,
     MP_TYPE_FLAG_NONE,
     make_new, modes_gcm_make_new);
 
-STATIC mp_obj_t modes_ecb_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
+static mp_obj_t modes_ecb_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args)
 {
     mp_arg_check_num(n_args, n_kw, 0, 0, false);
 
@@ -5689,42 +5637,42 @@ STATIC mp_obj_t modes_ecb_make_new(const mp_obj_type_t *type, size_t n_args, siz
     return MP_OBJ_FROM_PTR(ECB);
 }
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_modes_ecb_type,
     MP_QSTR_ECB,
     MP_TYPE_FLAG_NONE,
     make_new, modes_ecb_make_new);
 
-STATIC const mp_rom_map_elem_t ciphers_modes_locals_dict_table[] = {
+static const mp_rom_map_elem_t ciphers_modes_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_CBC), MP_ROM_PTR(&ciphers_modes_cbc_type)},
     {MP_ROM_QSTR(MP_QSTR_GCM), MP_ROM_PTR(&ciphers_modes_gcm_type)},
     {MP_ROM_QSTR(MP_QSTR_ECB), MP_ROM_PTR(&ciphers_modes_ecb_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ciphers_modes_locals_dict, ciphers_modes_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ciphers_modes_locals_dict, ciphers_modes_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_modes_type,
     MP_QSTR_modes,
     MP_TYPE_FLAG_NONE,
     locals_dict, &ciphers_modes_locals_dict);
 
-STATIC const mp_rom_map_elem_t ciphers_locals_dict_table[] = {
+static const mp_rom_map_elem_t ciphers_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_AESGCM), MP_ROM_PTR(&ciphers_aesgcm_type)},
     {MP_ROM_QSTR(MP_QSTR_Cipher), MP_ROM_PTR(&ciphers_cipher_type)},
     {MP_ROM_QSTR(MP_QSTR_algorithms), MP_ROM_PTR(&ciphers_algorithms_type)},
     {MP_ROM_QSTR(MP_QSTR_modes), MP_ROM_PTR(&ciphers_modes_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(ciphers_locals_dict, ciphers_locals_dict_table);
+static MP_DEFINE_CONST_DICT(ciphers_locals_dict, ciphers_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     ciphers_type,
     MP_QSTR_ciphers,
     MP_TYPE_FLAG_NONE,
     locals_dict, &ciphers_locals_dict);
 
-STATIC mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
+static mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
 {
     mp_obj_t _key = mp_const_none;
     mp_int_t _md_type = 0;
@@ -5804,7 +5752,7 @@ STATIC mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
     return hotp;
 }
 
-STATIC mp_obj_t twofactor_hotp_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+static mp_obj_t twofactor_hotp_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
     mp_arg_check_num(n_args, n_kw, 3, 4, false);
     enum
@@ -5854,15 +5802,15 @@ STATIC mp_obj_t twofactor_hotp_make_new(const mp_obj_type_t *type, size_t n_args
     return MP_OBJ_FROM_PTR(HOTP);
 }
 
-STATIC mp_obj_t twofactor_hotp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
+static mp_obj_t twofactor_hotp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
 {
     mp_twofactor_hotp_t *self = MP_OBJ_TO_PTR(self_obj);
     return twofactor_otp_generate(self, counter_obj);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_twofactor_hotp_generate_obj, twofactor_hotp_generate);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_twofactor_hotp_generate_obj, twofactor_hotp_generate);
 
-STATIC mp_obj_t twofactor_hotp_verify(mp_obj_t self_obj, mp_obj_t hotp_obj, mp_obj_t counter_obj)
+static mp_obj_t twofactor_hotp_verify(mp_obj_t self_obj, mp_obj_t hotp_obj, mp_obj_t counter_obj)
 {
     if (!mp_obj_is_int(hotp_obj))
     {
@@ -5880,9 +5828,9 @@ STATIC mp_obj_t twofactor_hotp_verify(mp_obj_t self_obj, mp_obj_t hotp_obj, mp_o
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_twofactor_hotp_verify_obj, twofactor_hotp_verify);
+static MP_DEFINE_CONST_FUN_OBJ_3(mod_twofactor_hotp_verify_obj, twofactor_hotp_verify);
 
-STATIC mp_obj_t twofactor_hotp_get_provisioning_uri(size_t n_args, const mp_obj_t *args)
+static mp_obj_t twofactor_hotp_get_provisioning_uri(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     (void)args;
@@ -5890,24 +5838,24 @@ STATIC mp_obj_t twofactor_hotp_get_provisioning_uri(size_t n_args, const mp_obj_
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_twofactor_hotp_get_provisioning_uri_obj, 4, 4, twofactor_hotp_get_provisioning_uri);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_twofactor_hotp_get_provisioning_uri_obj, 4, 4, twofactor_hotp_get_provisioning_uri);
 
-STATIC const mp_rom_map_elem_t twofactor_hotp_locals_dict_table[] = {
+static const mp_rom_map_elem_t twofactor_hotp_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_generate), MP_ROM_PTR(&mod_twofactor_hotp_generate_obj)},
     {MP_ROM_QSTR(MP_QSTR_verify), MP_ROM_PTR(&mod_twofactor_hotp_verify_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_provisioning_uri), MP_ROM_PTR(&mod_twofactor_hotp_get_provisioning_uri_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(twofactor_hotp_locals_dict, twofactor_hotp_locals_dict_table);
+static MP_DEFINE_CONST_DICT(twofactor_hotp_locals_dict, twofactor_hotp_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     twofactor_hotp_type,
     MP_QSTR_HOTP,
     MP_TYPE_FLAG_NONE,
     make_new, twofactor_hotp_make_new,
     locals_dict, &twofactor_hotp_locals_dict);
 
-STATIC mp_obj_t twofactor_totp_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
+static mp_obj_t twofactor_totp_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args)
 {
     mp_arg_check_num(n_args, n_kw, 4, 5, false);
     enum
@@ -5962,7 +5910,7 @@ STATIC mp_obj_t twofactor_totp_make_new(const mp_obj_type_t *type, size_t n_args
     return MP_OBJ_FROM_PTR(TOTP);
 }
 
-STATIC mp_obj_t twofactor_totp_generate(mp_obj_t self_obj, mp_obj_t time_obj)
+static mp_obj_t twofactor_totp_generate(mp_obj_t self_obj, mp_obj_t time_obj)
 {
     if (!mp_obj_is_int(time_obj))
     {
@@ -5973,9 +5921,9 @@ STATIC mp_obj_t twofactor_totp_generate(mp_obj_t self_obj, mp_obj_t time_obj)
     return twofactor_otp_generate(self, mp_obj_new_int(counter));
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_twofactor_totp_generate_obj, twofactor_totp_generate);
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_twofactor_totp_generate_obj, twofactor_totp_generate);
 
-STATIC mp_obj_t twofactor_totp_verify(mp_obj_t self_obj, mp_obj_t totp_obj, mp_obj_t time_obj)
+static mp_obj_t twofactor_totp_verify(mp_obj_t self_obj, mp_obj_t totp_obj, mp_obj_t time_obj)
 {
     mp_twofactor_totp_t *self = MP_OBJ_TO_PTR(self_obj);
     mp_obj_t hotp_value = twofactor_totp_generate(self, time_obj);
@@ -5993,9 +5941,9 @@ STATIC mp_obj_t twofactor_totp_verify(mp_obj_t self_obj, mp_obj_t totp_obj, mp_o
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_twofactor_totp_verify_obj, twofactor_totp_verify);
+static MP_DEFINE_CONST_FUN_OBJ_3(mod_twofactor_totp_verify_obj, twofactor_totp_verify);
 
-STATIC mp_obj_t twofactor_totp_get_provisioning_uri(size_t n_args, const mp_obj_t *args)
+static mp_obj_t twofactor_totp_get_provisioning_uri(size_t n_args, const mp_obj_t *args)
 {
     (void)n_args;
     (void)args;
@@ -6003,37 +5951,37 @@ STATIC mp_obj_t twofactor_totp_get_provisioning_uri(size_t n_args, const mp_obj_
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_twofactor_totp_get_provisioning_uri_obj, 4, 4, twofactor_totp_get_provisioning_uri);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_twofactor_totp_get_provisioning_uri_obj, 4, 4, twofactor_totp_get_provisioning_uri);
 
-STATIC const mp_rom_map_elem_t twofactor_totp_locals_dict_table[] = {
+static const mp_rom_map_elem_t twofactor_totp_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_generate), MP_ROM_PTR(&mod_twofactor_totp_generate_obj)},
     {MP_ROM_QSTR(MP_QSTR_verify), MP_ROM_PTR(&mod_twofactor_totp_verify_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_provisioning_uri), MP_ROM_PTR(&mod_twofactor_totp_get_provisioning_uri_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(twofactor_totp_locals_dict, twofactor_totp_locals_dict_table);
+static MP_DEFINE_CONST_DICT(twofactor_totp_locals_dict, twofactor_totp_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     twofactor_totp_type,
     MP_QSTR_TOTP,
     MP_TYPE_FLAG_NONE,
     make_new, twofactor_totp_make_new,
     locals_dict, &twofactor_totp_locals_dict);
 
-STATIC const mp_rom_map_elem_t twofactor_locals_dict_table[] = {
+static const mp_rom_map_elem_t twofactor_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_HOTP), MP_ROM_PTR(&twofactor_hotp_type)},
     {MP_ROM_QSTR(MP_QSTR_TOTP), MP_ROM_PTR(&twofactor_totp_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(twofactor_locals_dict, twofactor_locals_dict_table);
+static MP_DEFINE_CONST_DICT(twofactor_locals_dict, twofactor_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     twofactor_type,
     MP_QSTR_twofactor,
     MP_TYPE_FLAG_NONE,
     locals_dict, &twofactor_locals_dict);
 
-STATIC mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *args)
+static mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *args)
 {
     mp_util_block_device_t *self = MP_OBJ_TO_PTR(args[0]);
     mp_int_t block = mp_obj_get_int(args[1]);
@@ -6133,9 +6081,9 @@ STATIC mp_obj_t utils_block_device_readblocks(size_t n_args, const mp_obj_t *arg
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_readblocks_obj, 3, 4, utils_block_device_readblocks);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_readblocks_obj, 3, 4, utils_block_device_readblocks);
 
-STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *args)
+static mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *args)
 {
     mp_util_block_device_t *self = MP_OBJ_TO_PTR(args[0]);
     mp_int_t block = mp_obj_get_int(args[1]);
@@ -6143,7 +6091,7 @@ STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *ar
     mp_get_buffer_raise(args[2], &bufinfo_buf, MP_BUFFER_READ);
     mp_int_t off = (n_args == 4 ? mp_obj_get_int(args[3]) : 0);
 
-#if defined(MICROPY_HW_LED1)
+#ifdef MICROPY_HW_LED1
     led_state(PYB_LED_RED, 1); // indicate a dirty cache with LED on
 #endif
 
@@ -6235,9 +6183,9 @@ STATIC mp_obj_t utils_block_device_writeblocks(size_t n_args, const mp_obj_t *ar
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_writeblocks_obj, 3, 4, utils_block_device_writeblocks);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(utils_block_device_writeblocks_obj, 3, 4, utils_block_device_writeblocks);
 
-STATIC mp_obj_t utils_block_device_ioctl(mp_obj_t self_in, mp_obj_t op_in, mp_obj_t arg_in)
+static mp_obj_t utils_block_device_ioctl(mp_obj_t self_in, mp_obj_t op_in, mp_obj_t arg_in)
 {
     mp_util_block_device_t *self = MP_OBJ_TO_PTR(self_in);
     mp_int_t op = mp_obj_get_int(op_in);
@@ -6287,7 +6235,7 @@ STATIC mp_obj_t utils_block_device_ioctl(mp_obj_t self_in, mp_obj_t op_in, mp_ob
     }
     case BLOCKDEV_IOCTL_SYNC:
     {
-#if defined(MICROPY_HW_LED1)
+#ifdef MICROPY_HW_LED1
         led_state(PYB_LED_RED, 0); // indicate a clean cache with LED off
 #endif
         return mp_obj_new_int(0);
@@ -6313,23 +6261,23 @@ STATIC mp_obj_t utils_block_device_ioctl(mp_obj_t self_in, mp_obj_t op_in, mp_ob
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_3(utils_block_device_ioctl_obj, utils_block_device_ioctl);
+static MP_DEFINE_CONST_FUN_OBJ_3(utils_block_device_ioctl_obj, utils_block_device_ioctl);
 
-STATIC const mp_rom_map_elem_t utils_block_device_locals_dict_table[] = {
+static const mp_rom_map_elem_t utils_block_device_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_readblocks), MP_ROM_PTR(&utils_block_device_readblocks_obj)},
     {MP_ROM_QSTR(MP_QSTR_writeblocks), MP_ROM_PTR(&utils_block_device_writeblocks_obj)},
     {MP_ROM_QSTR(MP_QSTR_ioctl), MP_ROM_PTR(&utils_block_device_ioctl_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(utils_block_device_locals_dict, utils_block_device_locals_dict_table);
+static MP_DEFINE_CONST_DICT(utils_block_device_locals_dict, utils_block_device_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     utils_block_device_type,
     MP_QSTR_CipheredBlockDevice,
     MP_TYPE_FLAG_NONE,
     locals_dict, &utils_block_device_locals_dict);
 
-STATIC mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
+static mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
 {
     enum
     {
@@ -6411,10 +6359,10 @@ STATIC mp_obj_t mod_block_device(size_t n_args, const mp_obj_t *args, mp_map_t *
     return MP_OBJ_FROM_PTR(BlockDevice);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_block_device_obj, 0, mod_block_device);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_block_device_obj, MP_ROM_PTR(&mod_block_device_obj));
+static MP_DEFINE_CONST_FUN_OBJ_KW(mod_block_device_obj, 0, mod_block_device);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_block_device_obj, MP_ROM_PTR(&mod_block_device_obj));
 
-STATIC mp_obj_t _bits2int(mp_util_rfc6979_t *self, mp_obj_t b_obj)
+static mp_obj_t _bits2int(mp_util_rfc6979_t *self, mp_obj_t b_obj)
 {
     mp_buffer_info_t bufinfo_b;
     mp_get_buffer_raise(b_obj, &bufinfo_b, MP_BUFFER_READ);
@@ -6427,7 +6375,7 @@ STATIC mp_obj_t _bits2int(mp_util_rfc6979_t *self, mp_obj_t b_obj)
     return i;
 }
 
-STATIC mp_obj_t _int2octets(mp_util_rfc6979_t *self, mp_obj_t x_obj)
+static mp_obj_t _int2octets(mp_util_rfc6979_t *self, mp_obj_t x_obj)
 {
     mp_buffer_info_t bufinfo_octets;
     cryptography_get_buffer(x_obj, true, &bufinfo_octets);
@@ -6445,7 +6393,7 @@ STATIC mp_obj_t _int2octets(mp_util_rfc6979_t *self, mp_obj_t x_obj)
     return oo;
 }
 
-STATIC mp_obj_t _bits2octets(mp_util_rfc6979_t *self, mp_obj_t b_obj)
+static mp_obj_t _bits2octets(mp_util_rfc6979_t *self, mp_obj_t b_obj)
 {
     mp_obj_int_t *z1 = cryptography_small_to_big_int(_bits2int(self, b_obj));
     mp_obj_int_t *q = cryptography_small_to_big_int(self->q);
@@ -6462,7 +6410,7 @@ STATIC mp_obj_t _bits2octets(mp_util_rfc6979_t *self, mp_obj_t b_obj)
     return z2o;
 }
 
-STATIC mp_obj_t utils_rfc6979_gen_nonce(mp_obj_t self_obj)
+static mp_obj_t utils_rfc6979_gen_nonce(mp_obj_t self_obj)
 {
     mp_util_rfc6979_t *self = MP_OBJ_TO_PTR(self_obj);
 
@@ -6564,21 +6512,21 @@ STATIC mp_obj_t utils_rfc6979_gen_nonce(mp_obj_t self_obj)
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(utils_rfc6979_gen_nonce_obj, utils_rfc6979_gen_nonce);
+static MP_DEFINE_CONST_FUN_OBJ_1(utils_rfc6979_gen_nonce_obj, utils_rfc6979_gen_nonce);
 
-STATIC const mp_rom_map_elem_t utils_rfc6979_locals_dict_table[] = {
+static const mp_rom_map_elem_t utils_rfc6979_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_gen_nonce), MP_ROM_PTR(&utils_rfc6979_gen_nonce_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(utils_rfc6979_locals_dict, utils_rfc6979_locals_dict_table);
+static MP_DEFINE_CONST_DICT(utils_rfc6979_locals_dict, utils_rfc6979_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     utils_rfc6979_type,
     MP_QSTR_RFC6979,
     MP_TYPE_FLAG_NONE,
     locals_dict, &utils_rfc6979_locals_dict);
 
-STATIC mp_obj_t mod_rfc6979(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
+static mp_obj_t mod_rfc6979(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args)
 {
     enum
     {
@@ -6633,10 +6581,10 @@ STATIC mp_obj_t mod_rfc6979(size_t n_args, const mp_obj_t *args, mp_map_t *kw_ar
     return MP_OBJ_FROM_PTR(RFC6979);
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_KW(mod_rfc6979_obj, 3, mod_rfc6979);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rfc6979_obj, MP_ROM_PTR(&mod_rfc6979_obj));
+static MP_DEFINE_CONST_FUN_OBJ_KW(mod_rfc6979_obj, 3, mod_rfc6979);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rfc6979_obj, MP_ROM_PTR(&mod_rfc6979_obj));
 
-STATIC mp_obj_t rsa_deduce_private_exponent(mp_obj_t p, mp_obj_t q, mp_obj_t e)
+static mp_obj_t rsa_deduce_private_exponent(mp_obj_t p, mp_obj_t q, mp_obj_t e)
 {
     mbedtls_mpi P;
     mbedtls_mpi_init(&P);
@@ -6671,10 +6619,10 @@ STATIC mp_obj_t rsa_deduce_private_exponent(mp_obj_t p, mp_obj_t q, mp_obj_t e)
     return d;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_3(mod_rsa_deduce_private_exponent_obj, rsa_deduce_private_exponent);
-STATIC MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_deduce_private_exponent_obj, MP_ROM_PTR(&mod_rsa_deduce_private_exponent_obj));
+static MP_DEFINE_CONST_FUN_OBJ_3(mod_rsa_deduce_private_exponent_obj, rsa_deduce_private_exponent);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_rsa_deduce_private_exponent_obj, MP_ROM_PTR(&mod_rsa_deduce_private_exponent_obj));
 
-STATIC const mp_rom_map_elem_t utils_locals_dict_table[] = {
+static const mp_rom_map_elem_t utils_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_RFC6979), MP_ROM_PTR(&mod_static_rfc6979_obj)},
     {MP_ROM_QSTR(MP_QSTR_CipheredBlockDevice), MP_ROM_PTR(&mod_static_block_device_obj)},
     {MP_ROM_QSTR(MP_QSTR_Prehashed), MP_ROM_PTR(&mod_static_hash_algorithm_prehashed_obj)},
@@ -6685,15 +6633,15 @@ STATIC const mp_rom_map_elem_t utils_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_rsa_deduce_private_exponent), MP_ROM_PTR(&mod_static_rsa_deduce_private_exponent_obj)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(utils_locals_dict, utils_locals_dict_table);
+static MP_DEFINE_CONST_DICT(utils_locals_dict, utils_locals_dict_table);
 
-STATIC MP_DEFINE_CONST_OBJ_TYPE(
+static MP_DEFINE_CONST_OBJ_TYPE(
     utils_type,
     MP_QSTR_utils,
     MP_TYPE_FLAG_NONE,
     locals_dict, &utils_locals_dict);
 
-STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
+static const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
     {MP_ROM_QSTR(MP_QSTR_ciphers), MP_ROM_PTR((mp_obj_type_t *)&ciphers_type)},
     {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR((mp_obj_type_t *)&ec_type)},
@@ -6706,13 +6654,10 @@ STATIC const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR((mp_obj_type_t *)&serialization_type)},
     {MP_ROM_QSTR(MP_QSTR_twofactor), MP_ROM_PTR((mp_obj_type_t *)&twofactor_type)},
     {MP_ROM_QSTR(MP_QSTR_utils), MP_ROM_PTR((mp_obj_type_t *)&utils_type)},
-#if defined(MBEDTLS_VERSION_C)
-    {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR((mp_obj_type_t *)&version_type)},
-#endif
     {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR((mp_obj_type_t *)&x509_type)},
 };
 
-STATIC MP_DEFINE_CONST_DICT(mp_module_ucryptography_globals, mp_module_ucryptography_globals_table);
+static MP_DEFINE_CONST_DICT(mp_module_ucryptography_globals, mp_module_ucryptography_globals_table);
 
 const mp_obj_module_t mp_module_ucryptography = {
     .base = {&mp_type_module},

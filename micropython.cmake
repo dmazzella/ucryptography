@@ -16,9 +16,6 @@ target_sources(usermod_cryptography INTERFACE
 
 if(MICROPY_SSL_MBEDTLS EQUAL 0)
     set(MBEDTLS_DIR ${CMAKE_CURRENT_LIST_DIR}/mbedtls)
-    target_compile_definitions(usermod_cryptography INTERFACE
-        MBEDTLS_USER_CONFIG_FILE='"modcryptography_config.h"'
-    )
 else()
     set(MBEDTLS_DIR ${MICROPY_DIR}/lib/mbedtls)
 endif()
