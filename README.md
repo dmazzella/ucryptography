@@ -4,6 +4,7 @@
 
 > [!TIP]
 > If you find **ucryptography** useful, consider :star: this project
+> and why not ... [Buy me a coffee](https://www.buymeacoffee.com/damianomazp) :smile:
 
 ## Basic usage
 
