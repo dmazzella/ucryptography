@@ -1,71 +1,11 @@
 # ucryptography
 
-Lightweight porting of [cryptography](https://github.com/pyca/cryptography)  to Micropython based on [ARM Mbed TLS](https://github.com/ARMmbed/mbedtls)
----------------
+<b><i>Lightweight porting of [cryptography](https://github.com/pyca/cryptography)  to Micropython based on [ARM Mbed TLS](https://github.com/ARMmbed/mbedtls)</i></b>
 
-### Compiling the cmodule into MicroPython
+> [!TIP]
+> If you find **ucryptography** useful, consider :star: this project
 
-To build such a module, compile MicroPython with an extra make flag named ```USER_C_MODULES``` set to the directory containing all modules you want included (not to the module itself).
-
-**Warning**
-Currently needs a patch to the file `extmod/mbedtls/mbedtls_config_common.h` to enable all its functionality.
-
-
-<details><summary><b>Compiling the cmodule into UNIX port (coverage)</b></summary>
-<p>
-
-```bash
-$ git clone https://github.com/micropython/micropython.git
-$ cd micropython
-micropython$ git submodule update --init --depth 1
-micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
-micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
-micropython$ cd usercmodule/ucryptography
-ucryptography$ git submodule update --init --depth 1
-ucryptography$ cd ../../
-micropython$ make -j2 -C mpy-cross/
-micropython$ make -j2 -C ports/unix/ VARIANT="coverage" MICROPY_SSL_AXTLS=0 MICROPY_SSL_MBEDTLS=1 USER_C_MODULES="$(pwd)/usercmodule"
-```
-</p>
-</details>
-
-<details><summary><b>Compiling the cmodule into ESP32 port (ESP32_GENERIC_C3)</b></summary>
-<p>
-
-```bash
-$ git clone https://github.com/micropython/micropython.git
-$ cd micropython
-micropython$ git submodule update --init --depth 1
-micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
-micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
-micropython$ cd usercmodule/ucryptography
-ucryptography$ git submodule update --init --depth 1
-ucryptography$ cd ../../
-micropython$ make -j2 -C mpy-cross/
-micropython$ make -C ports/esp32 BOARD=ESP32_GENERIC_C3 USER_C_MODULES="$(pwd)/usercmodule/ucryptography/micropython.cmake"
-```
-</p>
-</details>
-
-<details><summary><b>Compiling the cmodule into STM32 port (ARDUINO_PORTENTA_H7)</b></summary>
-<p>
-
-```bash
-$ git clone https://github.com/micropython/micropython.git
-$ cd micropython
-micropython$ git submodule update --init --depth 1
-micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
-micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
-micropython$ cd usercmodule/ucryptography
-ucryptography$ git submodule update --init --depth 1
-ucryptography$ cd ../../
-micropython$ make -j2 -C mpy-cross/
-micropython$ make -C ports/stm32 BOARD=ARDUINO_PORTENTA_H7 USER_C_MODULES="$(pwd)/usercmodule/ucryptography/micropython.cmake"
-```
-</p>
-</details>
-
-## Usage
+## Basic usage
 
 ```python
 from cryptography import rsa, hashes, padding
@@ -92,11 +32,76 @@ public_key.verify(
 )
 ```
 
-## Examples
+## More examples
 - [tests/cryptography](https://github.com/dmazzella/ucryptography/tree/master/tests/cryptography)
 - [tests/ucryptography](https://github.com/dmazzella/ucryptography/tree/master/tests/ucryptography)
 
-## Goals ![In progress](https://progress-bar.dev/100/?title=completed)
+## How to build
+
+To build such a module, compile MicroPython with an extra make flag named ```USER_C_MODULES``` set to the directory containing all modules you want included (not to the module itself).
+
+> [!IMPORTANT]
+> Currently needs a patch to the file `extmod/mbedtls/mbedtls_config_common.h` to enable all its functionality.
+
+
+<details><summary><b>UNIX port (coverage)</b></summary>
+<p>
+
+```bash
+$ git clone https://github.com/micropython/micropython.git
+$ cd micropython
+micropython$ git submodule update --init --depth 1
+micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
+micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
+micropython$ cd usercmodule/ucryptography
+ucryptography$ git submodule update --init --depth 1
+ucryptography$ cd ../../
+micropython$ make -j2 -C mpy-cross/
+micropython$ make -j2 -C ports/unix/ VARIANT="coverage" MICROPY_SSL_AXTLS=0 MICROPY_SSL_MBEDTLS=1 USER_C_MODULES="$(pwd)/usercmodule"
+```
+</p>
+</details>
+
+<details><summary><b>ESP32 port (ESP32_GENERIC_C3)</b></summary>
+<p>
+
+```bash
+$ git clone https://github.com/micropython/micropython.git
+$ cd micropython
+micropython$ git submodule update --init --depth 1
+micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
+micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
+micropython$ cd usercmodule/ucryptography
+ucryptography$ git submodule update --init --depth 1
+ucryptography$ cd ../../
+micropython$ make -j2 -C mpy-cross/
+micropython$ make -C ports/esp32 BOARD=ESP32_GENERIC_C3 USER_C_MODULES="$(pwd)/usercmodule/ucryptography/micropython.cmake"
+```
+</p>
+</details>
+
+<details><summary><b>STM32 port (ARDUINO_PORTENTA_H7)</b></summary>
+<p>
+
+```bash
+$ git clone https://github.com/micropython/micropython.git
+$ cd micropython
+micropython$ git submodule update --init --depth 1
+micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
+micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
+micropython$ cd usercmodule/ucryptography
+ucryptography$ git submodule update --init --depth 1
+ucryptography$ cd ../../
+micropython$ make -j2 -C mpy-cross/
+micropython$ make -C ports/stm32 BOARD=ARDUINO_PORTENTA_H7 USER_C_MODULES="$(pwd)/usercmodule/ucryptography/micropython.cmake"
+```
+</p>
+</details>
+
+
+## Goals 
+
+![In progress](https://progress-bar.dev/100/?title=completed)
 
 - [x] ciphers
   - [x] AESGCM
@@ -156,8 +161,8 @@ public_key.verify(
   - [x] rsa_recover_prime_factors
   - [x] generate_private_key
 - [x] serialization
-  v load_der_public_key
-  v load_der_private_key
+  - [x] load_der_public_key
+  - [x] load_der_private_key
   - [x] Encoding
     - [x] DER
     - [x] PEM
