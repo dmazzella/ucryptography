@@ -9,7 +9,12 @@
 ## Basic usage
 
 ```python
-from cryptography import rsa, hashes, padding
+try:
+    from cryptography import hashes, rsa, padding
+except ImportError:
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.asymmetric import padding
 
 message = b"A message I want to sign"
 chosen_hash = hashes.SHA256()
@@ -37,10 +42,6 @@ public_key.verify(
 - [tests/cryptography](https://github.com/dmazzella/ucryptography/tree/master/tests/cryptography)
 
 ## How to build
-
-To build such a module, compile MicroPython with an extra make flag named ```USER_C_MODULES``` set to the directory containing all modules you want included (not to the module itself).
-
-***
 
 > [!IMPORTANT]
 > Currently needs a patch to the file `extmod/mbedtls/mbedtls_config_common.h` to enable all its functionality.
