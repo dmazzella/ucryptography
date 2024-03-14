@@ -2,13 +2,38 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.backends.openssl.rsa import _rsa_sig_sign, _rsa_sig_verify
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives.asymmetric import utils
+try:
+    from cryptography import serialization, hashes, rsa, utils, padding
+except ImportError:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.asymmetric import utils
+    from cryptography.hazmat.primitives.asymmetric import padding
+
+
+def rsa_raw_sign(plaintext, private_key):
+    d = private_key.private_numbers().d
+    n = private_key.public_key().public_numbers().n
+    plaintext = (
+        bytes([0x00, 0x01])
+        + bytes([0xFF] * int(private_key.key_size / 8 - len(plaintext) - 3))
+        + bytes([0x00])
+        + bytes(plaintext)
+    )
+    return pow(int.from_bytes(plaintext, "big"), d, n).to_bytes(
+        int(private_key.key_size / 8), "big"
+    )
+
+
+def rsa_raw_verify(ciphertext, public_key):
+    e = public_key.public_numbers().e
+    n = public_key.public_numbers().n
+    plaintext = pow(int.from_bytes(ciphertext, "big"), e, n).to_bytes(
+        int(public_key.key_size / 8), "big"
+    )
+    assert plaintext[:2] == bytes([0x00, 0x01])
+    return plaintext[plaintext.find(bytes([0x00]), 2) + 1 :]
 
 
 def main():
@@ -18,17 +43,17 @@ def main():
         public_numbers = rsa.RSAPublicNumbers(e, n)
         print("n", public_numbers.n)
         print("e", public_numbers.e)
-        print("key_size", public_numbers.public_key(backend=default_backend()).key_size)
+        print("key_size", public_numbers.public_key().key_size)
         print(
             "DER",
-            public_numbers.public_key(backend=default_backend()).public_bytes(
+            public_numbers.public_key().public_bytes(
                 encoding=serialization.Encoding.DER,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo,
             ),
         )
         print(
             "PEM",
-            public_numbers.public_key(backend=default_backend())
+            public_numbers.public_key()
             .public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -42,9 +67,7 @@ def main():
         dmp1 = 70362977515272577913949919918468298479573538189124694962687627991701151794613172041142556187747588113689134243580202311344987004788293052040793047963370705455181652738647757974562820012878367576649901647001071717071255997686172365007657860816290386886669033000841155499332911379957821857629053839930921831801
         dmq1 = 16083558985617393772523309074105852488804635996404578159433664499185385231118100019686453770773603219002468025227971962447395633565792644284496900590029739142299389892759849899665380616238985379642044390864932422432173375043997471271733064896113743919325572086514326225734776396458606670961248637146438100297
         iqmp = 27479155941606888764196561693435377784782840720640676201668414322119284430835440447305199568634331680003762753130774655317541532510449866672028876124837997900679437646734121402582271170751596331621014149909165652920914546610374838529200728510751855927498562449844460128770756004847015330855240538659537340944
-        private_numbers = rsa.RSAPrivateNumbers(
-            p, q, d, dmp1, dmq1, iqmp, public_numbers
-        )
+        private_numbers = rsa.RSAPrivateNumbers(p, q, d, dmp1, dmq1, iqmp, public_numbers)
 
         print("d", private_numbers.d)
         print("p", private_numbers.p)
@@ -58,12 +81,10 @@ def main():
         print("DMQ1", rsa.rsa_crt_dmq1(private_numbers.d, private_numbers.q))
         print(
             "P, Q",
-            rsa.rsa_recover_prime_factors(
-                public_numbers.n, public_numbers.e, private_numbers.d
-            ),
+            rsa.rsa_recover_prime_factors(public_numbers.n, public_numbers.e, private_numbers.d),
         )
 
-        private_key = private_numbers.private_key(backend=default_backend())
+        private_key = private_numbers.private_key()
         print(
             "DER",
             private_key.private_bytes(
@@ -86,9 +107,7 @@ def main():
         message = b"A message I want to sign"
         signature = private_key.sign(
             message,
-            padding.PSS(
-                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
-            ),
+            padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
             chosen_hash,
         )
         print("PSS signature", signature)
@@ -97,13 +116,11 @@ def main():
         public_key.verify(
             signature,
             message,
-            padding.PSS(
-                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
-            ),
+            padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
             chosen_hash,
         )
 
-        hasher = hashes.Hash(chosen_hash, backend=default_backend())
+        hasher = hashes.Hash(chosen_hash)
         hasher.update(b"data & ")
         hasher.update(b"more data")
         digest = hasher.finalize()
@@ -117,7 +134,7 @@ def main():
         )
         print("PSS prehashed_signature", prehashed_signature)
 
-        hasher = hashes.Hash(chosen_hash, backend=default_backend())
+        hasher = hashes.Hash(chosen_hash)
         hasher.update(b"data & ")
         hasher.update(b"more data")
         digest = hasher.finalize()
@@ -125,30 +142,31 @@ def main():
         public_key.verify(
             prehashed_signature,
             digest,
-            padding.PSS(
-                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
-            ),
+            padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
             utils.Prehashed(chosen_hash),
         )
 
         message = b"A message I want to sign"
-        signature = _rsa_sig_sign(
-            default_backend(),
-            padding.PKCS1v15(),
-            None,
-            private_key,
-            message,
-        )
-        print("PKCS1v15 raw signature", signature)
 
-        _rsa_sig_verify(
-            default_backend(),
-            padding.PKCS1v15(),
-            None,
-            public_key,
-            signature,
-            message
-        )
+        try:
+            signature = private_key.sign(
+                message,
+                None,
+                None,
+            )
+            print("raw signature", signature)
+
+            public_key.verify(
+                signature,
+                message,
+                None,
+                None,
+            )
+        except:
+            signature = rsa_raw_sign(message, private_key)
+            print("raw signature", signature)
+
+            rsa_raw_verify(signature, public_key)
 
         signature = private_key.sign(
             message,
@@ -164,7 +182,7 @@ def main():
             chosen_hash,
         )
 
-        hasher = hashes.Hash(chosen_hash, backend=default_backend())
+        hasher = hashes.Hash(chosen_hash)
         hasher.update(b"data & ")
         hasher.update(b"more data")
         digest = hasher.finalize()
@@ -186,7 +204,7 @@ def main():
         ciphertext = public_key.encrypt(
             message,
             padding.OAEP(
-                mgf=padding.MGF1(algorithm=chosen_hash),
+                mgf=padding.MGF1(chosen_hash),
                 algorithm=chosen_hash,
                 label=None,
             ),
@@ -196,7 +214,7 @@ def main():
         plaintext = private_key.decrypt(
             ciphertext,
             padding.OAEP(
-                mgf=padding.MGF1(algorithm=chosen_hash),
+                mgf=padding.MGF1(chosen_hash),
                 algorithm=chosen_hash,
                 label=None,
             ),
@@ -211,23 +229,21 @@ def main():
         print("PKCS1v15 plaintext == message", plaintext == message)
 
     def generate():
-        private_key = rsa.generate_private_key(
-            public_exponent=65537, key_size=2048, backend=default_backend()
-        )
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         public_numbers = private_key.public_key().public_numbers()
         print("n", public_numbers.n)
         print("e", public_numbers.e)
-        print("key_size", public_numbers.public_key(backend=default_backend()).key_size)
+        print("key_size", public_numbers.public_key().key_size)
         print(
             "DER",
-            public_numbers.public_key(backend=default_backend()).public_bytes(
+            public_numbers.public_key().public_bytes(
                 encoding=serialization.Encoding.DER,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo,
             ),
         )
         print(
             "PEM",
-            public_numbers.public_key(backend=default_backend())
+            public_numbers.public_key()
             .public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -248,9 +264,7 @@ def main():
         print("DMQ1", rsa.rsa_crt_dmq1(private_numbers.d, private_numbers.q))
         print(
             "P, Q",
-            rsa.rsa_recover_prime_factors(
-                public_numbers.n, public_numbers.e, private_numbers.d
-            ),
+            rsa.rsa_recover_prime_factors(public_numbers.n, public_numbers.e, private_numbers.d),
         )
 
         print(

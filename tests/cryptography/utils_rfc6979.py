@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # pylint:disable=import-error
 # pylint:disable=no-member
-import uos
-
-from cryptography import utils, hashes
-
+try:
+    from cryptography import utils, hashes
+except ImportError:
+    raise NotImplementedError
 
 if __name__ == "__main__":
     msg = 'sample'

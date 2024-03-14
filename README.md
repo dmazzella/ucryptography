@@ -35,7 +35,6 @@ public_key.verify(
 
 ## More examples
 - [tests/cryptography](https://github.com/dmazzella/ucryptography/tree/master/tests/cryptography)
-- [tests/ucryptography](https://github.com/dmazzella/ucryptography/tree/master/tests/ucryptography)
 
 ## How to build
 
@@ -215,15 +214,24 @@ micropython$ make -C ports/stm32 BOARD=ARDUINO_PORTENTA_H7 USER_C_MODULES="$(pwd
 - [x] serialization
   - [x] load_der_public_key
   - [x] load_der_private_key
+  - [x] NoEncryption
   - [x] Encoding
     - [x] DER
     - [x] PEM
+    - [x] X962
+    - [x] Raw
+  - [x] PublicFormat
+    - [x] SubjectPublicKeyInfo
+    - [x] UncompressedPoint
+    - [x] Raw
+  - [x] PrivateFormat
+    - [x] TraditionalOpenSSL
+    - [x] Raw
 - [x] twofactor
   - [x] HOTP
   - [x] TOTP
 - [x] utils
   - [x] RFC6979
-  - [x] CipheredBlockDevice
   - [x] Prehashed
   - [x] constant_time_bytes_eq
   - [x] bit_length

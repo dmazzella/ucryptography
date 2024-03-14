@@ -2,15 +2,19 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.asymmetric import utils
-from cryptography.hazmat.primitives.asymmetric import padding
-from util import loads_sequence
+try:
+    from cryptography import x509, serialization, hashes, ec, utils, padding
+except ImportError:
+    from cryptography import x509
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric import utils
+    from cryptography.hazmat.primitives.asymmetric import padding
+try:
+    from util import loads_sequence
+except ImportError:
+    raise
 
 
 EC_CERT_DER = loads_sequence(
@@ -57,7 +61,7 @@ F8FdT7DdLg8Wj1M=
 
 def main():
     def ec_certificate():
-        certificate = x509.load_der_x509_certificate(EC_CERT_DER, default_backend())
+        certificate = x509.load_der_x509_certificate(EC_CERT_DER)
         print("version", certificate.version)
         print("serial_number", certificate.serial_number)
 
@@ -70,9 +74,7 @@ def main():
         print("signature_algorithm_oid", certificate.signature_algorithm_oid)
         print("signature_hash_algorithm", certificate.signature_hash_algorithm.name)
         print("signature", certificate.signature)
-
         print("extensions", certificate.extensions)
-
         public_key = certificate.public_key()
         public_numbers = public_key.public_numbers()
         print("public_key.curve", public_key.curve.name)
@@ -101,7 +103,7 @@ def main():
         )
 
         chosen_hash = certificate.signature_hash_algorithm
-        digest = hashes.Hash(chosen_hash, default_backend())
+        digest = hashes.Hash(chosen_hash)
         digest.update(certificate.tbs_certificate_bytes)
         tbs_certificate_hash = digest.finalize()
         public_key.verify(
@@ -111,7 +113,7 @@ def main():
         )
 
     def rsa_certificate():
-        certificate = x509.load_der_x509_certificate(RSA_CERT_DER, default_backend())
+        certificate = x509.load_der_x509_certificate(RSA_CERT_DER)
         print("version", certificate.version)
         print("serial_number", certificate.serial_number)
 

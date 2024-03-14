@@ -2,13 +2,20 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.asymmetric import utils
-from util import loads_sequence
+import binascii
+
+try:
+    from cryptography import ec, rsa, serialization, hashes, utils
+except ImportError:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.asymmetric import utils
+try:
+    from util import loads_sequence
+except ImportError:
+    raise
 
 
 EC_PRIVATE_KEY_DER = loads_sequence(
@@ -24,6 +31,10 @@ EC_PUBLIC_KEY_DER = loads_sequence(
 MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQWfGXJw+X9PV2czte6S4pXBM4QuO
 ORNL6DeWlqbnKMK1l7xf3wNe1GZQ5vs4617zr3nCVjPhbs1qCCi8Ny/YTg==
 -----END PUBLIC KEY-----"""
+)
+
+EC_PUBLIC_KEY_UNCOMPRESSED = binascii.unhexlify(
+    b"046fb0b63f7844c499106838d1fb14980ba52587a418dfeee55ffff93e0a208b3336dc00499ee94c54276d38c9769b746ae54dff5d6b6eacb590b56417dd2422c1"
 )
 
 RSA_PRIVATE_KEY_DER = loads_sequence(
@@ -71,27 +82,44 @@ MwIDAQAB
 
 def main():
     def ec_serialization():
-
-        private_key = serialization.load_der_private_key(
-            EC_PRIVATE_KEY_DER, None, default_backend()
+        public_key_u = ec.EllipticCurvePublicKey.from_encoded_point(
+            ec.SECP256R1(), EC_PUBLIC_KEY_UNCOMPRESSED
         )
-        print("curve", private_key.curve.name)
-        print("key_size", private_key.key_size)
-
+        print("public_key.curve", public_key_u.curve.name)
+        public_numbersu = public_key_u.public_numbers()
+        print("public_key.public_numbers.x", public_numbersu.x)
+        print("public_key.public_numbers.y", public_numbersu.y)
         print(
-            "private_bytes",
-            private_key.private_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
+            "public_key.public_bytes X962",
+            public_key_u.public_bytes(
+                encoding=serialization.Encoding.X962,
+                format=serialization.PublicFormat.UncompressedPoint,
             ),
         )
+        print(
+            "public_key DER",
+            public_key_u.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ),
+        )
+        print(
+            "public_key PEM",
+            public_key_u.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ).decode(),
+        )
+
+        private_key = serialization.load_der_private_key(EC_PRIVATE_KEY_DER, None)
+        print("curve", private_key.curve.name)
+        print("key_size", private_key.key_size)
 
         print(
             "private_bytes DER",
             private_key.private_bytes(
                 encoding=serialization.Encoding.DER,
-                format=serialization.PrivateFormat.PKCS8,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
                 encryption_algorithm=serialization.NoEncryption(),
             ),
         )
@@ -100,7 +128,7 @@ def main():
             "private_bytes PEM",
             private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
                 encryption_algorithm=serialization.NoEncryption(),
             ).decode(),
         )
@@ -111,60 +139,77 @@ def main():
         public_key = private_key.public_key()
         public_numbers = public_key.public_numbers()
         print("public_key.curve", public_key.curve.name)
-        print(dir(serialization.Encoding))
-        public_bytes = public_key.public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint,
+        print(
+            "public_key.public_bytes X962",
+            public_key.public_bytes(
+                encoding=serialization.Encoding.X962,
+                format=serialization.PublicFormat.UncompressedPoint,
+            ),
         )
-        print("public_key.public_bytes", public_bytes)
+        print(
+            "public_key DER",
+            public_key.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ),
+        )
+        print(
+            "public_key PEM",
+            public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ).decode(),
+        )
         print("public_key.public_numbers.x", public_numbers.x)
         print("public_key.public_numbers.y", public_numbers.y)
 
         chosen_hash = hashes.SHA256()
-        digest = hashes.Hash(chosen_hash, default_backend())
+        digest = hashes.Hash(chosen_hash)
         digest.update(b"cacca")
         digest.update(b"cacca")
         digest.update(b"cacca")
         digest.update(b"cacca")
         digest.update(b"cacca")
         msg_hash = digest.finalize()
-        signature = private_key.sign(
-            msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
-        print("len", len(signature), "signature", signature)
-        public_key.verify(signature, msg_hash, ec.ECDSA(
-            utils.Prehashed(chosen_hash)))
 
-        public_key1 = serialization.load_der_public_key(
-            EC_PUBLIC_KEY_DER, default_backend())
+        signature = private_key.sign(msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
+        print("len", len(signature), "signature", signature, "msg_hash", msg_hash)
+        public_key.verify(signature, msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
+
+        public_key1 = serialization.load_der_public_key(EC_PUBLIC_KEY_DER)
         public_numbers1 = public_key1.public_numbers()
         print("public_key.curve", public_key1.curve.name)
-        public_bytes1 = public_key1.public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint,
+        print(
+            "public_key.public_bytes X962",
+            public_key1.public_bytes(
+                encoding=serialization.Encoding.X962,
+                format=serialization.PublicFormat.UncompressedPoint,
+            ),
         )
-        print("public_key.public_bytes", public_bytes1)
+        print(
+            "public_key DER",
+            public_key1.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ),
+        )
+        print(
+            "public_key PEM",
+            public_key1.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ).decode(),
+        )
         print("public_key.public_numbers.x", public_numbers1.x)
         print("public_key.public_numbers.y", public_numbers1.y)
-        public_key1.verify(signature, msg_hash, ec.ECDSA(
-            utils.Prehashed(chosen_hash)))
+        public_key1.verify(signature, msg_hash, ec.ECDSA(utils.Prehashed(chosen_hash)))
 
     def rsa_serialization():
-        private_key = serialization.load_der_private_key(
-            RSA_PRIVATE_KEY_DER, None, default_backend()
-        )
+        private_key = serialization.load_der_private_key(RSA_PRIVATE_KEY_DER, None)
         public_numbers = private_key.public_key().public_numbers()
         print("n", public_numbers.n)
         print("e", public_numbers.e)
-        print("key_size", public_numbers.public_key(
-            default_backend()).key_size)
-        print(
-            "private_bytes",
-            private_key.private_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PrivateFormat.TraditionalOpenSSL,
-                encryption_algorithm=serialization.NoEncryption(),
-            ),
-        )
+        print("key_size", public_numbers.public_key().key_size)
 
         print(
             "private_bytes DER",
@@ -197,19 +242,26 @@ def main():
         print("DMQ1", rsa.rsa_crt_dmq1(private_numbers.d, private_numbers.q))
         print(
             "P, Q",
-            rsa.rsa_recover_prime_factors(
-                public_numbers.n, public_numbers.e, private_numbers.d
+            rsa.rsa_recover_prime_factors(public_numbers.n, public_numbers.e, private_numbers.d),
+        )
+
+        public_key1 = serialization.load_der_public_key(RSA_PUBLIC_KEY_DER)
+
+        print(
+            "public_key.public_bytes DER",
+            public_key1.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
             ),
         )
 
-        public_key1 = serialization.load_der_public_key(
-            RSA_PUBLIC_KEY_DER, default_backend())
-        public_numbers1 = public_key1.public_numbers()
-        public_bytes1 = public_key1.public_bytes(
-            encoding=serialization.Encoding.DER,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        print(
+            "public_key.public_bytes PEM",
+            public_key1.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ).decode(),
         )
-        print("public_key.public_bytes", public_bytes1)
 
     ec_serialization()
     rsa_serialization()
