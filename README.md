@@ -145,7 +145,7 @@ micropython$ cd usercmodule/ucryptography
 ucryptography$ git submodule update --init --depth 1
 ucryptography$ cd ../../
 micropython$ make -j2 -C mpy-cross/
-micropython$ make -C ports/stm32 BOARD=ARDUINO_PORTENTA_H7 USER_C_MODULES="$(pwd)/usercmodule/ucryptography/micropython.cmake"
+micropython$ make -C ports/stm32 BOARD=ARDUINO_PORTENTA_H7 USER_C_MODULES="$(pwd)/usercmodule/ucryptography"
 ```
 </p>
 </details>
