@@ -724,7 +724,7 @@ static void cryptography_get_buffer(const mp_obj_t o, bool big_endian, mp_buffer
         }
         vstr_t vstr;
         vstr_init_len(&vstr, (mp_obj_get_int(int_bit_length(oo)) + 7) / 8);
-        mpz_as_bytes(o_temp_p, big_endian, vstr.len, (byte *)vstr.buf);
+        mpz_as_bytes(o_temp_p, big_endian, is_neg, vstr.len, (byte *)vstr.buf);
         if (is_neg)
         {
             mpz_neg_inpl(o_temp_p, o_temp_p);
