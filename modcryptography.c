@@ -814,7 +814,10 @@ static int util_decode_dss_signature(const unsigned char *sig, size_t slen, mbed
     unsigned char *p = (unsigned char *)sig;
     const unsigned char *end = sig + slen;
     size_t len;
-    MBEDTLS_INTERNAL_VALIDATE_RET(sig != NULL, MBEDTLS_ERR_ECP_BAD_INPUT_DATA);
+    if(sig != NULL) {
+        ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
 
     if ((ret = mbedtls_asn1_get_tag(&p, end, &len, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0)
     {
@@ -1966,19 +1969,12 @@ static MP_DEFINE_CONST_OBJ_TYPE(
 
 #if !defined(MBEDTLS_RSA_ALT)
 
-#define RSA_VALIDATE_RET(cond) MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_RSA_BAD_INPUT_DATA)
-#define RSA_VALIDATE(cond) MBEDTLS_INTERNAL_VALIDATE(cond)
-
 static int rsa_pka_modexp(mbedtls_rsa_context *ctx,
                           int is_private,
                           const unsigned char *input,
                           unsigned char *output)
 {
     int ret = 0;
-
-    RSA_VALIDATE_RET(ctx != NULL);
-    RSA_VALIDATE_RET(input != NULL);
-    RSA_VALIDATE_RET(output != NULL);
 
     size_t mlen = mbedtls_mpi_size(&ctx->private_N);
 
