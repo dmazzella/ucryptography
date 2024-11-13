@@ -814,7 +814,7 @@ static int util_decode_dss_signature(const unsigned char *sig, size_t slen, mbed
     unsigned char *p = (unsigned char *)sig;
     const unsigned char *end = sig + slen;
     size_t len;
-    if(sig != NULL) {
+    if(sig == NULL) {
         ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
         goto cleanup;
     }

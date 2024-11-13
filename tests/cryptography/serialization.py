@@ -79,6 +79,38 @@ MwIDAQAB
 -----END PUBLIC KEY-----"""
 )
 
+RSA_ENCRYPTED_PRIVATE_KEY_DER = loads_sequence(
+    """-----BEGIN ENCRYPTED PRIVATE KEY-----
+MIIE6jAcBgoqhkiG9w0BDAEDMA4ECGkBlv9nOvrlAgIIAASCBMhT9pWzij8iyruh
+rV1CBfDaz8gQpOCvAB8e8SY2W6Btzd3VX290VmXWKC0Y/018bdVRFXch5AZiJJwC
+J4+b7RloH1fATkqoesBVPEAy7GIPOpzSRF+0qXsqp5pPpVDGv77kEYc8tkC0l9E0
+bmJ27YGVoVjmsmKoLcrP3PvykR1S8AQgVnav8+km2b0J0mkCOTCXWEGvMuGHhZXJ
+oSFoCBHgCfgTLoL8tx/lt/pOWFHYe3oeTSEOJqMFu7Q4LVtRlXOHv0rH9z7Xb7PF
+36PsBcaoOH0bsylRFQGBtR+RIpe00jR8W+BfQavtUo+fpiE97OJR3uFYZOM3tTBs
+d8XDa5VwBxqld3hpmrHa/svWxARvE9z0OgdFu/5UEUA87Bjc1y+CoVXcUmfBYbRV
+gEYfClNoYmZpu1XxGV6sDtpOsKTPytai5iKYrtJ3UFT6OOrgXzLP8a3ZCm1Talec
+bhVnx4ZEb8SKNlu5Bhc4PmGYooYi1bJyveFlWWBLlHfo+sF3sNYcufpbtuZkn1Op
+0R+Ag+P8Mh2cKKx/hIOliXnhkmntAajdP5fzhLpEP+POmAFnN8cA08nAYhOrDDBY
+MDP1OxONoz6Rjtm9jPIGuNV76DE57oUZD884U8qthQRxb4XX+sTLrZOqQpmPN4Vw
+i5O6nBwexfMibAhrChIwHXvPElmpUW0pHJc1YFE1yuZWS+y+G+yg9aCAVJVTdkfa
+mJrPLtiU1WoDB7Wad9PFp5Pe6acOiPlAVWOLf85800oSKX19FA23rMnc8y/PTRuF
+Br4fRKPHSAgkvx0O5AKhOgyk1QiDbAX3gYL3Vmmb6GGYu1X+EwUTq58TEREICgvK
+4SDwjc3p+svesvNPt1WjCPbDgxOCdEBx8V+NrbfO1o8xHTVkoDj0beWWgH4p39n5
+uNLvkxh0Oj8BlTipDp93EX8gdc3VGR8KvCHnzFNgxhaA7My3UjUH0V+9yg0+zTpG
+AlO0X9FJqwCK54+cEseusl65606hmZsjMRLltGcmZn74UCJ8bHiVzzuVPovK5GkT
+pfwkh0bw6TyqUrLuxVNFu9rw2HvPTjv3GycmaMv4Dd5BWbhkwk3MOUsGPHTNNHYR
+XlcWlv9ul3fJDevQu2tBmfJhrlvuldvHxtuJlieS968AYQjL0zN4R5vwCYKIdde+
+K9xpWIpqI1dqh5XvR6aCDuMn6f7r403XwNqQK3szhqTW0ZcYlTxc+EAIWnpGpFlC
+5X708LnDDMofbYn6zW+U53rcUmBeQAdlUFG3a4Qp/oM2WmX2U3U1cxeIa5Hets90
+8lzr+jllKuZveCyCB6PJBUohqb4ezbnQmkqfCw4PdgPY0rUsB71ursZDa18Acjah
+Ugya2tPwts84s54gDZg3o8rL9jqkK/dbLO+a0zCzWFvXZCChh+Q+CjMUBdtNOfdQ
+b5uneZqn7HyPn/3N4a8b5viteO9YUmHSDHFhU6Jm5jL5bXwTB4Jwp76a3KZ9NCd3
+pvU1SpL9d0iXPXB/LRB+vKBkgRHoaPCmB8FTv+WNOFCCq5HS/zMoQIZDGkWQIQ/q
+r7ZvofgSjtCPSWaC1jsxObGU6ogF69/+BMvTzkyPqSfsmpDrewiaRPTfib1Uc8gK
+NvOosXfO9XHxf/uLMN0=
+-----END ENCRYPTED PRIVATE KEY-----"""
+)
+
 
 def main():
     def ec_serialization():
@@ -263,8 +295,70 @@ def main():
             ).decode(),
         )
 
+    def rsa_e_serialization():
+        # openssl genrsa -out key.pem 2048
+        # openssl pkcs8 -in key.pem -outform PEM -out pkcs8.key -v1 PBE-SHA1-3DES -topk8
+        private_key = serialization.load_der_private_key(RSA_ENCRYPTED_PRIVATE_KEY_DER, b'password')
+        public_numbers = private_key.public_key().public_numbers()
+        print("n", public_numbers.n)
+        print("e", public_numbers.e)
+        print("key_size", public_numbers.public_key().key_size)
+
+        print(
+            "private_bytes DER",
+            private_key.private_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            ),
+        )
+
+        print(
+            "private_bytes PEM",
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            ).decode(),
+        )
+
+        private_numbers = private_key.private_numbers()
+
+        print("d", private_numbers.d)
+        print("p", private_numbers.p)
+        print("q", private_numbers.q)
+        print("iqmp", private_numbers.iqmp)
+        print("dmp1", private_numbers.dmp1)
+        print("dmq1", private_numbers.dmq1)
+        print("IQMP", rsa.rsa_crt_iqmp(private_numbers.p, private_numbers.q))
+        print("DMP1", rsa.rsa_crt_dmp1(private_numbers.d, private_numbers.p))
+        print("DMQ1", rsa.rsa_crt_dmq1(private_numbers.d, private_numbers.q))
+        print(
+            "P, Q",
+            rsa.rsa_recover_prime_factors(public_numbers.n, public_numbers.e, private_numbers.d),
+        )
+
+        public_key1 = serialization.load_der_public_key(RSA_PUBLIC_KEY_DER)
+
+        print(
+            "public_key.public_bytes DER",
+            public_key1.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ),
+        )
+
+        print(
+            "public_key.public_bytes PEM",
+            public_key1.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ).decode(),
+        )
+
     ec_serialization()
     rsa_serialization()
+    rsa_e_serialization()
 
 
 if __name__ == "__main__":
