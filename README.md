@@ -51,13 +51,13 @@ public_key.verify(
 
 ```diff
 diff --git a/extmod/mbedtls/mbedtls_config_common.h b/extmod/mbedtls/mbedtls_config_common.h
-index db1562f27..d938c829a 100644
+index 6ea8540af..08ca009c3 100644
 --- a/extmod/mbedtls/mbedtls_config_common.h
 +++ b/extmod/mbedtls/mbedtls_config_common.h
-@@ -46,9 +46,11 @@
- #define MBEDTLS_ECP_DP_SECP256K1_ENABLED
+@@ -47,9 +47,11 @@
  #define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
  #define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
+ #define MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
 +#define MBEDTLS_BASE64_C
  #define MBEDTLS_CAN_ECDH
  #define MBEDTLS_PK_CAN_ECDSA_SIGN
@@ -66,7 +66,7 @@ index db1562f27..d938c829a 100644
  #define MBEDTLS_SHA256_SMALLER
  #define MBEDTLS_SSL_PROTO_TLS1
  #define MBEDTLS_SSL_PROTO_TLS1_1
-@@ -67,17 +69,23 @@
+@@ -68,19 +70,24 @@
  #define MBEDTLS_BIGNUM_C
  #define MBEDTLS_CIPHER_C
  #define MBEDTLS_CTR_DRBG_C
@@ -76,8 +76,8 @@ index db1562f27..d938c829a 100644
  #define MBEDTLS_ECP_C
  #define MBEDTLS_ENTROPY_C
  #define MBEDTLS_ERROR_C
-+#define MBEDTLS_GCM_C
 +#define MBEDTLS_GENPRIME
+ #define MBEDTLS_GCM_C
  #define MBEDTLS_MD_C
  #define MBEDTLS_MD5_C
  #define MBEDTLS_OID_C
@@ -85,6 +85,7 @@ index db1562f27..d938c829a 100644
 +#define MBEDTLS_PEM_WRITE_C
  #define MBEDTLS_PKCS5_C
  #define MBEDTLS_PK_C
+ #define MBEDTLS_PK_HAVE_ECC_KEYS
  #define MBEDTLS_PK_PARSE_C
 +#define MBEDTLS_PK_WRITE_C
  #define MBEDTLS_PLATFORM_C
