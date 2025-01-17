@@ -1,5 +1,5 @@
 diff --git a/extmod/mbedtls/mbedtls_config_common.h b/extmod/mbedtls/mbedtls_config_common.h
-index 4028bdf56..dfe05d8d4 100644
+index 6ea8540af..08ca009c3 100644
 --- a/extmod/mbedtls/mbedtls_config_common.h
 +++ b/extmod/mbedtls/mbedtls_config_common.h
 @@ -47,9 +47,11 @@
@@ -14,7 +14,7 @@ index 4028bdf56..dfe05d8d4 100644
  #define MBEDTLS_SHA256_SMALLER
  #define MBEDTLS_SSL_PROTO_TLS1
  #define MBEDTLS_SSL_PROTO_TLS1_1
-@@ -68,18 +70,24 @@
+@@ -68,19 +70,24 @@
  #define MBEDTLS_BIGNUM_C
  #define MBEDTLS_CIPHER_C
  #define MBEDTLS_CTR_DRBG_C
@@ -24,16 +24,16 @@ index 4028bdf56..dfe05d8d4 100644
  #define MBEDTLS_ECP_C
  #define MBEDTLS_ENTROPY_C
  #define MBEDTLS_ERROR_C
- #define MBEDTLS_GCM_C
 +#define MBEDTLS_GENPRIME
+ #define MBEDTLS_GCM_C
  #define MBEDTLS_MD_C
  #define MBEDTLS_MD5_C
  #define MBEDTLS_OID_C
 +#define MBEDTLS_PEM_PARSE_C
 +#define MBEDTLS_PEM_WRITE_C
  #define MBEDTLS_PKCS5_C
-+#define MBEDTLS_PKCS12_C
  #define MBEDTLS_PK_C
+ #define MBEDTLS_PK_HAVE_ECC_KEYS
  #define MBEDTLS_PK_PARSE_C
 +#define MBEDTLS_PK_WRITE_C
  #define MBEDTLS_PLATFORM_C
