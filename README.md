@@ -51,7 +51,7 @@ public_key.verify(
 
 ```diff
 diff --git a/extmod/mbedtls/mbedtls_config_common.h b/extmod/mbedtls/mbedtls_config_common.h
-index 6ea8540af..08ca009c3 100644
+index 6cd14befc..ab8c39835 100644
 --- a/extmod/mbedtls/mbedtls_config_common.h
 +++ b/extmod/mbedtls/mbedtls_config_common.h
 @@ -47,9 +47,11 @@
@@ -66,7 +66,7 @@ index 6ea8540af..08ca009c3 100644
  #define MBEDTLS_SHA256_SMALLER
  #define MBEDTLS_SSL_PROTO_TLS1
  #define MBEDTLS_SSL_PROTO_TLS1_1
-@@ -68,19 +70,24 @@
+@@ -68,19 +70,25 @@
  #define MBEDTLS_BIGNUM_C
  #define MBEDTLS_CIPHER_C
  #define MBEDTLS_CTR_DRBG_C
@@ -84,6 +84,7 @@ index 6ea8540af..08ca009c3 100644
 +#define MBEDTLS_PEM_PARSE_C
 +#define MBEDTLS_PEM_WRITE_C
  #define MBEDTLS_PKCS5_C
++#define MBEDTLS_PKCS12_C
  #define MBEDTLS_PK_C
  #define MBEDTLS_PK_HAVE_ECC_KEYS
  #define MBEDTLS_PK_PARSE_C
@@ -91,6 +92,7 @@ index 6ea8540af..08ca009c3 100644
  #define MBEDTLS_PLATFORM_C
  #define MBEDTLS_RSA_C
  #define MBEDTLS_SHA1_C
+
 ```
 </p>
 </details>
