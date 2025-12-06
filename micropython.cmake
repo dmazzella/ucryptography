@@ -33,5 +33,15 @@ target_compile_definitions(usermod_cryptography INTERFACE
     C25519_USE_MBEDTLS_SHA512=1
 )
 
+if(DEFINED IDF_TARGET)
+    # Add compiler flags to handle large code size on ESP32
+    if(IDF_TARGET STREQUAL "esp32" OR IDF_TARGET STREQUAL "esp32s2" OR IDF_TARGET STREQUAL "esp32s3")
+        target_compile_options(usermod_cryptography INTERFACE
+            -mlongcalls
+            -mtext-section-literals
+        )
+    endif()
+endif()
+
 # Link our INTERFACE library to the usermod target.
 target_link_libraries(usermod INTERFACE usermod_cryptography)
