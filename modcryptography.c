@@ -1048,8 +1048,8 @@ static mp_obj_t ec_parse_keypair(const mbedtls_ecp_keypair *ecp_keypair, bool pr
     vstr_t vstr_public_bytes;
     vstr_init_len(&vstr_public_bytes, pksize);
     vstr_ins_byte(&vstr_public_bytes, 0, 0x04);
-    mp_obj_int_to_bytes_impl(s2b_x, true, x_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len));
-    mp_obj_int_to_bytes_impl(s2b_y, true, y_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len) + (n_size - y_len) + x_len);
+    mp_obj_int_to_bytes(s2b_x, x_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len), true, false, false);
+    mp_obj_int_to_bytes(s2b_y, y_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len) + (n_size - y_len) + x_len, true, false, false);
 
     EllipticCurvePublicKey->public_numbers = EllipticCurvePublicNumbers;
     EllipticCurvePublicKey->public_bytes = mp_obj_new_bytes((const byte *)vstr_public_bytes.buf, vstr_public_bytes.len);
@@ -1362,8 +1362,8 @@ static mp_obj_t ec_public_numbers_make_new(const mp_obj_type_t *type, size_t n_a
     vstr_t vstr_public_bytes;
     vstr_init_len(&vstr_public_bytes, pksize);
     vstr_ins_byte(&vstr_public_bytes, 0, 0x04);
-    mp_obj_int_to_bytes_impl(s2b_x, true, x_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len));
-    mp_obj_int_to_bytes_impl(s2b_y, true, y_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len) + (n_size - y_len) + x_len);
+    mp_obj_int_to_bytes(s2b_x, x_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len), true, false, false);
+    mp_obj_int_to_bytes(s2b_y, y_len, (byte *)vstr_public_bytes.buf + 1 + (n_size - x_len) + (n_size - y_len) + x_len, true, false, false);
 
     mp_ec_public_numbers_t *EllipticCurvePublicNumbers = m_new_obj(mp_ec_public_numbers_t);
     EllipticCurvePublicNumbers->base.type = &ec_public_numbers_type;
@@ -1459,7 +1459,7 @@ static mp_obj_t ec_private_numbers_make_new(const mp_obj_type_t *type, size_t n_
 
     vstr_t vstr_private_bytes;
     vstr_init_len(&vstr_private_bytes, pksize);
-    mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(private_value), true, pksize, (byte *)vstr_private_bytes.buf);
+    mp_obj_int_to_bytes(cryptography_small_to_big_int(private_value), pksize, (byte *)vstr_private_bytes.buf, true, false, false);
 
     mp_ec_private_numbers_t *EllipticCurvePrivateNumbers = m_new_obj(mp_ec_private_numbers_t);
     EllipticCurvePrivateNumbers->base.type = &ec_private_numbers_type;
@@ -3274,7 +3274,7 @@ static mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
     int pksize = mbedtls_mpi_size(&ecp.private_grp.N);
     vstr_t vstr_private_bytes;
     vstr_init_len(&vstr_private_bytes, pksize);
-    mp_obj_int_to_bytes_impl(cryptography_small_to_big_int(private_value), true, pksize, (byte *)vstr_private_bytes.buf);
+    mp_obj_int_to_bytes(cryptography_small_to_big_int(private_value), pksize, (byte *)vstr_private_bytes.buf, true, false, false);
 
     if (mbedtls_ecp_read_key(ecp.private_grp.id, &ecp, (const byte *)vstr_private_bytes.buf, vstr_private_bytes.len) != 0)
     {
@@ -5863,7 +5863,7 @@ static mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
     mp_obj_t counter = cryptography_small_to_big_int(counter_obj);
     vstr_t vstr_counter;
     vstr_init_len(&vstr_counter, sizeof(unsigned long long));
-    mp_obj_int_to_bytes_impl(counter, true, vstr_counter.len, (byte *)vstr_counter.buf);
+    mp_obj_int_to_bytes(counter, vstr_counter.len, (byte *)vstr_counter.buf, true, false, false);
 
     vstr_t vstr_hmac_value;
     vstr_init_len(&vstr_hmac_value, mbedtls_md_get_size(mbedtls_md_info_from_type(_md_type)));
