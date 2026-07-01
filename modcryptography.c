@@ -2983,9 +2983,125 @@ static mp_obj_t x509_crt_parse_der(mp_obj_t certificate)
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_x509_crt_parse_der_obj, x509_crt_parse_der);
 static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_x509_crt_parse_der_obj, MP_ROM_PTR(&mod_x509_crt_parse_der_obj));
 
+#if defined(MBEDTLS_X509_CRT_WRITE_C)
+// Build pk_context from EllipticCurvePrivateKey for self-signed cert creation
+static int ec_private_key_to_pk(mp_ec_private_key_t *self, mbedtls_pk_context *pk)
+{
+    mp_buffer_info_t bufinfo_public_bytes;
+    mp_buffer_info_t bufinfo_private_bytes;
+
+    if (!mp_obj_is_type(self, &ec_private_key_type))
+    {
+        return -1;
+    }
+
+    mp_get_buffer_raise(self->public_key->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
+    mp_get_buffer_raise(self->private_bytes, &bufinfo_private_bytes, MP_BUFFER_READ);
+
+    mbedtls_pk_init(pk);
+    if (mbedtls_pk_setup(pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY)) != 0)
+    {
+        mbedtls_pk_free(pk);
+        return -1;
+    }
+
+    mbedtls_ecp_keypair *ecp_pk = mbedtls_pk_ec(*pk);
+    if (mbedtls_ecp_group_load(&ecp_pk->private_grp, self->curve->ecp_group_id) != 0)
+    {
+        mbedtls_pk_free(pk);
+        return -1;
+    }
+    if (mbedtls_ecp_point_read_binary(&ecp_pk->private_grp, &ecp_pk->private_Q,
+            (const byte *)bufinfo_public_bytes.buf, bufinfo_public_bytes.len) != 0)
+    {
+        mbedtls_pk_free(pk);
+        return -1;
+    }
+    if (mbedtls_mpi_read_binary(&ecp_pk->private_d,
+            (const byte *)bufinfo_private_bytes.buf, bufinfo_private_bytes.len) != 0)
+    {
+        mbedtls_pk_free(pk);
+        return -1;
+    }
+
+    return 0;
+}
+
+// x509.build_self_signed_ec_cert_pem(private_key, cn, san_dns [, not_before, not_after])
+static mp_obj_t x509_build_self_signed_ec_cert_pem(size_t n_args, const mp_obj_t *args)
+{
+    mp_ec_private_key_t *priv = MP_OBJ_TO_PTR(args[0]);
+    const char *cn = mp_obj_str_get_str(args[1]);
+    const char *san_dns = mp_obj_str_get_str(args[2]);
+    const char *not_before = "20240101000000";
+    const char *not_after = "20341231000000";
+
+    if (n_args > 3)
+    {
+        not_before = mp_obj_str_get_str(args[3]);
+    }
+    if (n_args > 4)
+    {
+        not_after = mp_obj_str_get_str(args[4]);
+    }
+
+    mbedtls_pk_context pk;
+    if (ec_private_key_to_pk(priv, &pk) != 0)
+    {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("invalid EC private key"));
+    }
+
+    char subject[96];
+    snprintf(subject, sizeof(subject), "CN=%s", cn);
+
+    unsigned char serial[16];
+    mp_random(NULL, serial, sizeof(serial));
+
+    mbedtls_x509write_cert crt;
+    mbedtls_x509write_crt_init(&crt);
+    mbedtls_x509write_crt_set_md_alg(&crt, MBEDTLS_MD_SHA256);
+    mbedtls_x509write_crt_set_subject_key(&crt, &pk);
+    mbedtls_x509write_crt_set_issuer_key(&crt, &pk);
+    mbedtls_x509write_crt_set_subject_name(&crt, subject);
+    mbedtls_x509write_crt_set_issuer_name(&crt, subject);
+    mbedtls_x509write_crt_set_validity(&crt, not_before, not_after);
+    mbedtls_x509write_crt_set_serial_raw(&crt, serial, sizeof(serial));
+
+    mbedtls_x509_san_list san_list;
+    memset(&san_list, 0, sizeof(san_list));
+    san_list.node.type = MBEDTLS_X509_SAN_DNS_NAME;
+    san_list.node.san.unstructured_name.p = (unsigned char *)san_dns;
+    san_list.node.san.unstructured_name.len = strlen(san_dns);
+    mbedtls_x509write_crt_set_subject_alternative_name(&crt, &san_list);
+
+    vstr_t vstr_pem;
+    vstr_init_len(&vstr_pem, 4096);
+    int ret = mbedtls_x509write_crt_pem(&crt, (unsigned char *)vstr_pem.buf, vstr_pem.len, mp_random, NULL);
+    mbedtls_x509write_crt_free(&crt);
+    mbedtls_pk_free(&pk);
+
+    if (ret != 0)
+    {
+        vstr_clear(&vstr_pem);
+        mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("cert write failed: %d"), ret);
+    }
+
+    size_t pem_len = strlen((char *)vstr_pem.buf);
+    mp_obj_t result = mp_obj_new_bytes((const byte *)vstr_pem.buf, pem_len);
+    vstr_clear(&vstr_pem);
+    return result;
+}
+
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_x509_build_self_signed_ec_cert_pem_obj, 3, 5, x509_build_self_signed_ec_cert_pem);
+static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_x509_build_self_signed_ec_cert_pem_obj, MP_ROM_PTR(&mod_x509_build_self_signed_ec_cert_pem_obj));
+#endif
+
 static const mp_rom_map_elem_t x509_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_load_der_x509_certificate), MP_ROM_PTR(&mod_static_x509_crt_parse_der_obj)},
     {MP_ROM_QSTR(MP_QSTR_Certificate), MP_ROM_PTR(&x509_certificate_type)},
+#if defined(MBEDTLS_X509_CRT_WRITE_C)
+    {MP_ROM_QSTR(MP_QSTR_build_self_signed_ec_cert_pem), MP_ROM_PTR(&mod_static_x509_build_self_signed_ec_cert_pem_obj)},
+#endif
 };
 
 static MP_DEFINE_CONST_DICT(x509_locals_dict, x509_locals_dict_table);
