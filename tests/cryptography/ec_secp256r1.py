@@ -15,6 +15,48 @@ except ImportError:
     from cryptography.hazmat.primitives.asymmetric import utils as crypto_utils
 
 
+def _flip_last(b):
+    a = bytearray(b)
+    a[-1] ^= 0x01
+    return bytes(a)
+
+
+def _assert_rejected(label, fn):
+    try:
+        fn()
+    except Exception as ex:
+        print("  reject OK:", label, "->", type(ex).__name__)
+        return
+    raise AssertionError("SECURITY: tampered input accepted -> " + label)
+
+
+def tamper(curve, private_value):
+    # ECDSA verification must reject a corrupted signature or a tampered
+    # digest instead of returning without raising (fail-open). Uses the
+    # Prehashed form so it runs identically on the module and on PyCA.
+    pr_k = crypto_ec.derive_private_key(private_value, curve)
+    pu_k = pr_k.public_key()
+    chosen_hash = crypto_hashes.SHA256()
+    digest = crypto_hashes.Hash(chosen_hash)
+    digest.update(b"A message I want to sign")
+    msg_hash = digest.finalize()
+    signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
+    pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))  # valid
+    _assert_rejected(
+        "ECDSA corrupted signature",
+        lambda: pu_k.verify(
+            _flip_last(signature), msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+        ),
+    )
+    _assert_rejected(
+        "ECDSA tampered digest",
+        lambda: pu_k.verify(
+            signature, _flip_last(msg_hash), crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+        ),
+    )
+    print("ECDSA tamper tests passed")
+
+
 def numbers(curve, x, y, private_value):
     ecpubn = crypto_ec.EllipticCurvePublicNumbers(x, y, curve)
     ecprivn = crypto_ec.EllipticCurvePrivateNumbers(private_value, ecpubn)
@@ -76,9 +118,9 @@ def numbers(curve, x, y, private_value):
     pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
     message = b"A message I want to sign"
     print("message", message, len(message))
-    signature = pr_k.sign(message, crypto_ec.ECDSA(None))
+    signature = pr_k.sign(message, crypto_ec.ECDSA(chosen_hash))
     print("signature", signature, len(signature))
-    pu_k.verify(signature, message, crypto_ec.ECDSA(None))
+    pu_k.verify(signature, message, crypto_ec.ECDSA(chosen_hash))
 
 
 def derive(curve, private_value):
@@ -223,6 +265,9 @@ def main():
         generate(curve)
     except Exception as ex:
         print(type(ex), ex)
+
+    print("@" * 20, "TAMPER", "@" * 20)
+    tamper(curve, d)
 
 
 if __name__ == "__main__":

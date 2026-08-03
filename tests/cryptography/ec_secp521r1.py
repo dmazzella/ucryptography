@@ -76,9 +76,9 @@ def numbers(curve, x, y, private_value):
     pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
     message = b"A message I want to sign"
     print("message", message, len(message))
-    signature = pr_k.sign(message, crypto_ec.ECDSA(None))
+    signature = pr_k.sign(message, crypto_ec.ECDSA(chosen_hash))
     print("signature", signature, len(signature))
-    pu_k.verify(signature, message, crypto_ec.ECDSA(None))
+    pu_k.verify(signature, message, crypto_ec.ECDSA(chosen_hash))
 
 
 def derive(curve, private_value):

@@ -8,6 +8,26 @@ except ImportError:
     from cryptography.hazmat.primitives import hashes, hmac
 
 
+def _flip_last(b):
+    a = bytearray(b)
+    a[-1] ^= 0x01
+    return bytes(a)
+
+
+def _assert_rejected(label, fn):
+    try:
+        fn()
+    except Exception as ex:
+        print("  reject OK:", label, "->", type(ex).__name__)
+        return
+    raise AssertionError("SECURITY: tampered input accepted -> " + label)
+
+
+def _verify(ctx, data, signature):
+    ctx.update(data)
+    ctx.verify(signature)
+
+
 def main():
     expected_sha1 = b"U#\x8d\xfb\x08\x96'a&B\xa5=\xf7\xed\xc2{\x83\xb9\xd0\xab"
     expected_sha256 = b"\x80\x1c\x18\n\xc0\xc9W=p\xcan\x1a\x0f\xb6\n\x0b\xe9\x8d\xdf\xb3\xc3\xe6\xea+\x8b\xa9:Na4\xd8\x9c"
@@ -38,6 +58,39 @@ def main():
     hmac_context = hmac.HMAC(key, hashes.BLAKE2s(32))
     hmac_context.update(b"caccone" * 1000)
     print(expected_blake2s == hmac_context.finalize())
+
+    # --- HMAC.verify() tamper guards ---------------------------------------
+    # verify() must recompute the MAC and reject a wrong/forged/truncated tag
+    # instead of silently accepting it (fail-open).
+    hmac_context = hmac.HMAC(key, hashes.SHA256())
+    hmac_context.update(b"caccone" * 1000)
+    hmac_context.verify(expected_sha256)  # correct tag: must NOT raise
+    print("HMAC verify (valid) OK")
+
+    _assert_rejected(
+        "HMAC wrong signature",
+        lambda: _verify(hmac.HMAC(key, hashes.SHA256()), b"caccone" * 1000, _flip_last(expected_sha256)),
+    )
+    _assert_rejected(
+        "HMAC tampered data",
+        lambda: _verify(hmac.HMAC(key, hashes.SHA256()), b"tampered data", expected_sha256),
+    )
+    _assert_rejected(
+        "HMAC truncated signature",
+        lambda: _verify(hmac.HMAC(key, hashes.SHA256()), b"caccone" * 1000, expected_sha256[:16]),
+    )
+    print("HMAC verify tamper tests passed")
+
+    # --- HMAC.copy() must duplicate key + buffered data + hash algorithm ----
+    # A broken copy (missing key/hash_context) would crash or mis-verify here.
+    base = hmac.HMAC(key, hashes.SHA256())
+    base.update(b"caccone" * 1000)
+    clone = base.copy()
+    print("HMAC copy finalize matches:", clone.finalize() == expected_sha256)
+    fork = hmac.HMAC(key, hashes.SHA256())
+    fork.update(b"caccone" * 1000)
+    fork.copy().verify(expected_sha256)
+    print("HMAC copy verify OK")
 
 
 if __name__ == "__main__":

@@ -16,6 +16,25 @@ except ImportError:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
+def _flip_last(b):
+    # Return a copy of b with its final byte flipped (a minimal tamper).
+    a = bytearray(b)
+    a[-1] ^= 0x01
+    return bytes(a)
+
+
+def _assert_rejected(label, fn):
+    # Security regression guard: a tampered/forged input MUST be rejected.
+    # Any exception counts as "rejected"; the failure we care about is a
+    # tampered input being silently accepted (fail-open).
+    try:
+        fn()
+    except Exception as ex:
+        print("  reject OK:", label, "->", type(ex).__name__)
+        return
+    raise AssertionError("SECURITY: tampered input accepted -> " + label)
+
+
 def urandom(size):
     try:
         return bytes(random.getrandbits(8) for i in range(size))
@@ -63,6 +82,44 @@ def main():
 
     print("AES GCM")
     AES_GCM()
+
+    def AES_GCM_tamper():
+        # Guards against AEAD authentication being a no-op: a corrupted tag,
+        # ciphertext, AAD or nonce must raise (InvalidTag) and never return
+        # plaintext.
+        aad = b"\xDE\xAD\xBE\xEF"
+        key = b'\xd1}\x9c"e\x0c\xe0\xafb\x1c\xf3J^\xd7\xa7y<\x17\xdd\xed`eD\x051\xae\xbb\xa2\x91\xfeD\xe1'
+        iv = b"7M\xb4xy\x01t\x88\xd8\xf3\x9e\xc0"
+
+        # cryptography.Cipher + modes.GCM (tag supplied separately)
+        encryptor = Cipher(algorithms.AES(key), modes.GCM(iv)).encryptor()
+        encryptor.authenticate_additional_data(aad)
+        ct = encryptor.update(data) + encryptor.finalize()
+        tag = encryptor.tag
+
+        def cipher_decrypt(ct_, tag_, aad_):
+            decryptor = Cipher(algorithms.AES(key), modes.GCM(iv, tag=tag_)).decryptor()
+            decryptor.authenticate_additional_data(aad_)
+            return decryptor.update(ct_) + decryptor.finalize()
+
+        assert cipher_decrypt(ct, tag, aad) == data, "GCM round-trip failed"
+        _assert_rejected("GCM corrupted tag", lambda: cipher_decrypt(ct, _flip_last(tag), aad))
+        _assert_rejected("GCM corrupted ciphertext", lambda: cipher_decrypt(_flip_last(ct), tag, aad))
+        _assert_rejected("GCM corrupted AAD", lambda: cipher_decrypt(ct, tag, b"\x00\x00\x00\x00"))
+        _assert_rejected("GCM truncated tag", lambda: cipher_decrypt(ct, tag[:8], aad))
+
+        # AESGCM one-shot AEAD (tag appended to the ciphertext blob)
+        aesgcm = AESGCM(key)
+        blob = aesgcm.encrypt(iv, data, aad)
+        assert aesgcm.decrypt(iv, blob, aad) == data, "AESGCM round-trip failed"
+        _assert_rejected("AESGCM corrupted blob", lambda: aesgcm.decrypt(iv, _flip_last(blob), aad))
+        _assert_rejected("AESGCM corrupted AAD", lambda: aesgcm.decrypt(iv, blob, b"\x00\x00\x00\x00"))
+        _assert_rejected("AESGCM truncated blob", lambda: aesgcm.decrypt(iv, blob[:8], aad))
+        _assert_rejected("AESGCM wrong nonce", lambda: aesgcm.decrypt(b"\x00" * 12, blob, aad))
+        print("GCM authentication tamper tests passed")
+
+    print("AES GCM tamper")
+    AES_GCM_tamper()
 
     def AES_CBC():
         key = b"g\xa5\xc2S-\xba\xf87\xe9.\x97xTW+U\xd2\x83a\x81\xef/h\xf3w1\x95\xd26\x16\xc5\x0b"

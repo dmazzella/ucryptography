@@ -61,6 +61,7 @@ MP_DEFINE_EXCEPTION(NotYetFinalized, Exception);
 MP_DEFINE_EXCEPTION(UnsupportedAlgorithm, Exception);
 MP_DEFINE_EXCEPTION(InvalidKey, Exception);
 MP_DEFINE_EXCEPTION(InvalidToken, Exception);
+MP_DEFINE_EXCEPTION(InvalidTag, Exception);
 
 #define CHK_NE_GOTO(EC, ERR, LABEL) \
     if ((EC) != (ERR))              \
@@ -309,6 +310,7 @@ typedef struct _mp_ciphers_modes_gcm_t
     vstr_t *initialization_vector;
     vstr_t *tag;
     mp_int_t min_tag_length;
+    bool has_tag;
 } mp_ciphers_modes_gcm_t;
 
 typedef struct _mp_ciphers_modes_ecb_t
@@ -814,7 +816,8 @@ static int util_decode_dss_signature(const unsigned char *sig, size_t slen, mbed
     unsigned char *p = (unsigned char *)sig;
     const unsigned char *end = sig + slen;
     size_t len;
-    if(sig == NULL) {
+    if (sig == NULL)
+    {
         ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
         goto cleanup;
     }
@@ -2551,18 +2554,27 @@ static mp_obj_t hmac_algorithm_copy(mp_obj_t obj)
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
 
+    mp_hash_context_t *HashContext = m_new_obj(mp_hash_context_t);
+    HashContext->base.type = &hash_context_type;
+    HashContext->algorithm = self->hash_context->algorithm;
+    HashContext->data = vstr_new(0);
+    HashContext->finalized = false;
+
     mp_hmac_context_t *HMACContext = m_new_obj(mp_hmac_context_t);
     HMACContext->base.type = &hmac_context_type;
     HMACContext->key = vstr_new(self->key->len);
-    vstr_add_strn(HMACContext->data, self->key->buf, self->key->len);
+    vstr_add_strn(HMACContext->key, self->key->buf, self->key->len);
     HMACContext->data = vstr_new(self->data->len);
     vstr_add_strn(HMACContext->data, self->data->buf, self->data->len);
     HMACContext->finalized = false;
+    HMACContext->hash_context = HashContext;
 
     return MP_OBJ_FROM_PTR(HMACContext);
 }
 
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_hmac_algorithm_copy_obj, hmac_algorithm_copy);
+
+static mp_obj_t hmac_algorithm_finalize(mp_obj_t obj);
 
 static mp_obj_t hmac_algorithm_verify(mp_obj_t obj, mp_obj_t data)
 {
@@ -2572,8 +2584,21 @@ static mp_obj_t hmac_algorithm_verify(mp_obj_t obj, mp_obj_t data)
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
 
-    mp_buffer_info_t bufinfo_data;
-    mp_get_buffer_raise(data, &bufinfo_data, MP_BUFFER_READ);
+    mp_buffer_info_t bufinfo_signature;
+    mp_get_buffer_raise(data, &bufinfo_signature, MP_BUFFER_READ);
+
+    // Recompute the HMAC over the accumulated data (this also finalizes the
+    // context and clears the key/data) and compare it in constant time to the
+    // caller-supplied signature. Fail closed on any mismatch so a forged or
+    // truncated tag can never be silently accepted.
+    mp_obj_t digest_obj = hmac_algorithm_finalize(obj);
+    mp_buffer_info_t bufinfo_digest;
+    mp_get_buffer_raise(digest_obj, &bufinfo_digest, MP_BUFFER_READ);
+
+    if (!constant_time_bytes_eq((uint8_t *)bufinfo_digest.buf, bufinfo_digest.len, (uint8_t *)bufinfo_signature.buf, bufinfo_signature.len))
+    {
+        mp_raise_msg(&mp_type_InvalidSignature, NULL);
+    }
 
     return mp_const_none;
 }
@@ -4993,6 +5018,7 @@ static const mp_rom_map_elem_t exceptions_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR_UnsupportedAlgorithm), MP_ROM_PTR(&mp_type_UnsupportedAlgorithm)},
     {MP_ROM_QSTR(MP_QSTR_InvalidKey), MP_ROM_PTR(&mp_type_InvalidKey)},
     {MP_ROM_QSTR(MP_QSTR_InvalidToken), MP_ROM_PTR(&mp_type_InvalidToken)},
+    {MP_ROM_QSTR(MP_QSTR_InvalidTag), MP_ROM_PTR(&mp_type_InvalidTag)},
 };
 
 static MP_DEFINE_CONST_DICT(exceptions_locals_dict, exceptions_locals_dict_table);
@@ -5104,24 +5130,36 @@ static mp_obj_t aesgcm_decrypt(size_t n_args, const mp_obj_t *args)
     mp_buffer_info_t bufinfo_associated_data;
     bool use_associated_data = mp_get_buffer(args[3], &bufinfo_associated_data, MP_BUFFER_READ);
 
-    vstr_t vstr_tag;
-    vstr_init_len(&vstr_tag, 16);
+    // PyCA AEAD appends a 16-byte authentication tag to the ciphertext.
+    if (bufinfo_data.len < 16)
+    {
+        mp_raise_msg(&mp_type_InvalidTag, NULL);
+    }
+
+    size_t ciphertext_len = bufinfo_data.len - 16;
+    const byte *tag = (const byte *)bufinfo_data.buf + ciphertext_len;
 
     vstr_t vstr_output;
-    vstr_init_len(&vstr_output, bufinfo_data.len - vstr_tag.len);
-    size_t olen = 0;
+    vstr_init_len(&vstr_output, ciphertext_len);
 
     mbedtls_gcm_context ctx;
     mbedtls_gcm_init(&ctx);
     mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, (byte *)AESGCM->key->buf, (AESGCM->key->len * 8));
-    mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_DECRYPT, bufinfo_nonce.buf, bufinfo_nonce.len);
-    mbedtls_gcm_update_ad(&ctx, (use_associated_data ? bufinfo_associated_data.buf : NULL), (use_associated_data ? bufinfo_associated_data.len : 0));
-    mbedtls_gcm_update(&ctx, bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_output.buf, vstr_output.len, &olen);
-    mbedtls_gcm_finish(&ctx, (byte *)vstr_output.buf, vstr_output.len, &olen, (byte *)vstr_tag.buf, vstr_tag.len);
+    int ret = mbedtls_gcm_auth_decrypt(&ctx, ciphertext_len,
+                                       (const byte *)bufinfo_nonce.buf, bufinfo_nonce.len,
+                                       (use_associated_data ? (const byte *)bufinfo_associated_data.buf : NULL), (use_associated_data ? bufinfo_associated_data.len : 0),
+                                       tag, 16,
+                                       (const byte *)bufinfo_data.buf, (byte *)vstr_output.buf);
     mbedtls_gcm_free(&ctx);
 
+    if (ret != 0)
+    {
+        memset(vstr_output.buf, 0, vstr_output.len);
+        vstr_clear(&vstr_output);
+        mp_raise_msg(&mp_type_InvalidTag, NULL);
+    }
+
     mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf, vstr_output.len);
-    vstr_clear(&vstr_tag);
     vstr_clear(&vstr_output);
     return oo;
 }
@@ -5508,7 +5546,9 @@ static mp_obj_t decryptor_update(mp_obj_t self_o, mp_obj_t data)
         mbedtls_gcm_starts(&ctx, MBEDTLS_GCM_DECRYPT, (const byte *)vstr_iv.buf, vstr_iv.len);
         mbedtls_gcm_update_ad(&ctx, (use_associated_data ? (byte *)self->aadata->buf : NULL), (use_associated_data ? self->aadata->len : 0));
         mbedtls_gcm_update(&ctx, (const byte *)self->data->buf, self->data->len, (byte *)vstr_output.buf, vstr_output.len, &olen);
-        mbedtls_gcm_finish(&ctx, (byte *)vstr_output.buf, vstr_output.len, &olen, (byte *)mode->tag->buf, mode->tag->len);
+        // Discard the computed tag: the caller-supplied expected tag (mode->tag) is authenticated in finalize().
+        byte computed_tag[16];
+        mbedtls_gcm_finish(&ctx, (byte *)vstr_output.buf, vstr_output.len, &olen, computed_tag, sizeof(computed_tag));
         mbedtls_gcm_free(&ctx);
 
         mp_obj_t oo = mp_obj_new_bytes((const byte *)vstr_output.buf + self_data_len, vstr_output.len - self_data_len);
@@ -5565,6 +5605,40 @@ static mp_obj_t decryptor_finalize(mp_obj_t self_o)
     {
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
+
+    if (self->cipher->mode_type == CIPHER_MODE_GCM)
+    {
+        mp_ciphers_modes_gcm_t *mode = (mp_ciphers_modes_gcm_t *)MP_OBJ_TO_PTR(self->cipher->mode);
+        if (!mode->has_tag)
+        {
+            self->finalized = true;
+            mp_raise_ValueError(MP_ERROR_TEXT("Authentication tag must be provided when decrypting"));
+        }
+
+        // Authenticate the whole buffered ciphertext against the expected tag; fail closed on mismatch.
+        bool use_associated_data = self->aadata->buf != NULL && self->aadata->len;
+        vstr_t vstr_output;
+        vstr_init_len(&vstr_output, self->data->len);
+
+        mbedtls_gcm_context ctx;
+        mbedtls_gcm_init(&ctx);
+        mbedtls_gcm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, (byte *)self->cipher->algorithm->key->buf, (self->cipher->algorithm->key->len * 8));
+        int ret = mbedtls_gcm_auth_decrypt(&ctx, self->data->len,
+                                           (const byte *)mode->initialization_vector->buf, mode->initialization_vector->len,
+                                           (use_associated_data ? (const byte *)self->aadata->buf : NULL), (use_associated_data ? self->aadata->len : 0),
+                                           (const byte *)mode->tag->buf, mode->tag->len,
+                                           (const byte *)self->data->buf, (byte *)vstr_output.buf);
+        mbedtls_gcm_free(&ctx);
+        memset(vstr_output.buf, 0, vstr_output.len);
+        vstr_clear(&vstr_output);
+
+        if (ret != 0)
+        {
+            self->finalized = true;
+            mp_raise_msg(&mp_type_InvalidTag, NULL);
+        }
+    }
+
     self->finalized = true;
     return mp_const_empty_bytes;
 }
@@ -5771,12 +5845,19 @@ static mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, siz
     GCM->tag = vstr_new(GCM->min_tag_length);
     if (has_tag)
     {
+        // Reject truncated tags (PyCA contract): a supplied tag shorter than
+        // min_tag_length would silently weaken authentication.
+        if ((mp_int_t)bufinfo_tag.len < GCM->min_tag_length)
+        {
+            mp_raise_ValueError(MP_ERROR_TEXT("Authentication tag must be min_tag_length bytes or longer"));
+        }
         vstr_add_strn(GCM->tag, bufinfo_tag.buf, bufinfo_tag.len);
     }
     else
     {
         GCM->tag->len = GCM->min_tag_length;
     }
+    GCM->has_tag = has_tag;
 
     return MP_OBJ_FROM_PTR(GCM);
 }

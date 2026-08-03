@@ -12,6 +12,21 @@ except ImportError:
     from cryptography.hazmat.primitives.asymmetric import padding
 
 
+def _flip_last(b):
+    a = bytearray(b)
+    a[-1] ^= 0x01
+    return bytes(a)
+
+
+def _assert_rejected(label, fn):
+    try:
+        fn()
+    except Exception as ex:
+        print("  reject OK:", label, "->", type(ex).__name__)
+        return
+    raise AssertionError("SECURITY: tampered input accepted -> " + label)
+
+
 def rsa_raw_sign(plaintext, private_key):
     d = private_key.private_numbers().d
     n = private_key.public_key().public_numbers().n
@@ -119,6 +134,22 @@ def main():
             padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
             chosen_hash,
         )
+
+        def _pss_verify(sig, msg):
+            public_key.verify(
+                sig,
+                msg,
+                padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
+                chosen_hash,
+            )
+
+        _assert_rejected(
+            "RSA-PSS corrupted signature", lambda: _pss_verify(_flip_last(signature), message)
+        )
+        _assert_rejected(
+            "RSA-PSS tampered message", lambda: _pss_verify(signature, b"another message")
+        )
+        print("RSA-PSS tamper tests passed")
 
         hasher = hashes.Hash(chosen_hash)
         hasher.update(b"data & ")

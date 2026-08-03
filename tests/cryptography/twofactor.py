@@ -14,10 +14,28 @@ except ImportError:
     from cryptography.hazmat.primitives import hashes
 
 
+def _assert_rejected(label, fn):
+    try:
+        fn()
+    except Exception as ex:
+        print("  reject OK:", label, "->", type(ex).__name__)
+        return
+    raise AssertionError("SECURITY: wrong OTP accepted -> " + label)
+
+
 def hotp(key, length, algorithm, counter):
     hotp = HOTP(key, length, algorithm)
     hotp_value = hotp.generate(counter)
     hotp.verify(hotp_value, counter)
+    # A one-time password computed for one counter must not verify against a
+    # different counter (guards against verify() being a no-op / fail-open).
+    wrong_counter = counter + 1
+    while HOTP(key, length, algorithm).generate(wrong_counter) == hotp_value:
+        wrong_counter += 1
+    _assert_rejected(
+        "HOTP wrong counter",
+        lambda: HOTP(key, length, algorithm).verify(hotp_value, wrong_counter),
+    )
     print("HOTP", hotp_value)
 
 
@@ -25,6 +43,14 @@ def totp(key, length, algorithm, time):
     totp = TOTP(key, length, algorithm, 30)
     totp_value = totp.generate(time)
     totp.verify(totp_value, time)
+    # A TOTP from one time window must not verify in a far-away window.
+    wrong_time = time + 3000
+    while TOTP(key, length, algorithm, 30).generate(wrong_time) == totp_value:
+        wrong_time += 30
+    _assert_rejected(
+        "TOTP wrong time window",
+        lambda: TOTP(key, length, algorithm, 30).verify(totp_value, wrong_time),
+    )
     print("TOTP", totp_value)
 
 
