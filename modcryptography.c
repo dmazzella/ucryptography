@@ -6192,6 +6192,9 @@ static mp_obj_t utils_rfc6979_gen_nonce(mp_obj_t self_obj)
         mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v_00.buf, vstr_v_00.len, (byte *)vstr_k.buf);
 
         mbedtls_md_hmac(mbedtls_md_info_from_type(self->algorithm->md_type), (const byte *)vstr_k.buf, vstr_k.len, (const byte *)vstr_v.buf, vstr_v.len, (byte *)vstr_v.buf);
+
+        vstr_clear(&vstr_v_00);
+        vstr_clear(&vstr_temp);
     }
 
     return mp_const_none;
