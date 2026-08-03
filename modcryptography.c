@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2019-2024 Damiano Mazzella
+ * Copyright (c) 2019-2026 Damiano Mazzella
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -15,12 +15,12 @@
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY of ANY KIND, EXPRESS OR
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES of MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION of CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT of OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
 
@@ -80,10 +80,7 @@ static int mp_random(void *rng_state, byte *output, size_t len)
     size_t use_len;
     int rnd;
 
-    if (rng_state != NULL)
-    {
-        rng_state = NULL;
-    }
+    (void)rng_state;
 
     while (len > 0)
     {
@@ -496,9 +493,6 @@ static const mp_obj_type_t ciphers_algorithms_3des_type;
 static const mp_obj_type_t ciphers_modes_cbc_type;
 static const mp_obj_type_t ciphers_modes_gcm_type;
 static const mp_obj_type_t ciphers_modes_ecb_type;
-#if 0
-static const mp_obj_type_t utils_rfc6979_type;
-#endif
 static const mp_obj_type_t padding_pkcs1v15_type;
 static const mp_obj_type_t padding_pss_type;
 static const mp_obj_type_t padding_oaep_type;
@@ -507,7 +501,7 @@ static const mp_obj_type_t twofactor_hotp_type;
 static const mp_obj_type_t twofactor_totp_type;
 
 #ifdef STM32WB
-#ifdef MBEDTLS_GCM_ALT || MBEDTLS_AES_ALT
+#if defined(MBEDTLS_GCM_ALT) || defined(MBEDTLS_AES_ALT)
 void HAL_CRYP_MspInit(CRYP_HandleTypeDef *hcryp)
 {
     if (hcryp->Instance == AES1)
@@ -556,82 +550,6 @@ void HAL_PKA_MspDeInit(PKA_HandleTypeDef *hpka)
     }
 }
 #endif
-#endif
-
-#if 0
-#define DEBUG_MICROPYTHON_NEXTCHR "\n:"
-static inline void micropython_printh(const uint8_t *b, size_t l)
-{
-    for (size_t i = 0; i < l; i++)
-    {
-        printf("%02X%c", b[i], DEBUG_MICROPYTHON_NEXTCHR[i < l - 1]);
-    }
-}
-
-static vstr_t *vstr_hexlify(vstr_t *vstr_out, const byte *in, size_t in_len)
-{
-    vstr_init(vstr_out, in_len);
-
-    if (in != NULL && in_len)
-    {
-        for (mp_uint_t i = in_len; i--;)
-        {
-            byte d = (*in >> 4);
-            if (d > 9)
-            {
-                d += 'a' - '9' - 1;
-            }
-            vstr_add_char(vstr_out, d + '0');
-            d = (*in++ & 0xf);
-            if (d > 9)
-            {
-                d += 'a' - '9' - 1;
-            }
-            vstr_add_char(vstr_out, d + '0');
-        }
-    }
-
-    return vstr_out;
-}
-#endif
-
-#if 0
-static void print_exception(vstr_t *vstr_print, mp_obj_t exc)
-{
-    mp_print_t print;
-    vstr_clear(vstr_print);
-    vstr_init_print(vstr_print, 16, &print);
-    if (mp_obj_is_exception_instance(exc))
-    {
-        size_t n, *values;
-        mp_obj_exception_get_traceback(exc, &n, &values);
-        if (n > 0)
-        {
-            assert(n % 3 == 0);
-            mp_print_str(&print, "Traceback (most recent call last):\n");
-            for (int i = n - 3; i >= 0; i -= 3)
-            {
-#if MICROPY_ENABLE_SOURCE_LINE
-                mp_printf(&print, "  File \"%q\", line %d", values[i], (int)values[i + 1]);
-#else
-                mp_printf(&print, "  File \"%q\"", values[i]);
-#endif
-                // the block name can be NULL if it's unknown
-                qstr block = values[i + 2];
-                if (block == MP_QSTR_NULL)
-                {
-                    mp_print_str(&print, "\n");
-                }
-                else
-                {
-                    mp_printf(&print, ", in %q\n", block);
-                }
-            }
-        }
-    }
-    mp_obj_print_helper(&print, exc, PRINT_EXC);
-    mp_print_str(&print, "\n");
-}
 #endif
 
 static mpz_t *mp_mpz_for_int(mp_obj_t arg, mpz_t *temp)
@@ -809,6 +727,37 @@ static mp_obj_t mod_constant_time_bytes_eq(mp_obj_t a, mp_obj_t b)
 
 static MP_DEFINE_CONST_FUN_OBJ_2(mod_constant_time_bytes_eq_obj, mod_constant_time_bytes_eq);
 static MP_DEFINE_CONST_STATICMETHOD_OBJ(mod_static_constant_time_bytes_eq_obj, MP_ROM_PTR(&mod_constant_time_bytes_eq_obj));
+
+// Validate the hash algorithm object and compute the message digest into
+// out_digest (raw copy for None/Prehashed). Returns the resolved hash algorithm
+// (NULL for None). Raises UnsupportedAlgorithm if the object is not supported.
+static mp_hash_algorithm_t *cryptography_hash_digest(mp_obj_t algorithm, const mp_buffer_info_t *bufinfo_data, vstr_t *out_digest)
+{
+    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
+    {
+        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
+    }
+
+    mp_hash_algorithm_t *hash_algorithm = NULL;
+    if (mp_obj_get_type(algorithm) == &mp_type_NoneType)
+    {
+        vstr_init_len(out_digest, 0);
+        vstr_add_strn(out_digest, (const char *)bufinfo_data->buf, bufinfo_data->len);
+    }
+    else if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
+    {
+        hash_algorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(algorithm))->algorithm;
+        vstr_init_len(out_digest, 0);
+        vstr_add_strn(out_digest, (const char *)bufinfo_data->buf, bufinfo_data->len);
+    }
+    else
+    {
+        hash_algorithm = MP_OBJ_TO_PTR(algorithm);
+        vstr_init_len(out_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(hash_algorithm->md_type)));
+        mbedtls_md(mbedtls_md_info_from_type(hash_algorithm->md_type), (const byte *)bufinfo_data->buf, bufinfo_data->len, (byte *)out_digest->buf);
+    }
+    return hash_algorithm;
+}
 
 static int util_decode_dss_signature(const unsigned char *sig, size_t slen, mbedtls_mpi *r, mbedtls_mpi *s)
 {
@@ -1551,30 +1500,8 @@ static mp_obj_t ec_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
-    {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
-    }
-
     vstr_t vstr_digest;
-    if ((mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
-    {
-        vstr_init_len(&vstr_digest, 0);
-        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
-    }
-    else if (mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
-    {
-        mp_hash_algorithm_t *HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(ecdsa->algorithm))->algorithm;
-        (void)HashAlgorithm;
-        vstr_init_len(&vstr_digest, 0);
-        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
-    }
-    else
-    {
-        mp_hash_algorithm_t *HashAlgorithm = MP_OBJ_TO_PTR(ecdsa->algorithm);
-        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type)));
-        mbedtls_md(mbedtls_md_info_from_type(HashAlgorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
-    }
+    cryptography_hash_digest(ecdsa->algorithm, &bufinfo_data, &vstr_digest);
 
     mp_buffer_info_t bufinfo_public_bytes;
     mp_get_buffer_raise(self->public_bytes, &bufinfo_public_bytes, MP_BUFFER_READ);
@@ -1761,30 +1688,8 @@ static mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
     }
 
     mp_ec_ecdsa_t *ecdsa = MP_OBJ_TO_PTR(ecdsa_obj);
-    if (!mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
-    {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
-    }
-
     vstr_t vstr_digest;
-    if ((mp_obj_get_type(ecdsa->algorithm) == &mp_type_NoneType))
-    {
-        vstr_init_len(&vstr_digest, 0);
-        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
-    }
-    else if (mp_obj_is_type(ecdsa->algorithm, &hash_algorithm_prehashed_type))
-    {
-        mp_hash_algorithm_t *HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(ecdsa->algorithm))->algorithm;
-        (void)HashAlgorithm;
-        vstr_init_len(&vstr_digest, 0);
-        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
-    }
-    else
-    {
-        mp_hash_algorithm_t *HashAlgorithm = MP_OBJ_TO_PTR(ecdsa->algorithm);
-        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type)));
-        mbedtls_md(mbedtls_md_info_from_type(HashAlgorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
-    }
+    cryptography_hash_digest(ecdsa->algorithm, &bufinfo_data, &vstr_digest);
 
     mp_buffer_info_t bufinfo_private_bytes;
     mp_get_buffer_raise(self->private_bytes, &bufinfo_private_bytes, MP_BUFFER_READ);
@@ -1806,11 +1711,14 @@ static mp_obj_t ec_sign(mp_obj_t obj, mp_obj_t data, mp_obj_t ecdsa_obj)
 
     vstr_t vstr_signature;
     vstr_init_len(&vstr_signature, MBEDTLS_ECDSA_MAX_LEN);
-    int ecdsa_sign = 1;
-    if ((ecdsa_sign = mbedtls_ecdsa_sign(&ecp.private_grp, &r, &s, &ecp.private_d, (const byte *)vstr_digest.buf, vstr_digest.len, mp_random, NULL) != 0))
+    int ecdsa_sign = mbedtls_ecdsa_sign(&ecp.private_grp, &r, &s, &ecp.private_d, (const byte *)vstr_digest.buf, vstr_digest.len, mp_random, NULL);
+    if (ecdsa_sign != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
+        mbedtls_mpi_free(&r);
+        mbedtls_mpi_free(&s);
         vstr_clear(&vstr_digest);
+        vstr_clear(&vstr_signature);
         mp_raise_msg_varg(&mp_type_InvalidSignature, MP_ERROR_TEXT("%d"), ecdsa_sign);
     }
 
@@ -2397,13 +2305,11 @@ static mp_obj_t hash_algorithm_copy(mp_obj_t obj)
         mp_raise_msg(&mp_type_AlreadyFinalized, NULL);
     }
 
-    mp_buffer_info_t bufinfo_data;
-    mp_get_buffer_raise(self->data, &bufinfo_data, MP_BUFFER_READ);
-
     mp_hash_context_t *HashContext = m_new_obj(mp_hash_context_t);
     HashContext->base.type = &hash_context_type;
-    HashContext->data = vstr_new(bufinfo_data.len);
-    vstr_add_strn(self->data, bufinfo_data.buf, bufinfo_data.len);
+    HashContext->algorithm = self->algorithm;
+    HashContext->data = vstr_new(self->data->len);
+    vstr_add_strn(HashContext->data, self->data->buf, self->data->len);
     HashContext->finalized = false;
 
     return MP_OBJ_FROM_PTR(HashContext);
@@ -3137,7 +3043,7 @@ static mp_obj_t pk_parse_key(mp_obj_t private_key, mp_obj_t password)
 
     mbedtls_pk_context pk;
     mbedtls_pk_init(&pk);
-    if (mbedtls_pk_parse_key(&pk, (const byte *)bufinfo.buf, bufinfo.len, (use_password ? (const byte *)bufinfo1.buf : NULL), bufinfo1.len, mp_random, NULL) != 0)
+    if (mbedtls_pk_parse_key(&pk, (const byte *)bufinfo.buf, bufinfo.len, (use_password ? (const byte *)bufinfo1.buf : NULL), (use_password ? bufinfo1.len : 0), mp_random, NULL) != 0)
     {
         mbedtls_pk_free(&pk);
         mp_raise_msg(&mp_type_InvalidKey, MP_ERROR_TEXT("private key"));
@@ -3258,7 +3164,7 @@ static mp_obj_t ec_generate_private_key(mp_obj_t curve)
     if (mbedtls_ecp_gen_keypair(&ecp.private_grp, &ecp.private_d, &ecp.private_Q, mp_random, NULL) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
-        return mp_const_none;
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_ecp_gen_keypair"));
     }
 
     mp_obj_t priv_key = ec_parse_keypair(&ecp, true);
@@ -3305,13 +3211,13 @@ static mp_obj_t ec_derive_private_key(mp_obj_t private_value, mp_obj_t curve)
     {
         mbedtls_ecp_keypair_free(&ecp);
         vstr_clear(&vstr_private_bytes);
-        return mp_const_none;
+        mp_raise_ValueError(MP_ERROR_TEXT("Invalid private_value for curve"));
     }
     if (mbedtls_ecp_mul(&ecp.private_grp, &ecp.private_Q, &ecp.private_d, &ecp.private_grp.G, mp_random, NULL) != 0)
     {
         mbedtls_ecp_keypair_free(&ecp);
         vstr_clear(&vstr_private_bytes);
-        return mp_const_none;
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_ecp_mul"));
     }
     mp_obj_t priv_key = ec_parse_keypair(&ecp, true);
     mbedtls_ecp_keypair_free(&ecp);
@@ -3502,13 +3408,6 @@ static mp_obj_t padding_oaep_make_new(const mp_obj_type_t *type, size_t n_args, 
         mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm"));
     }
 
-#if 0
-    if (!mp_obj_is_type(label, &mp_type_bytes) && !mp_obj_is_type(label, &mp_type_NoneType))
-    {
-        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of bytes or None"));
-    }
-#endif
-
     mp_padding_oaep_t *PADDING_OAEP = m_new_obj(mp_padding_oaep_t);
     PADDING_OAEP->base.type = &padding_oaep_type;
     PADDING_OAEP->name = mp_obj_new_str("EME-OAEP", strlen("EME-OAEP"));
@@ -3624,36 +3523,13 @@ static mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     }
 
     mp_obj_t algorithm = args[4];
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
-    {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
-    }
-
     if ((mp_obj_get_type(algorithm) == &mp_type_NoneType) && mp_obj_is_type(padding, &padding_pss_type))
     {
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PKCS1v15 for hashes algorithm None"));
     }
 
     vstr_t vstr_digest;
-    mp_hash_algorithm_t *HashAlgorithm = NULL;
-    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType))
-    {
-        HashAlgorithm = NULL;
-        vstr_init_len(&vstr_digest, 0);
-        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
-    }
-    else if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
-    {
-        HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(algorithm))->algorithm;
-        vstr_init_len(&vstr_digest, 0);
-        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
-    }
-    else
-    {
-        HashAlgorithm = MP_OBJ_TO_PTR(algorithm);
-        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type)));
-        mbedtls_md(mbedtls_md_info_from_type(HashAlgorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
-    }
+    mp_hash_algorithm_t *HashAlgorithm = cryptography_hash_digest(algorithm, &bufinfo_data, &vstr_digest);
 
     mp_rsa_public_key_t *self = MP_OBJ_TO_PTR(args[0]);
 
@@ -3685,19 +3561,10 @@ static mp_obj_t rsa_verify(size_t n_args, const mp_obj_t *args)
     if (mp_obj_is_type(padding, &padding_pss_type))
     {
         mp_padding_pss_t *PADDING_PSS = MP_OBJ_TO_PTR(padding);
-#if 0
-        if (PADDING_PSS->salt_length == 0)
-        {
-            salt_length = mp_obj_get_int(padding_calculate_max_pss_salt_length(args[0], PADDING_PSS->mgf->algorithm));
-        }
-#endif
         mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_PSS->mgf->algorithm->md_type);
     }
     else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
     {
-#if 0
-        mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
-#endif
         mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
     }
 
@@ -3776,9 +3643,6 @@ static mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
         }
         else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
         {
-#if 0
-        mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
-#endif
             mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
         }
 
@@ -3786,7 +3650,10 @@ static mp_obj_t rsa_encrypt(size_t n_args, const mp_obj_t *args)
         memset(buf, 0, MBEDTLS_MPI_MAX_SIZE);
         size_t olen = 0;
         ret = mbedtls_pk_encrypt(&pk, (const byte *)bufinfo_plaintext.buf, bufinfo_plaintext.len, buf, &olen, sizeof(buf), mp_random, NULL);
-        enc = mp_obj_new_bytes((const byte *)buf, olen);
+        if (ret == 0)
+        {
+            enc = mp_obj_new_bytes((const byte *)buf, olen);
+        }
     }
 
     mbedtls_pk_free(&pk);
@@ -4019,21 +3886,7 @@ static mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
     mbedtls_mpi_init(&D);
     mbedtls_mpi_read_binary_from_mp_obj(&D, RSAPrivateNumbers->d, true);
 
-    mbedtls_mpi DMP1;
-    mbedtls_mpi_init(&DMP1);
-    mbedtls_mpi_read_binary_from_mp_obj(&DMP1, RSAPrivateNumbers->dmp1, true);
-    mbedtls_mpi_free(&DMP1);
-
-    mbedtls_mpi DMQ1;
-    mbedtls_mpi_init(&DMQ1);
-    mbedtls_mpi_read_binary_from_mp_obj(&DMQ1, RSAPrivateNumbers->dmq1, true);
-    mbedtls_mpi_free(&DMQ1);
-
-    mbedtls_mpi IQMP;
-    mbedtls_mpi_init(&IQMP);
-    mbedtls_mpi_read_binary_from_mp_obj(&IQMP, RSAPrivateNumbers->iqmp, true);
-    mbedtls_mpi_free(&IQMP);
-
+    // dmp1/dmq1/iqmp (CRT params) are recomputed by mbedtls_rsa_complete().
     mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_key->public_numbers;
 
     mbedtls_mpi E;
@@ -4062,9 +3915,6 @@ static mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
             }
             else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
             {
-#if 0
-                mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
-#endif
                 mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
             }
 
@@ -4087,7 +3937,7 @@ static mp_obj_t rsa_decrypt(size_t n_args, const mp_obj_t *args)
 
     if (ret != 0)
     {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("mbedtls_rsa_import"));
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("rsa_decrypt"));
     }
 
     return decrypt;
@@ -4113,36 +3963,13 @@ static mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     }
 
     mp_obj_t algorithm = args[3];
-    if (!mp_obj_is_type(algorithm, &hash_algorithm_sha1_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha256_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha384_type) && !mp_obj_is_type(algorithm, &hash_algorithm_sha512_type) && !mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type) && !(mp_obj_get_type(algorithm) == &mp_type_NoneType))
-    {
-        mp_raise_msg(&mp_type_UnsupportedAlgorithm, MP_ERROR_TEXT("Expected instance of hashes algorithm or None"));
-    }
-
     if ((mp_obj_get_type(algorithm) == &mp_type_NoneType) && mp_obj_is_type(padding, &padding_pss_type))
     {
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Expected instance of padding.PKCS1v15 for hashes algorithm None"));
     }
 
     vstr_t vstr_digest;
-    mp_hash_algorithm_t *HashAlgorithm = NULL;
-    if ((mp_obj_get_type(algorithm) == &mp_type_NoneType))
-    {
-        HashAlgorithm = NULL;
-        vstr_init_len(&vstr_digest, 0);
-        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
-    }
-    else if (mp_obj_is_type(algorithm, &hash_algorithm_prehashed_type))
-    {
-        HashAlgorithm = (mp_hash_algorithm_t *)((mp_util_prehashed_t *)MP_OBJ_TO_PTR(algorithm))->algorithm;
-        vstr_init_len(&vstr_digest, 0);
-        vstr_add_strn(&vstr_digest, (const char *)bufinfo_data.buf, bufinfo_data.len);
-    }
-    else
-    {
-        HashAlgorithm = MP_OBJ_TO_PTR(algorithm);
-        vstr_init_len(&vstr_digest, mbedtls_md_get_size(mbedtls_md_info_from_type(HashAlgorithm->md_type)));
-        mbedtls_md(mbedtls_md_info_from_type(HashAlgorithm->md_type), (const byte *)bufinfo_data.buf, bufinfo_data.len, (byte *)vstr_digest.buf);
-    }
+    mp_hash_algorithm_t *HashAlgorithm = cryptography_hash_digest(algorithm, &bufinfo_data, &vstr_digest);
 
     mp_rsa_private_key_t *self = MP_OBJ_TO_PTR(args[0]);
 
@@ -4160,21 +3987,7 @@ static mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
     mbedtls_mpi_init(&D);
     mbedtls_mpi_read_binary_from_mp_obj(&D, RSAPrivateNumbers->d, true);
 
-    mbedtls_mpi DMP1;
-    mbedtls_mpi_init(&DMP1);
-    mbedtls_mpi_read_binary_from_mp_obj(&DMP1, RSAPrivateNumbers->dmp1, true);
-    mbedtls_mpi_free(&DMP1);
-
-    mbedtls_mpi DMQ1;
-    mbedtls_mpi_init(&DMQ1);
-    mbedtls_mpi_read_binary_from_mp_obj(&DMQ1, RSAPrivateNumbers->dmq1, true);
-    mbedtls_mpi_free(&DMQ1);
-
-    mbedtls_mpi IQMP;
-    mbedtls_mpi_init(&IQMP);
-    mbedtls_mpi_read_binary_from_mp_obj(&IQMP, RSAPrivateNumbers->iqmp, true);
-    mbedtls_mpi_free(&IQMP);
-
+    // dmp1/dmq1/iqmp (CRT params) are recomputed by mbedtls_rsa_complete().
     mp_rsa_public_numbers_t *RSAPublicNumbers = self->public_key->public_numbers;
 
     mbedtls_mpi E;
@@ -4201,19 +4014,10 @@ static mp_obj_t rsa_sign(size_t n_args, const mp_obj_t *args)
             if (mp_obj_is_type(padding, &padding_pss_type))
             {
                 mp_padding_pss_t *PADDING_PSS = MP_OBJ_TO_PTR(padding);
-#if 0
-                if (PADDING_PSS->salt_length == 0)
-                {
-                    salt_length = mp_obj_get_int(padding_calculate_max_pss_salt_length(args[0], PADDING_PSS->mgf->algorithm));
-                }
-#endif
                 mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V21, PADDING_PSS->mgf->algorithm->md_type);
             }
             else if (mp_obj_is_type(padding, &padding_pkcs1v15_type))
             {
-#if 0
-                mp_padding_pkcs1v15_t *PADDING_PKCS1V15 = MP_OBJ_TO_PTR(padding);
-#endif
                 mbedtls_rsa_set_padding(mbedtls_pk_rsa(pk), MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
             }
 
@@ -4417,21 +4221,6 @@ static mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n
     mbedtls_mpi_init(&D);
     mbedtls_mpi_read_binary_from_mp_obj(&D, d, true);
 
-    mbedtls_mpi DMP1;
-    mbedtls_mpi_init(&DMP1);
-    mbedtls_mpi_read_binary_from_mp_obj(&DMP1, dmp1, true);
-    mbedtls_mpi_free(&DMP1);
-
-    mbedtls_mpi DMQ1;
-    mbedtls_mpi_init(&DMQ1);
-    mbedtls_mpi_read_binary_from_mp_obj(&DMQ1, dmq1, true);
-    mbedtls_mpi_free(&DMQ1);
-
-    mbedtls_mpi IQMP;
-    mbedtls_mpi_init(&IQMP);
-    mbedtls_mpi_read_binary_from_mp_obj(&IQMP, iqmp, true);
-    mbedtls_mpi_free(&IQMP);
-
     mbedtls_mpi E;
     mbedtls_mpi_init(&E);
     mbedtls_mpi_read_binary_from_mp_obj(&E, RSAPublicNumbers->e, true);
@@ -4460,9 +4249,6 @@ static mp_obj_t rsa_private_numbers_make_new(const mp_obj_type_t *type, size_t n
     mbedtls_mpi_free(&P);
     mbedtls_mpi_free(&Q);
     mbedtls_mpi_free(&D);
-    mbedtls_mpi_free(&DMP1);
-    mbedtls_mpi_free(&DMQ1);
-    mbedtls_mpi_free(&IQMP);
     mbedtls_mpi_free(&E);
     mbedtls_mpi_free(&N);
     mbedtls_pk_free(&pk);
@@ -5963,6 +5749,7 @@ static mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
     mpz_init_zero(&truncated_value);
     mpz_and_inpl(&truncated_value, &p, &mask);
     mpz_deinit(&p);
+    mpz_deinit(&mask);
 
     mpz_t ten;
     mpz_init_from_int(&ten, 10);
@@ -5986,6 +5773,7 @@ static mp_obj_t twofactor_otp_generate(mp_obj_t self_obj, mp_obj_t counter_obj)
 
     mpz_deinit(&truncated_value);
     mpz_deinit(&quo);
+    mpz_deinit(&ten_pow_length);
 
     vstr_clear(&vstr_counter);
     vstr_clear(&vstr_hmac_value);
@@ -6077,7 +5865,12 @@ static mp_obj_t twofactor_hotp_verify(mp_obj_t self_obj, mp_obj_t hotp_obj, mp_o
     cryptography_get_buffer(hotp_value, true, &bufinfo_hotp_value);
     hotp_value = mp_obj_new_int_from_str_len((const char **)&bufinfo_hotp_value.buf, bufinfo_hotp_value.len, false, 10);
 
-    if (!mp_obj_equal(hotp_value, hotp))
+    // Constant-time comparison of the two OTP values (serialized big-endian).
+    byte buf_generated[8] = {0};
+    byte buf_supplied[8] = {0};
+    mp_obj_int_to_bytes(hotp_value, sizeof(buf_generated), buf_generated, true, false, false);
+    mp_obj_int_to_bytes(hotp, sizeof(buf_supplied), buf_supplied, true, false, false);
+    if (!constant_time_bytes_eq(buf_generated, sizeof(buf_generated), buf_supplied, sizeof(buf_supplied)))
     {
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Supplied HOTP value does not match."));
     }
@@ -6201,7 +5994,12 @@ static mp_obj_t twofactor_totp_verify(mp_obj_t self_obj, mp_obj_t totp_obj, mp_o
     cryptography_get_buffer(hotp_value, true, &bufinfo_hotp_value);
     hotp_value = mp_obj_new_int_from_str_len((const char **)&bufinfo_hotp_value.buf, bufinfo_hotp_value.len, false, 10);
 
-    if (!mp_obj_equal(hotp_value, totp))
+    // Constant-time comparison of the two OTP values (serialized big-endian).
+    byte buf_generated[8] = {0};
+    byte buf_supplied[8] = {0};
+    mp_obj_int_to_bytes(hotp_value, sizeof(buf_generated), buf_generated, true, false, false);
+    mp_obj_int_to_bytes(totp, sizeof(buf_supplied), buf_supplied, true, false, false);
+    if (!constant_time_bytes_eq(buf_generated, sizeof(buf_generated), buf_supplied, sizeof(buf_supplied)))
     {
         mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Supplied HOTP value does not match."));
     }

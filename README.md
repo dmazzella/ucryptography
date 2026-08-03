@@ -43,62 +43,6 @@ public_key.verify(
 
 ## How to build
 
-> [!IMPORTANT]
-> Currently needs a patch to the file `extmod/mbedtls/mbedtls_config_common.h` to enable all its functionality.
-
-<details><summary><b>diff</b></summary>
-<p>
-
-```diff
-diff --git a/extmod/mbedtls/mbedtls_config_common.h b/extmod/mbedtls/mbedtls_config_common.h
-index 6cd14befc..ab8c39835 100644
---- a/extmod/mbedtls/mbedtls_config_common.h
-+++ b/extmod/mbedtls/mbedtls_config_common.h
-@@ -47,9 +47,11 @@
- #define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
- #define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
- #define MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
-+#define MBEDTLS_BASE64_C
- #define MBEDTLS_CAN_ECDH
- #define MBEDTLS_PK_CAN_ECDSA_SIGN
- #define MBEDTLS_PKCS1_V15
-+#define MBEDTLS_PKCS1_V21
- #define MBEDTLS_SHA256_SMALLER
- #define MBEDTLS_SSL_PROTO_TLS1
- #define MBEDTLS_SSL_PROTO_TLS1_1
-@@ -68,19 +70,25 @@
- #define MBEDTLS_BIGNUM_C
- #define MBEDTLS_CIPHER_C
- #define MBEDTLS_CTR_DRBG_C
-+#define MBEDTLS_DES_C
- #define MBEDTLS_ECDH_C
- #define MBEDTLS_ECDSA_C
- #define MBEDTLS_ECP_C
- #define MBEDTLS_ENTROPY_C
- #define MBEDTLS_ERROR_C
-+#define MBEDTLS_GENPRIME
- #define MBEDTLS_GCM_C
- #define MBEDTLS_MD_C
- #define MBEDTLS_MD5_C
- #define MBEDTLS_OID_C
-+#define MBEDTLS_PEM_PARSE_C
-+#define MBEDTLS_PEM_WRITE_C
- #define MBEDTLS_PKCS5_C
-+#define MBEDTLS_PKCS12_C
- #define MBEDTLS_PK_C
- #define MBEDTLS_PK_HAVE_ECC_KEYS
- #define MBEDTLS_PK_PARSE_C
-+#define MBEDTLS_PK_WRITE_C
- #define MBEDTLS_PLATFORM_C
- #define MBEDTLS_RSA_C
- #define MBEDTLS_SHA1_C
-
-```
-</p>
-</details>
-
-***
-
 <details><summary><b>UNIX port (coverage)</b></summary>
 <p>
 
@@ -107,7 +51,6 @@ $ git clone https://github.com/micropython/micropython.git
 $ cd micropython
 micropython$ git submodule update --init --depth 1
 micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
-micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
 micropython$ cd usercmodule/ucryptography
 ucryptography$ git submodule update --init --depth 1
 ucryptography$ cd ../../
@@ -125,7 +68,6 @@ $ git clone https://github.com/micropython/micropython.git
 $ cd micropython
 micropython$ git submodule update --init --depth 1
 micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
-micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
 micropython$ cd usercmodule/ucryptography
 ucryptography$ git submodule update --init --depth 1
 ucryptography$ cd ../../
@@ -143,7 +85,6 @@ $ git clone https://github.com/micropython/micropython.git
 $ cd micropython
 micropython$ git submodule update --init --depth 1
 micropython$ git clone https://github.com/dmazzella/ucryptography.git usercmodule/ucryptography
-micropython$ git apply usercmodule/ucryptography/patches/extmod__mbedtls__mbedtls_config_common.h.patch
 micropython$ cd usercmodule/ucryptography
 ucryptography$ git submodule update --init --depth 1
 ucryptography$ cd ../../
@@ -155,8 +96,6 @@ micropython$ make -C ports/stm32 BOARD=ARDUINO_PORTENTA_H7 USER_C_MODULES="$(pwd
 
 
 ## Goals 
-
-![In progress](https://progress-bar.dev/100/?title=completed)
 
 - [x] ciphers
   - [x] AESGCM

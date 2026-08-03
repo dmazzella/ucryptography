@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2017-2024 Damiano Mazzella
+ * Copyright (c) 2017-2026 Damiano Mazzella
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,10 +31,11 @@
 #define MBEDTLS_AES_C
 #define MBEDTLS_ASN1_PARSE_C
 #define MBEDTLS_ASN1_WRITE_C
+#define MBEDTLS_BASE64_C
 #define MBEDTLS_BIGNUM_C
 #define MBEDTLS_CIPHER_C
 #define MBEDTLS_CTR_DRBG_C
-// #define MBEDTLS_DES_C
+#define MBEDTLS_DES_C
 #define MBEDTLS_ECDH_C
 #define MBEDTLS_ECDSA_C
 #define MBEDTLS_ECP_C
@@ -47,7 +48,9 @@
 #define MBEDTLS_OID_C
 #define MBEDTLS_PEM_PARSE_C
 #define MBEDTLS_PEM_WRITE_C
+#define MBEDTLS_PKCS1_V21
 #define MBEDTLS_PKCS5_C
+#define MBEDTLS_PKCS12_C
 #define MBEDTLS_PK_C
 #define MBEDTLS_PK_PARSE_C
 #define MBEDTLS_PK_WRITE_C
