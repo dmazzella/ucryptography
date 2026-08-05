@@ -32,6 +32,8 @@ target_include_directories(usermod_cryptography INTERFACE
 target_compile_definitions(usermod_cryptography INTERFACE
     MICROPY_PY_UCRYPTOGRAPHY_ED25519=1
     C25519_USE_MBEDTLS_SHA512=1
+    # Expose PyCA-style nested packages (cryptography.hazmat.primitives...).
+    MICROPY_MODULE_BUILTIN_SUBPACKAGES=1
     # mbedtls sources are INTERFACE-compiled into the main target, so this hook
     # reaches them too: applies our feature set with no patch to the shared config.
     MBEDTLS_USER_CONFIG_FILE="modcryptography_config.h"

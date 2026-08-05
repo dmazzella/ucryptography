@@ -1,9 +1,12 @@
 # pylint:disable=import-error
 # pylint:disable=no-member
-try:
-    from cryptography import hashes, utils
-except ImportError:
+import sys
+
+if sys.implementation.name != "micropython":
+    # RFC6979 is a ucryptography-only helper (not exposed by PyCA).
     raise NotImplementedError
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import utils
 
 if __name__ == "__main__":
     msg = "sample"

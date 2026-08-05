@@ -4,6 +4,8 @@ MBEDTLS_DIR := $(TOP)/lib/mbedtls
 
 CFLAGS_USERMOD += -DMICROPY_PY_UCRYPTOGRAPHY_ED25519=1
 CFLAGS_USERMOD += -DC25519_USE_MBEDTLS_SHA512=1
+# Expose PyCA-style nested packages (cryptography.hazmat.primitives...).
+CFLAGS_USERMOD += -DMICROPY_MODULE_BUILTIN_SUBPACKAGES=1
 # No patch to mbedtls_config_common.h: py.mk folds CFLAGS_USERMOD into CFLAGS, so this
 # reaches the mbedtls library too (header found via -I$(MOD_UCRYPTOGRAPHY_DIR) below).
 CFLAGS_USERMOD += -DMBEDTLS_USER_CONFIG_FILE='"modcryptography_config.h"'

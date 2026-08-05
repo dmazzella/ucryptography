@@ -1,12 +1,7 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
-# pylint: disable=no-member
-# pylint: disable=unused-variable
-try:
-    from cryptography import ed25519, serialization
-except ImportError:
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 
 def _flip_last(b):

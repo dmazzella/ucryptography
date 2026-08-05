@@ -1,10 +1,6 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
-# pylint: disable=no-member
-try:
-    from cryptography import hashes, hmac
-except ImportError:
-    from cryptography.hazmat.primitives import hashes, hmac
+from cryptography.hazmat.primitives import hashes, hmac
 
 
 def _flip_last(b):

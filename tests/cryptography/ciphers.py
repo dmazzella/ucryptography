@@ -1,18 +1,9 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
-# pylint: disable=no-member
 import random
 
-try:
-    from cryptography import ciphers
-
-    Cipher = ciphers.Cipher
-    algorithms = ciphers.algorithms
-    modes = ciphers.modes
-    AESGCM = ciphers.AESGCM
-except ImportError:
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
 def _flip_last(b):

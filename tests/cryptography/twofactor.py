@@ -1,16 +1,8 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
-# pylint: disable=no-member
-try:
-    from cryptography import twofactor
-
-    HOTP = twofactor.HOTP
-    TOTP = twofactor.TOTP
-    from cryptography import hashes
-except ImportError:
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.twofactor.hotp import HOTP
-    from cryptography.hazmat.primitives.twofactor.totp import TOTP
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.twofactor.hotp import HOTP
+from cryptography.hazmat.primitives.twofactor.totp import TOTP
 
 
 def _assert_rejected(label, fn):

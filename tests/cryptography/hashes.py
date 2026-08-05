@@ -1,10 +1,6 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
-# pylint: disable=no-member
-try:
-    from cryptography import hashes
-except ImportError:
-    from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes
 
 
 def main():

@@ -1,21 +1,15 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
-try:
-    from cryptography import ec, hashes, padding, rsa, serialization, utils, x509
+import sys
 
-    NameOID = x509.NameOID
-    ExtendedKeyUsageOID = x509.ExtendedKeyUsageOID
-    IS_MODULE = True
-except ImportError:
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa, utils
-    from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
-
-    IS_MODULE = False
-
+IS_MODULE = sys.implementation.name == "micropython"
 import datetime
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa, utils
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 
 def _check(cond, msg):

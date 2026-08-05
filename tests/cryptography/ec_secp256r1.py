@@ -1,17 +1,9 @@
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
-# pylint: disable=no-member
-# pylint: disable=unused-variable
-try:
-    from cryptography import ec as crypto_ec
-    from cryptography import hashes as crypto_hashes
-    from cryptography import serialization as crypto_serialization
-    from cryptography import utils as crypto_utils
-except ImportError:
-    from cryptography.hazmat.primitives import hashes as crypto_hashes
-    from cryptography.hazmat.primitives import serialization as crypto_serialization
-    from cryptography.hazmat.primitives.asymmetric import ec as crypto_ec
-    from cryptography.hazmat.primitives.asymmetric import utils as crypto_utils
+from cryptography.hazmat.primitives import hashes as crypto_hashes
+from cryptography.hazmat.primitives import serialization as crypto_serialization
+from cryptography.hazmat.primitives.asymmetric import ec as crypto_ec
+from cryptography.hazmat.primitives.asymmetric import utils as crypto_utils
 
 
 def _flip_last(b):
