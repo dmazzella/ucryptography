@@ -9,12 +9,8 @@
 ## Basic usage
 
 ```python
-try:
-    from cryptography import hashes, rsa, padding
-except ImportError:
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 message = b"A message I want to sign"
 chosen_hash = hashes.SHA256()
