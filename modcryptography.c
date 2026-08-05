@@ -8504,7 +8504,20 @@ static mp_obj_t modes_gcm_make_new(const mp_obj_type_t *type, size_t n_args, siz
     GCM->base.type = &ciphers_modes_gcm_type;
     GCM->initialization_vector = vstr_new(bufinfo_iv.len);
     vstr_add_strn(GCM->initialization_vector, bufinfo_iv.buf, bufinfo_iv.len);
-    GCM->min_tag_length = (args[ARG_min_tag_length].u_int < 16 ? 16 : args[ARG_min_tag_length].u_int);
+    // PyCA allows min_tag_length 4..16 (default 16). Do not clamp upward to 16:
+    // that rejects valid shorter tags (e.g. DLMS Suite 0 / 12-byte GMAC).
+    {
+        mp_int_t min_tag = args[ARG_min_tag_length].u_int;
+        if (min_tag < 4)
+        {
+            min_tag = 4;
+        }
+        else if (min_tag > 16)
+        {
+            min_tag = 16;
+        }
+        GCM->min_tag_length = min_tag;
+    }
     GCM->tag = vstr_new(GCM->min_tag_length);
     if (has_tag)
     {
