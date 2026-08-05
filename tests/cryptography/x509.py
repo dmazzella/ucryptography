@@ -1,24 +1,13 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
 try:
-    from cryptography import x509, serialization, hashes, ec, utils, padding
+    from cryptography import ec, hashes, padding, serialization, utils, x509
 except ImportError:
     from cryptography import x509
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.hazmat.primitives.asymmetric import utils
-    from cryptography.hazmat.primitives.asymmetric import padding
-try:
-    from util import loads_sequence
-except ImportError:
-    raise
-
-
-EC_CERT_DER = loads_sequence(
-    """-----BEGIN CERTIFICATE-----
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec, padding, utils
+EC_CERT_PEM = b"""-----BEGIN CERTIFICATE-----
 MIICiDCCAi+gAwIBAgIUEkh9KHsIlsR5m73KoHd9dnoaE+EwCgYIKoZIzj0EAwIw
 gZkxCzAJBgNVBAYTAklUMQ4wDAYDVQQIDAVJdGFseTEPMA0GA1UEBwwGTmFwb2xp
 MRYwFAYDVQQKDA1CaXQ0aWQgcy5yLmwuMQwwCgYDVQQLDANSJkQxGTAXBgNVBAMM
@@ -34,10 +23,8 @@ gBR1cuI1e0csCOy/aY7P5zOeyPLShjAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49
 BAMCA0cAMEQCIGYm2Orv975+0CZZsKy7nYf4c5J+yTEKk329wk85CQ71AiBXXS5K
 s+LnrOm0QFpFTo1ZoMRiLiDVvqR/exKUFMF6OA==
 -----END CERTIFICATE-----"""
-)
 
-RSA_CERT_DER = loads_sequence(
-    """-----BEGIN CERTIFICATE-----
+RSA_CERT_PEM = b"""-----BEGIN CERTIFICATE-----
 MIIDBzCCAe+gAwIBAgIUCM7C8C0unyLHhGeSV9wFdNAqBvYwDQYJKoZIhvcNAQEL
 BQAwEzERMA8GA1UEAwwIdGVzdC5jb20wHhcNMjAxMDA1MDg0ODI3WhcNMjIwNTI4
 MDg0ODI3WjATMREwDwYDVQQDDAh0ZXN0LmNvbTCCASIwDQYJKoZIhvcNAQEBBQAD
@@ -56,17 +43,16 @@ hqmX76MoU5Mrm/XXKitsqci/sJHLR0eZfw7H/ZbenSWstlKLCZ1Q4GMfjxTKllAs
 ORB7+7aqy6gT4qPDDjkMyHMwY4xtMtJQki97su57zhzImQdZgs3BQatymwv7sBJu
 F8FdT7DdLg8Wj1M=
 -----END CERTIFICATE-----"""
-)
 
 
 def main():
     def ec_certificate():
-        certificate = x509.load_der_x509_certificate(EC_CERT_DER)
+        certificate = x509.load_pem_x509_certificate(EC_CERT_PEM)
         print("version", certificate.version)
         print("serial_number", certificate.serial_number)
 
-        print("not_valid_before", certificate.not_valid_before)
-        print("not_valid_after", certificate.not_valid_after)
+        print("not_valid_before", certificate.not_valid_before_utc)
+        print("not_valid_after", certificate.not_valid_after_utc)
 
         print("subject", certificate.subject)
         print("issuer", certificate.issuer)
@@ -113,12 +99,12 @@ def main():
         )
 
     def rsa_certificate():
-        certificate = x509.load_der_x509_certificate(RSA_CERT_DER)
+        certificate = x509.load_pem_x509_certificate(RSA_CERT_PEM)
         print("version", certificate.version)
         print("serial_number", certificate.serial_number)
 
-        print("not_valid_before", certificate.not_valid_before)
-        print("not_valid_after", certificate.not_valid_after)
+        print("not_valid_before", certificate.not_valid_before_utc)
+        print("not_valid_after", certificate.not_valid_after_utc)
 
         print("subject", certificate.subject)
         print("issuer", certificate.issuer)

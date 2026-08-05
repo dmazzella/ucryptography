@@ -27,20 +27,23 @@
 #ifndef MBEDTLS_USER_CONFIG_FILE_H
 #define MBEDTLS_USER_CONFIG_FILE_H
 
-// Enable mbedtls modules.
+// ucryptography feature toggles, so the mbedtls modules below can follow them.
+#include "modcryptography_features.h"
+
+// Enable the mbedtls modules ucryptography needs. Modules shared with the port's
+// TLS stack (CTR_DRBG, ENTROPY, ERROR, SSL_*) are provided by the base mbedtls config.
 #define MBEDTLS_AES_C
 #define MBEDTLS_ASN1_PARSE_C
 #define MBEDTLS_ASN1_WRITE_C
 #define MBEDTLS_BASE64_C
 #define MBEDTLS_BIGNUM_C
 #define MBEDTLS_CIPHER_C
-#define MBEDTLS_CTR_DRBG_C
+#if MICROPY_PY_UCRYPTOGRAPHY_TRIPLEDES
 #define MBEDTLS_DES_C
+#endif
 #define MBEDTLS_ECDH_C
 #define MBEDTLS_ECDSA_C
 #define MBEDTLS_ECP_C
-#define MBEDTLS_ENTROPY_C
-#define MBEDTLS_ERROR_C
 #define MBEDTLS_GCM_C
 #define MBEDTLS_GENPRIME
 #define MBEDTLS_MD_C
@@ -48,7 +51,9 @@
 #define MBEDTLS_OID_C
 #define MBEDTLS_PEM_PARSE_C
 #define MBEDTLS_PEM_WRITE_C
+#if MICROPY_PY_UCRYPTOGRAPHY_OAEP || MICROPY_PY_UCRYPTOGRAPHY_PSS
 #define MBEDTLS_PKCS1_V21
+#endif
 #define MBEDTLS_PKCS5_C
 #define MBEDTLS_PKCS12_C
 #define MBEDTLS_PK_C
@@ -61,11 +66,18 @@
 #define MBEDTLS_SHA256_C
 #define MBEDTLS_SHA384_C
 #define MBEDTLS_SHA512_C
-#define MBEDTLS_SSL_CLI_C
-#define MBEDTLS_SSL_SRV_C
-#define MBEDTLS_SSL_TLS_C
 #define MBEDTLS_X509_CRT_PARSE_C
 #define MBEDTLS_X509_USE_C
+#if MICROPY_PY_UCRYPTOGRAPHY_X509_CREATE
+#define MBEDTLS_X509_CREATE_C
+#define MBEDTLS_X509_CRT_WRITE_C
+#endif
+#if MICROPY_PY_UCRYPTOGRAPHY_X509_CSR
+#define MBEDTLS_X509_CSR_PARSE_C
+#if MICROPY_PY_UCRYPTOGRAPHY_X509_CREATE
+#define MBEDTLS_X509_CSR_WRITE_C
+#endif
+#endif
 
 #if defined(__thumb2__) || defined(__thumb__) || defined(__arm__)
 #define MBEDTLS_NO_PLATFORM_ENTROPY

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
@@ -6,11 +5,11 @@
 try:
     from cryptography import ec as crypto_ec
     from cryptography import hashes as crypto_hashes
-    from cryptography import utils as crypto_utils
     from cryptography import serialization as crypto_serialization
+    from cryptography import utils as crypto_utils
 except ImportError:
-    from cryptography.hazmat.primitives import serialization as crypto_serialization
     from cryptography.hazmat.primitives import hashes as crypto_hashes
+    from cryptography.hazmat.primitives import serialization as crypto_serialization
     from cryptography.hazmat.primitives.asymmetric import ec as crypto_ec
     from cryptography.hazmat.primitives.asymmetric import utils as crypto_utils
 
@@ -40,18 +39,26 @@ def tamper(curve, private_value):
     digest = crypto_hashes.Hash(chosen_hash)
     digest.update(b"A message I want to sign")
     msg_hash = digest.finalize()
-    signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
-    pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))  # valid
+    signature = pr_k.sign(
+        msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+    )
+    pu_k.verify(
+        signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+    )  # valid
     _assert_rejected(
         "ECDSA corrupted signature",
         lambda: pu_k.verify(
-            _flip_last(signature), msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+            _flip_last(signature),
+            msg_hash,
+            crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)),
         ),
     )
     _assert_rejected(
         "ECDSA tampered digest",
         lambda: pu_k.verify(
-            signature, _flip_last(msg_hash), crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+            signature,
+            _flip_last(msg_hash),
+            crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)),
         ),
     )
     print("ECDSA tamper tests passed")
@@ -111,11 +118,15 @@ def numbers(curve, x, y, private_value):
     digest = crypto_hashes.Hash(chosen_hash)
     digest.update(b"\x25" * 100)
     msg_hash = digest.finalize()
-    signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
+    signature = pr_k.sign(
+        msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+    )
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
-    pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
+    pu_k.verify(
+        signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+    )
     message = b"A message I want to sign"
     print("message", message, len(message))
     signature = pr_k.sign(message, crypto_ec.ECDSA(chosen_hash))
@@ -175,11 +186,15 @@ def derive(curve, private_value):
     digest = crypto_hashes.Hash(chosen_hash)
     digest.update(b"\x25" * 100)
     msg_hash = digest.finalize()
-    signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
+    signature = pr_k.sign(
+        msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+    )
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature, len(signature))
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
-    pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
+    pu_k.verify(
+        signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+    )
 
 
 def generate(curve):
@@ -234,11 +249,15 @@ def generate(curve):
     digest = crypto_hashes.Hash(chosen_hash)
     digest.update(b"\x25" * 100)
     msg_hash = digest.finalize()
-    signature = pr_k.sign(msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
+    signature = pr_k.sign(
+        msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+    )
     print("msg_hash", msg_hash, len(msg_hash))
     print("signature", signature)
     print("decode_dss_signature", crypto_utils.decode_dss_signature(signature))
-    pu_k.verify(signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash)))
+    pu_k.verify(
+        signature, msg_hash, crypto_ec.ECDSA(crypto_utils.Prehashed(chosen_hash))
+    )
 
 
 def main():

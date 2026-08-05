@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
@@ -33,11 +32,11 @@ def main():
     expected_sha256 = b"\x80\x1c\x18\n\xc0\xc9W=p\xcan\x1a\x0f\xb6\n\x0b\xe9\x8d\xdf\xb3\xc3\xe6\xea+\x8b\xa9:Na4\xd8\x9c"
     expected_sha384 = b"\xc3\x01O;\xc7a\x86\xbc\xa8v\x05Vt\x95\x83W\xaa\x16\xfc\xc9\xf7\xa6~S\x85\xed\xb4-\xc6t\xb2.\xdf^\xdee\x17\xda\x1a\xed\x168\xa7:SD\xf1'"
     expected_sha512 = b"\xdf\xe9\x07\xe6\xf5\x10r\xcf\x9bM*J\xf8\xe3\xf7\xa4\xd3O6z\x1d\x03\xa6\xce\xbd\xe1\x0f\x8b\xb1/O\xdb\xdd-M\xe0b\xaar\x87\xc4\xeaW\x91\x8e\x8b\xd5\x8c\x8e\xe5\xd86\xb0\x81;\xe1RaL\xdd\xbf)\x12D"
-    expected_blake2s = (
-        b"\xd0 \xa8\xcdK2\xdf\x850sBXt\x9c\xcf7\xaa\x98\xc7v\xb0x\x90u\xd3s\xa0/=\xbf\xb7\xad"
-    )
+    expected_blake2s = b"\xd0 \xa8\xcdK2\xdf\x850sBXt\x9c\xcf7\xaa\x98\xc7v\xb0x\x90u\xd3s\xa0/=\xbf\xb7\xad"
 
-    key = b"\x93\x8dYL%\xd7;dV\x94D+$\x86\x12gD\xe6\x99x\xdf2\x82\x08Y\x05\xb5m\x8d}\x15}"
+    key = (
+        b"\x93\x8dYL%\xd7;dV\x94D+$\x86\x12gD\xe6\x99x\xdf2\x82\x08Y\x05\xb5m\x8d}\x15}"
+    )
 
     hmac_context = hmac.HMAC(key, hashes.SHA1())
     hmac_context.update(b"caccone" * 1000)
@@ -69,15 +68,23 @@ def main():
 
     _assert_rejected(
         "HMAC wrong signature",
-        lambda: _verify(hmac.HMAC(key, hashes.SHA256()), b"caccone" * 1000, _flip_last(expected_sha256)),
+        lambda: _verify(
+            hmac.HMAC(key, hashes.SHA256()),
+            b"caccone" * 1000,
+            _flip_last(expected_sha256),
+        ),
     )
     _assert_rejected(
         "HMAC tampered data",
-        lambda: _verify(hmac.HMAC(key, hashes.SHA256()), b"tampered data", expected_sha256),
+        lambda: _verify(
+            hmac.HMAC(key, hashes.SHA256()), b"tampered data", expected_sha256
+        ),
     )
     _assert_rejected(
         "HMAC truncated signature",
-        lambda: _verify(hmac.HMAC(key, hashes.SHA256()), b"caccone" * 1000, expected_sha256[:16]),
+        lambda: _verify(
+            hmac.HMAC(key, hashes.SHA256()), b"caccone" * 1000, expected_sha256[:16]
+        ),
     )
     print("HMAC verify tamper tests passed")
 

@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 # pylint:disable=import-error
 # pylint:disable=no-member
 try:
-    from cryptography import utils, hashes
+    from cryptography import hashes, utils
 except ImportError:
     raise NotImplementedError
 
 if __name__ == "__main__":
-    msg = 'sample'
+    msg = "sample"
     x = 0x09A4D6792295A7F730FC3F2B49CBC0F62E862272F
     q = 0x4000000000000000000020108A2E0CC0D99F8A5EF
 

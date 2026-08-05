@@ -1,15 +1,11 @@
-# -*- coding: utf-8 -*-
 # pylint: disable=import-error
 # pylint: disable=no-name-in-module
 # pylint: disable=no-member
 try:
-    from cryptography import serialization, hashes, rsa, utils, padding
+    from cryptography import hashes, padding, rsa, serialization, utils
 except ImportError:
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.hazmat.primitives.asymmetric import utils
-    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa, utils
 
 
 def _flip_last(b):
@@ -82,7 +78,9 @@ def main():
         dmp1 = 70362977515272577913949919918468298479573538189124694962687627991701151794613172041142556187747588113689134243580202311344987004788293052040793047963370705455181652738647757974562820012878367576649901647001071717071255997686172365007657860816290386886669033000841155499332911379957821857629053839930921831801
         dmq1 = 16083558985617393772523309074105852488804635996404578159433664499185385231118100019686453770773603219002468025227971962447395633565792644284496900590029739142299389892759849899665380616238985379642044390864932422432173375043997471271733064896113743919325572086514326225734776396458606670961248637146438100297
         iqmp = 27479155941606888764196561693435377784782840720640676201668414322119284430835440447305199568634331680003762753130774655317541532510449866672028876124837997900679437646734121402582271170751596331621014149909165652920914546610374838529200728510751855927498562449844460128770756004847015330855240538659537340944
-        private_numbers = rsa.RSAPrivateNumbers(p, q, d, dmp1, dmq1, iqmp, public_numbers)
+        private_numbers = rsa.RSAPrivateNumbers(
+            p, q, d, dmp1, dmq1, iqmp, public_numbers
+        )
 
         print("d", private_numbers.d)
         print("p", private_numbers.p)
@@ -96,7 +94,9 @@ def main():
         print("DMQ1", rsa.rsa_crt_dmq1(private_numbers.d, private_numbers.q))
         print(
             "P, Q",
-            rsa.rsa_recover_prime_factors(public_numbers.n, public_numbers.e, private_numbers.d),
+            rsa.rsa_recover_prime_factors(
+                public_numbers.n, public_numbers.e, private_numbers.d
+            ),
         )
 
         private_key = private_numbers.private_key()
@@ -122,7 +122,9 @@ def main():
         message = b"A message I want to sign"
         signature = private_key.sign(
             message,
-            padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
+            padding.PSS(
+                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
+            ),
             chosen_hash,
         )
         print("PSS signature", signature)
@@ -131,7 +133,9 @@ def main():
         public_key.verify(
             signature,
             message,
-            padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
+            padding.PSS(
+                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
+            ),
             chosen_hash,
         )
 
@@ -139,15 +143,19 @@ def main():
             public_key.verify(
                 sig,
                 msg,
-                padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
+                padding.PSS(
+                    mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
+                ),
                 chosen_hash,
             )
 
         _assert_rejected(
-            "RSA-PSS corrupted signature", lambda: _pss_verify(_flip_last(signature), message)
+            "RSA-PSS corrupted signature",
+            lambda: _pss_verify(_flip_last(signature), message),
         )
         _assert_rejected(
-            "RSA-PSS tampered message", lambda: _pss_verify(signature, b"another message")
+            "RSA-PSS tampered message",
+            lambda: _pss_verify(signature, b"another message"),
         )
         print("RSA-PSS tamper tests passed")
 
@@ -173,7 +181,9 @@ def main():
         public_key.verify(
             prehashed_signature,
             digest,
-            padding.PSS(mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size),
+            padding.PSS(
+                mgf=padding.MGF1(chosen_hash), salt_length=chosen_hash.digest_size
+            ),
             utils.Prehashed(chosen_hash),
         )
 
@@ -295,7 +305,9 @@ def main():
         print("DMQ1", rsa.rsa_crt_dmq1(private_numbers.d, private_numbers.q))
         print(
             "P, Q",
-            rsa.rsa_recover_prime_factors(public_numbers.n, public_numbers.e, private_numbers.d),
+            rsa.rsa_recover_prime_factors(
+                public_numbers.n, public_numbers.e, private_numbers.d
+            ),
         )
 
         print(
