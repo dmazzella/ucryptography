@@ -9191,7 +9191,8 @@ static MP_DEFINE_CONST_FUN_OBJ_3(mod_rsa_deduce_private_exponent_obj, rsa_deduce
 // py/builtinimport.c process_import_at_level). Leaf packages are modules too so
 // `import cryptography.hazmat.primitives.asymmetric.ec` works; their globals reference
 // the existing class types + the PLAIN function objs (modules don't unwrap staticmethod).
-// The flat top-level attributes (cryptography.ec ...) are kept unchanged (types).
+// Flat top-level aliases (cryptography.ciphers / .ec / ...) are re-exported below
+// so existing MicroPython apps keep working alongside hazmat.primitives paths.
 
 static const mp_rom_map_elem_t crypto_pkg_hashes_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_hashes)},
@@ -9417,7 +9418,18 @@ static const mp_obj_module_t crypto_pkg_hazmat_module = {
 
 static const mp_map_elem_t mp_module_ucryptography_globals_table[] = {
     {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_cryptography)},
+    // Flat aliases (pre-hazmat SMW / MicroPython import style)
+    {MP_ROM_QSTR(MP_QSTR_ciphers), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_ciphers_module)},
+    {MP_ROM_QSTR(MP_QSTR_ec), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_ec_module)},
+    {MP_ROM_QSTR(MP_QSTR_ed25519), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_ed25519_module)},
     {MP_ROM_QSTR(MP_QSTR_exceptions), MP_ROM_PTR((mp_obj_module_t *)&exceptions_module)},
+    {MP_ROM_QSTR(MP_QSTR_hashes), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_hashes_module)},
+    {MP_ROM_QSTR(MP_QSTR_hmac), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_hmac_module)},
+    {MP_ROM_QSTR(MP_QSTR_padding), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_padding_module)},
+    {MP_ROM_QSTR(MP_QSTR_rsa), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_rsa_module)},
+    {MP_ROM_QSTR(MP_QSTR_serialization), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_serialization_module)},
+    {MP_ROM_QSTR(MP_QSTR_twofactor), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_twofactor_module)},
+    {MP_ROM_QSTR(MP_QSTR_utils), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_utils_module)},
     {MP_ROM_QSTR(MP_QSTR_x509), MP_ROM_PTR((mp_obj_module_t *)&x509_module)},
     {MP_ROM_QSTR(MP_QSTR_hazmat), MP_ROM_PTR((mp_obj_module_t *)&crypto_pkg_hazmat_module)},
 };
