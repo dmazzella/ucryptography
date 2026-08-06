@@ -2,9 +2,36 @@
 
 <b><i>Lightweight porting of [cryptography](https://github.com/pyca/cryptography)  to Micropython based on [ARM Mbed TLS](https://github.com/ARMmbed/mbedtls)</i></b>
 
-> [!TIP]
-> If you find **ucryptography** useful, consider :star: this project
-> and why not ... [Buy me a coffee](https://www.buymeacoffee.com/damianomazp) :smile:
+- Drop-in **PyCA `cryptography` import paths** — the same nested imports run on MicroPython and CPython + PyCA.
+- Wraps [ARM Mbed TLS](https://github.com/ARMmbed/mbedtls); no extra native dependency.
+- Portable across MicroPython ports: unix, esp32, stm32, rp2, …
+- Compile-time **feature toggles** to stub unused APIs and shrink the build (see *How to build*).
+
+## Supported API
+
+The API mirrors PyCA [`cryptography`](https://github.com/pyca/cryptography) at the
+**same import paths** (`cryptography.hazmat.primitives[.asymmetric].*`, plus
+`cryptography.exceptions` and `cryptography.x509[.oid]`), so the same nested imports
+run unchanged on both MicroPython (this module) and CPython + PyCA.
+(`utils.RFC6979` is a ucryptography-only extension, not part of PyCA.)
+
+| Namespace | Implemented | Not yet |
+|---|---|---|
+| `hashes` | SHA1, SHA256, SHA384, SHA512, BLAKE2s, Hash | — |
+| `hmac` | HMAC | — |
+| `ciphers` | Cipher; algorithms AES, TripleDES; modes CBC, ECB, GCM; AESGCM | ChaCha20Poly1305, AESCCM, AESSIV, AESOCB3, AESGCMSIV |
+| `serialization` | load/dump public+private (DER, PEM); Encoding (DER, PEM, X962, Raw); Public/PrivateFormat; NoEncryption; BestAvailableEncryption | encrypted PKCS#8 write |
+| `rsa` | public/private keys + numbers, generate_private_key, sign/verify, rsa_crt_iqmp/dmp1/dmq1, rsa_recover_prime_factors | — |
+| `ec` | ECDH, ECDSA, SECP256R1/384R1/521R1, public/private keys + numbers, generate/derive, from_encoded_point | curves beyond NIST P-256/384/521 |
+| `ed25519` | Ed25519PrivateKey, Ed25519PublicKey | — |
+| `padding` | PKCS1v15, PSS, OAEP, MGF1, calculate_max_pss_salt_length | — |
+| `utils` | Prehashed, constant_time_bytes_eq, encode/decode_dss_signature, bit_length, rsa_deduce_private_exponent, RFC6979 | — |
+| `twofactor` | HOTP, TOTP | — |
+| `x509` | load cert & CSR (DER, PEM); Certificate; CertificateBuilder; CSR + builder; Name, NameAttribute, ObjectIdentifier, NameOID; extensions (BasicConstraints, KeyUsage, ExtendedKeyUsage + OID, SubjectAlternativeName, DNSName, IPAddress, SubjectKeyIdentifier, AuthorityKeyIdentifier, UnrecognizedExtension); random_serial_number | chain verification (PolicyBuilder / Store / Verifier), CRL, OCSP |
+| `exceptions` | InvalidSignature, AlreadyFinalized, UnsupportedAlgorithm, InvalidKey, InvalidToken | — |
+| `dsa`, `dh`, `x25519`, `x448`, `ed448` | — | whole module |
+| KDFs (`hkdf`, `pbkdf2hmac`, `scrypt`, `concatkdf`, `x963kdf`) | — | whole module |
+| `fernet` | — | whole module |
 
 ## Basic usage
 
@@ -151,117 +178,10 @@ request, and any other requested extension is exposed as an
 </p>
 </details>
 
+## Support
 
-## Goals 
+Development help is welcome: issues, pull requests and discussions are all appreciated.
 
-- [x] ciphers
-  - [x] AESGCM
-  - [x] Cipher
-  - [x] algorithms
-    - [x] AES
-    - [x] TripleDES
-  - [x] modes
-    - [x] CBC
-    - [x] ECB
-    - [x] GCM
-- [x] ec
-  - [x] ECDH
-  - [x] ECDSA
-  - [x] SECP256R1
-  - [x] SECP384R1
-  - [x] SECP521R1
-  - [x] EllipticCurvePublicKey
-    - [x] from_encoded_point
-  - [x] EllipticCurvePublicNumbers
-  - [x] EllipticCurvePrivateKey
-  - [x] EllipticCurvePrivateNumbers
-  - [x] generate_private_key
-  - [x] derive_private_key
-- [x] ed25519
-  - [x] Ed25519PrivateKey
-  - [x] Ed25519PublicKey
-- [x] exceptions
-  - [x] InvalidSignature
-  - [x] AlreadyFinalized
-  - [x] UnsupportedAlgorithm
-  - [x] InvalidKey
-  - [x] InvalidToken
-- [x] hashes
-  - [x] SHA1
-  - [x] SHA256
-  - [x] SHA384
-  - [x] SHA512
-  - [x] BLAKE2s
-  - [x] Hash
-- [x] hmac
-  - [x] HMAC
-- [x] padding
-  - [x] PKCS1v15
-  - [x] PSS
-  - [x] OAEP
-  - [x] MGF1
-  - [x] calculate_max_pss_salt_length
-- [x] rsa
-  - [x] RSAPublicKey
-  - [x] RSAPublicNumbers
-  - [x] RSAPrivateKey
-  - [x] RSAPrivateNumbers
-  - [x] rsa_crt_iqmp
-  - [x] rsa_crt_dmp1
-  - [x] rsa_crt_dmq1
-  - [x] rsa_recover_prime_factors
-  - [x] generate_private_key
-- [x] serialization
-  - [x] load_der_public_key
-  - [x] load_der_private_key
-  - [x] load_pem_public_key
-  - [x] load_pem_private_key
-  - [x] NoEncryption
-  - [x] BestAvailableEncryption
-  - [x] Encoding
-    - [x] DER
-    - [x] PEM
-    - [x] X962
-    - [x] Raw
-  - [x] PublicFormat
-    - [x] SubjectPublicKeyInfo
-    - [x] UncompressedPoint
-    - [x] Raw
-  - [x] PrivateFormat
-    - [x] TraditionalOpenSSL
-    - [x] Raw
-- [x] twofactor
-  - [x] HOTP
-  - [x] TOTP
-- [x] utils
-  - [x] RFC6979
-  - [x] Prehashed
-  - [x] constant_time_bytes_eq
-  - [x] bit_length
-  - [x] encode_dss_signature
-  - [x] decode_dss_signature
-  - [x] rsa_deduce_private_exponent
-- [x] x509
-  - [x] load_der_x509_certificate
-  - [x] load_pem_x509_certificate
-  - [x] random_serial_number
-  - [x] Certificate
-  - [x] CertificateBuilder
-  - [x] Name
-  - [x] NameAttribute
-  - [x] ObjectIdentifier
-  - [x] NameOID
-  - [x] SubjectAlternativeName
-  - [x] DNSName
-  - [x] IPAddress
-  - [x] BasicConstraints
-  - [x] KeyUsage
-  - [x] ExtendedKeyUsage
-  - [x] ExtendedKeyUsageOID
-  - [x] SubjectKeyIdentifier
-  - [x] AuthorityKeyIdentifier
-  - [x] UnrecognizedExtension
-  - [x] load_der_x509_csr
-  - [x] load_pem_x509_csr
-  - [x] CertificateSigningRequest
-  - [x] CertificateSigningRequestBuilder
+> [!TIP]
+> If you find **ucryptography** useful, consider :star: this project
+> and why not ... [Buy me a coffee](https://www.buymeacoffee.com/damianomazp) :smile:
