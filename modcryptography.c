@@ -50,7 +50,13 @@
 #if defined(__thumb2__) || defined(__thumb__) || defined(__arm__)
 #if MICROPY_HW_ENABLE_RNG
 #include "rng.h"
+// Portable across the stm32 rng_get()->mp_hal_get_hw_random_u32() rename: the port's
+// RNG seed macro expands to whichever HW-random reader this MicroPython version has.
+#ifdef MICROPY_PY_RANDOM_SEED_INIT_FUNC
+#define rand() MICROPY_PY_RANDOM_SEED_INIT_FUNC
+#else
 #define rand() rng_get()
+#endif
 #endif // MICROPY_HW_ENABLE_RNG
 #endif
 
